@@ -65,9 +65,10 @@ export function parseFrame(value: unknown, expectedSteamId: string, matchmaking:
   const { packet, player, hero } = g
   return {
     clock: Math.floor(g.clock), heroSlug: g.heroSlug, heroId: heroBySlug.get(g.heroSlug) ?? null, level: stat(hero.level),
-    alive: hero.alive !== false, gold: stat(player.gold), gpm: stat(player.gpm), xpm: stat(player.xpm),
+    alive: hero.alive !== false, respawnSeconds: hero.alive === false ? stat(hero.respawn_seconds) : null,
+    gold: stat(player.gold), gpm: stat(player.gpm), xpm: stat(player.xpm),
     lastHits: stat(player.last_hits), denies: stat(player.denies), kills: stat(player.kills), deaths: stat(player.deaths),
-    assists: stat(player.assists), items: ownItems(packet.items), paused: g.map.paused === true,
+    assists: stat(player.assists), items: ownItems(packet.items), itemsObserved: Object.keys(asRecord(packet.items)).some((key) => /^slot\d+$/.test(key)), paused: g.map.paused === true,
     matchmaking: ![0, '0'].includes(g.map.matchid as string | number),
     team: String(player.team_name).toLowerCase() === 'dire' ? 'Dire' : 'Radiant', radiantScore: stat(g.map.radiant_score), direScore: stat(g.map.dire_score), killStreak: stat(player.kill_streak),
   }
@@ -100,14 +101,13 @@ export function parseDraft(value: unknown): DraftReveal | null {
   if (!Object.keys(draft).length) return null
   const side = (raw: unknown) => {
     const team = asRecord(raw)
-    const read = (kind: 'pick' | 'ban') => Object.keys(team).flatMap((key) => {
-      const m = key.match(new RegExp('^' + kind + '(\\d+)_class$'))
-      if (!m) return []
-      const slug = typeof team[key] === 'string' ? (team[key] as string).replace(/^npc_dota_hero_/, '') : ''
-      const id = heroBySlug.get(slug) ?? number(team[kind + m[1] + '_id'])
+    const read = (kind: 'pick' | 'ban', length: number) => Array.from({ length }, (_, index) => index).flatMap((index) => {
+      const heroClass = team[`${kind}${index}_class`]
+      const slug = typeof heroClass === 'string' ? heroClass.replace(/^npc_dota_hero_/, '') : ''
+      const id = heroBySlug.get(slug) ?? stat(team[`${kind}${index}_id`])
       return id != null && heroById.has(id) ? [id] : []
     })
-    return { picks: [...new Set(read('pick'))], bans: [...new Set(read('ban'))] }
+    return { picks: [...new Set(read('pick', 5))], bans: [...new Set(read('ban', 12))] }
   }
   const active = number(draft.activeteam)
   return {
@@ -116,7 +116,7 @@ export function parseDraft(value: unknown): DraftReveal | null {
   }
 }
 
-/** Pick/strategy phase: GSI gives players only their own side + locked hero. Enemy/ally picks are NOT exposed (draft = {}). */
+/** Verify that a draft packet belongs to the linked player before using its own hero or draft reveals. */
 export function parsePick(value: unknown, expectedSteamId: string): Pick | null {
   const packet = asRecord(value)
   const map = asRecord(packet.map)
@@ -126,8 +126,11 @@ export function parsePick(value: unknown, expectedSteamId: string): Pick | null 
     !['radiant', 'dire'].includes(team) ||
     (player.activity != null && player.activity !== 'playing') || Object.keys(player).some((key) => /^(team\d+|player\d+|radiant|dire)$/.test(key)) || map.spectating === true || map.replay === true ||
     !pickPhases.has(String(map.game_state))) return null
-  const id = number(asRecord(packet.hero).id)
-  return { team: team === 'radiant' ? 'Radiant' : 'Dire', heroId: id != null && id > 0 ? id : null }
+  const hero = asRecord(packet.hero)
+  if (Object.keys(hero).some((key) => /^(team\d+|player\d+|radiant|dire)$/.test(key))) return null
+  const id = stat(hero.id)
+  const slugId = typeof hero.name === 'string' && hero.name.startsWith('npc_dota_hero_') ? heroBySlug.get(hero.name.slice(14)) : undefined
+  return { team: team === 'radiant' ? 'Radiant' : 'Dire', heroId: id != null && heroById.has(id) ? id : slugId ?? null }
 }
 
 export function redactedShape(value: unknown, accepted: boolean) {

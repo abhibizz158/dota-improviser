@@ -86,6 +86,7 @@ const sourced = <T,>(data: T): SourceResult<T> => ({ data, updatedAt: Date.now()
 export const initialLive: LiveState = {
   view: 'lane', interactive: false, draft: emptyDraft, pick: null, coach: null, data: { state: 'idle', done: 0, total: 0, updatedAt: 0, message: '' }, support: null, game: null, toasts: [], career: {},
   status: 'Idle', lane: null, receivedAt: null, open: false, armed: false, pace: [], checkpoints: [], settings: defaultLiveSettings, shortcutAvailable: true, roshan: emptyRoshan,
+  recovery: null, awards: {}, assistantShortcutAvailable: false,
 }
 let sampleLive = initialLive
 const listeners = new Set<(state: LiveState) => void>()
@@ -119,7 +120,7 @@ export const browserApi: AppApi = {
     window.open(links[target], '_blank', 'noopener,noreferrer')
   },
   async draft(input: DraftInput) {
-    sampleDraft = { ...sampleDraft, ...input }
+    sampleDraft = { ...sampleDraft, ...input, role: input.role ?? sampleDraft.role }
     const { seed, db, kits, base, mech } = await webData()
     const levels = roleLevels(kits)
     const brain = { heroes: demoCatalog.heroes, ...sampleDraft, banned: [] as number[], seed, live: {}, profile: { heroes: {}, pairs: {} }, overrides: {}, stale: false, base, levels, mech }
@@ -162,6 +163,9 @@ export const browserApi: AppApi = {
   async disconnectUpdates() { return this.updateStatus() },
   async installUpdate() {},
   onUpdate() { return () => {} },
+  async toggleAssistant() { return sampleLive },
+  async askLiveCoach() { throw new Error('Open the desktop app and connect Puter AI to ask a question.') },
+  onAchievementSound() { return () => {} },
   onLive(fn) { listeners.add(fn); return () => { listeners.delete(fn) } },
 }
 

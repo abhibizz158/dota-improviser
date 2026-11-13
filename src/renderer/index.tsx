@@ -1,11 +1,12 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Activity, ArrowDownToLine, ArrowRight, BookOpen, BrainCircuit, CircleHelp, Database, Gamepad2, LayoutDashboard, PanelTop, Radio, Settings2, ShieldCheck, Swords, UserRound } from 'lucide-react'
+import { Activity, ArrowDownToLine, ArrowRight, Award, BookOpen, BrainCircuit, CircleHelp, Database, Gamepad2, LayoutDashboard, PanelTop, Radio, Settings2, ShieldCheck, Swords, UserRound } from 'lucide-react'
 import type { AppApi, Bootstrap, LiveState, MatchSummary, PuterStatus, SourceResult, UpdateInfo } from '../shared/model'
 import { browserApi, demoCatalog, demoHistory, initialLive } from './demo'
 import { Overview } from './overview'
-import { CoachCard, Dialog, DraftCard, Feedback, LaneCard, RoshanTimer, Toasts, clock } from './ui'
+import { AssistantCard, CoachCard, Dialog, DraftCard, Feedback, LaneCard, RecoveryCard, RoshanTimer, Toasts, clock } from './ui'
 import { fairPlay } from '../shared/guard'
+import { playAchievementChime } from './sound'
 import '@fontsource-variable/inter/wght.css'
 import '@fontsource/barlow-condensed/latin-700.css'
 import '@fontsource/barlow-condensed/latin-800.css'
@@ -14,7 +15,7 @@ import './styles.css'
 declare global {
   interface Window {
     dota?: AppApi
-    overlayApi?: { height: (height: number) => void; state: () => Promise<LiveState>; draft: AppApi['draft'] extends (i: infer I) => unknown ? (i: I) => Promise<unknown> : never; done: () => Promise<void>; onLive: AppApi['onLive'] }
+    overlayApi?: { height: (height: number) => void; state: () => Promise<LiveState>; draft: AppApi['draft'] extends (i: infer I) => unknown ? (i: I) => Promise<unknown> : never; done: () => Promise<void>; ask: (question: string) => Promise<string>; onAchievementSound: (callback: () => void) => () => void; onLive: AppApi['onLive'] }
   }
 }
 const Draft = lazy(() => import('./draft').then((module) => ({ default: module.Draft })))
@@ -22,12 +23,14 @@ const LiveSetup = lazy(() => import('./live').then((module) => ({ default: modul
 const Review = lazy(() => import('./review').then((module) => ({ default: module.Review })))
 const Heroes = lazy(() => import('./heroes').then((module) => ({ default: module.Heroes })))
 const Know = lazy(() => import('./know').then((module) => ({ default: module.Know })))
+const Achievements = lazy(() => import('./achievements').then((module) => ({ default: module.Achievements })))
 const api = window.dota ?? browserApi
 const pages = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'draft', label: 'Draft & Builds', icon: Swords },
   { id: 'heroes', label: 'Heroes', icon: Database },
   { id: 'live', label: 'Live & Coach', icon: Radio },
+  { id: 'achievements', label: 'Achievements', icon: Award },
   { id: 'review', label: 'Match Review', icon: Activity },
   { id: 'know', label: 'Know', icon: BookOpen },
 ] as const
@@ -55,17 +58,22 @@ function Overlay() {
     if (element) observer.observe(element)
     const unsubscribe = window.overlayApi.onLive((state) => { received = true; setLive(state) })
     void window.overlayApi.state().then((state) => { if (active && !received) setLive(state) }).catch(() => {})
-    return () => { active = false; observer.disconnect(); unsubscribe() }
+    const stopSound = window.overlayApi.onAchievementSound(playAchievementChime)
+    return () => { active = false; observer.disconnect(); unsubscribe(); stopSound() }
   }, [])
   const hero = demoCatalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
   const compact = live.settings.size === 'Compact'
+  const editorial = live.view !== 'draft' && live.view !== 'assistant'
   return <div className={'overlay-scroll' + (live.interactive ? ' interactive' : '')}><div className="overlay-view" ref={card}>
-    {live.view === 'draft'
+    {live.view === 'assistant'
+      ? <AssistantCard ask={window.overlayApi?.ask} done={window.overlayApi?.done} />
+      : live.view === 'draft'
       ? <DraftCard live={live} heroes={demoCatalog.heroes} send={window.overlayApi?.draft} done={window.overlayApi?.done} />
       : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={demoCatalog.heroes} settings={live.settings} compact={compact} heroName={demoCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
         : <LaneCard live={live} hero={hero} />}
-    {live.settings.features.roshanTimer && live.view !== 'draft' && <RoshanTimer roshan={live.roshan} />}
-    {!compact && live.settings.features.toasts && live.view !== 'draft' && <Toasts toasts={live.toasts} />}
+    {live.settings.features.deathAdvice && live.recovery && editorial && <RecoveryCard recovery={live.recovery} />}
+    {live.settings.features.roshanTimer && editorial && <RoshanTimer roshan={live.roshan} />}
+    {!compact && live.settings.features.toasts && editorial && <Toasts toasts={live.toasts} />}
   </div></div>
 }
 
@@ -121,7 +129,7 @@ function App() {
         void api.cachedHistory().then((saved) => { if (saved && mounted && pending === request.current) setHistory(saved) }).catch(() => {})
       }
       latestLive.current = value
-      if (styleChanged || downloadChanged || currentPage.current === 'live' || currentPage.current === 'draft' || currentPage.current === 'heroes' || currentPage.current === 'know') setLive(value)
+      if (styleChanged || downloadChanged || currentPage.current === 'live' || currentPage.current === 'draft' || currentPage.current === 'heroes' || currentPage.current === 'know' || currentPage.current === 'achievements') setLive(value)
     })
     void api.bootstrap().then((value) => {
       if (!mounted) return
@@ -137,6 +145,7 @@ function App() {
   }, [])
 
   useEffect(() => { void api.puterStatus().then((value) => { setPuter(value); setPuterModelDraft(value.model) }).catch(() => {}) }, [])
+  useEffect(() => api.onAchievementSound(playAchievementChime), [])
   useEffect(() => {
     let eventReceived = false
     const unsubscribe = api.onUpdate((info) => { eventReceived = true; setAppUpdate(info) })
@@ -304,6 +313,7 @@ function App() {
             id={selection.id} sample={selection.sample} history={selection.sample ? demoHistory : history?.data ?? []} onImport={() => showModal('import')} onBack={() => navigate('overview')} />}
           {page === 'draft' && <Draft api={api} catalog={context.catalog} sample={sample} live={live} account={context.accountId} onMatch={(id) => openMatch(id, false)} />}
           {page === 'heroes' && <Heroes api={api} live={live} catalog={context.catalog} onDraft={(id) => { void api.draft({ pool: [...new Set([...latestLive.current.draft.pool, id])] }); navigate('draft') }} />}
+          {page === 'achievements' && <Achievements catalog={context.catalog} live={live} />}
           {page === 'live' && <LiveSetup api={api} context={context} live={live} onState={setLive} onAccount={() => showModal('account')} />}
           {page === 'know' && <Know api={api} catalog={context.catalog} live={live} puter={puter} />}
           </Suspense>

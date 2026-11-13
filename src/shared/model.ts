@@ -5,9 +5,11 @@ import type { GameEvent, GameTrack } from './game.js'
 import type { CorpusDoc } from './corpus.js'
 import type { RoshanState } from './roshan.js'
 import type { FeatureName, Fix, Kit, TeamProfile } from './mechanics.js'
+import type { AwardRecord, Recovery, RoleChoice } from './live-coach.js'
 
 export type Role = 'Carry' | 'Mid' | 'Offlane' | 'Soft support' | 'Hard support'
 export const roles: Role[] = ['Carry', 'Mid', 'Offlane', 'Soft support', 'Hard support']
+export const roleLabels: Record<Role, string> = { Carry: 'Safelane', Mid: 'Mid', Offlane: 'Offlane', 'Soft support': 'Support', 'Hard support': 'Hard support' }
 export type Hero = { id: number; slug: string; name: string; roles: string[]; ranged?: boolean }
 export type MatchSummary = {
   id: string; heroId: number; start: number; duration: number; won: boolean | null; side: 'Radiant' | 'Dire';
@@ -35,24 +37,27 @@ export type DataStatus = { state: 'idle' | 'updating' | 'ready' | 'error'; done:
 export const placements = ['Auto', 'Top left', 'Top right', 'Bottom left', 'Bottom right'] as const
 export type Placement = typeof placements[number]
 export type DisplayChoice = { id: string; name: string }
-export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'coachTips', 'achievements', 'personal', 'hints', 'toasts', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'learning', 'patchAware'] as const
+export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'coachTips', 'achievements', 'personal', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'learning', 'patchAware'] as const
 export type FeatureKey = typeof featureKeys[number]
 export type Features = Record<FeatureKey, boolean>
-export const defaultFeatures = Object.fromEntries(featureKeys.map((k) => [k, true])) as Features
+export const defaultFeatures = Object.fromEntries(featureKeys.map((k) => [k, k !== 'achievementSound'])) as Features
 export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intelligence' | 'Automation'; label: string; help: string }> = {
   winMeter: { group: 'Overlay modules', label: 'Lineup win meter', help: 'Estimated edge of your lineup vs theirs while drafting.' },
   roshanTimer: { group: 'Overlay modules', label: 'Roshan / Aegis timer', help: 'A stopwatch you start yourself (hotkey or button) when Roshan dies. Reads nothing from the game.' },
   bans: { group: 'Overlay modules', label: 'Show bans', help: 'Banned heroes row in the draft overlay.' },
   laneWatch: { group: 'Overlay modules', label: 'Lane watch', help: 'Your win rate vs each revealed enemy, plus lineup advice.' },
   coachTips: { group: 'Overlay modules', label: 'Coach tips', help: 'Live tips: farm, unspent gold, deaths.' },
-  achievements: { group: 'Overlay modules', label: 'Achievements', help: 'Item timing and last-hit goals, e.g. Battle Fury by 10:00.' },
+  achievements: { group: 'Overlay modules', label: 'Track practice achievements', help: 'Record hero and role item milestones and timed goals.' },
   personal: { group: 'Overlay modules', label: 'Your own average', help: 'Compare with your average on this hero.' },
   hints: { group: 'Overlay modules', label: 'Hotkey hints', help: 'Footer line with shortcuts.' },
   toasts: { group: 'Overlay modules', label: 'Achievement pop-ups', help: 'Animated banners for first blood, multi-kills, streaks and goals.' },
+  achievementSound: { group: 'Overlay modules', label: 'Dota achievement sound', help: 'Play a Valve chat-wheel sound when an achievement is awarded.' },
+  overlayAssistant: { group: 'Overlay modules', label: 'Puter overlay assistant', help: 'Ask about your draft or practice game with Ctrl/⌘ + Shift + F7.' },
+  deathAdvice: { group: 'Overlay modules', label: 'Respawn coach', help: 'Show a next step based on your role, build and practice stats while dead.' },
   momentum: { group: 'Overlay modules', label: 'Momentum graph', help: 'Kill lead of your team over the game, like Dota\'s own advantage graph.' },
   multikills: { group: 'Intelligence', label: 'Kill tracking', help: 'Detect first blood, double/triple/ultra kill, rampage and streaks from your own feed.' },
   phaseAdaptive: { group: 'Automation', label: 'Adapt overlay to game phase', help: 'Laning and mid game show full detail; late game trims to essentials.' },
-  adaptiveRole: { group: 'Intelligence', label: 'Adapt to my role per hero', help: 'Score farm vs support impact using the role you usually play this hero in.' },
+  adaptiveRole: { group: 'Intelligence', label: 'Estimate my role automatically', help: 'Use your hero, match history and known lineup. Match and hero overrides take priority.' },
   styleProfile: { group: 'Intelligence', label: 'Playstyle profile', help: 'Classify your style (carry, dynamic support, endurance...) from your matches.' },
   autoOpen: { group: 'Automation', label: 'Open draft overlay at pick phase', help: 'Show the draft card when hero selection starts.' },
   autoUpdate: { group: 'Automation', label: 'Update data after patches', help: 'Refetch public hero data in the background after a Dota update.' },
@@ -61,10 +66,10 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
 }
 export type LiveSettings = {
   display: 'Overlay' | 'Companion'; size: 'Compact' | 'Large'; placement: Placement; monitor: string;
-  role: Role; cues: boolean; coach: boolean; opacity: number; detailed: boolean; saveOwnMatches: boolean; features: Features
+  role: Role; heroRoles: Record<number, Role>; cues: boolean; coach: boolean; opacity: number; detailed: boolean; saveOwnMatches: boolean; features: Features
 }
 export const defaultLiveSettings: LiveSettings = {
-  display: 'Overlay', size: 'Compact', placement: 'Auto', monitor: 'auto', role: 'Carry', cues: false, coach: false, opacity: 0.94, detailed: true, saveOwnMatches: false, features: defaultFeatures,
+  display: 'Overlay', size: 'Compact', placement: 'Auto', monitor: 'auto', role: 'Carry', heroRoles: {}, cues: false, coach: false, opacity: 0.94, detailed: true, saveOwnMatches: false, features: defaultFeatures,
 }
 export type Lane = {
   clock: number; heroSlug: string | null; lastHits: number | null; denies: number | null;
@@ -72,9 +77,10 @@ export type Lane = {
 }
 export type Checkpoint = { minute: 5 | 10; lastHits: number }
 export type Pace = Checkpoint & { matches: number }
-export type DraftInput = Partial<{ enemy: number[]; allied: number[]; pool: number[]; role: Role }>
+export type DraftInput = Partial<{ enemy: number[]; allied: number[]; pool: number[]; ownHero: number | null; role: Role | null }>
 export type DraftView = {
   enemy: number[]; allied: number[]; pool: number[]; role: Role; suggestions: Suggestion[]
+  ownHero: number | null; lockedHero: number | null; revealedEnemy: number[]; revealedAllied: number[]; roleChoice: RoleChoice
   bans: number[]; timeLeft: number | null; activeTeam: 'Radiant' | 'Dire' | null; teamWin: number | null
   model: { samples: number; comfortWeight: number }; patched: number[]; avoid: Suggestion[]; analysis: Analysis
   stale: boolean; seedPatch: string; build: number | null; patchChanged: boolean; loading: boolean; personal: number
@@ -82,6 +88,7 @@ export type DraftView = {
 export const emptyDraft: DraftView = {
   enemy: [], allied: [], pool: [], role: 'Carry', bans: [], timeLeft: null, activeTeam: null, teamWin: null, model: { samples: 0, comfortWeight: 0.5 }, patched: [], avoid: [], analysis: { enemy: null, ally: null, fixes: [], model: null }, suggestions: [], stale: true, seedPatch: '', build: null,
   patchChanged: false, loading: false, personal: 0,
+  ownHero: null, lockedHero: null, revealedEnemy: [], revealedAllied: [], roleChoice: { role: 'Carry', source: 'Default', override: null },
 }
 export type LocalStatus = { installFound: boolean; gsiInstalled: boolean; steamFound: boolean; build: number | null; localBuilds: number }
 export type PuterStatus = { connected: boolean; saved: boolean; model: string }
@@ -90,7 +97,7 @@ export type UpdateInfo = { current: string; latest: string | null; connected: bo
 export type Frame = {
   clock: number; heroSlug: string; heroId: number | null; level: number | null; alive: boolean; gold: number | null
   gpm: number | null; xpm: number | null; lastHits: number | null; denies: number | null; kills: number | null
-  deaths: number | null; assists: number | null; items: string[]; paused: boolean; matchmaking: boolean
+  deaths: number | null; assists: number | null; items: string[]; itemsObserved: boolean; respawnSeconds: number | null; paused: boolean; matchmaking: boolean
   team: 'Radiant' | 'Dire'; radiantScore: number | null; direScore: number | null; killStreak: number | null
 }
 export type DraftReveal = { radiant: { picks: number[]; bans: number[] }; dire: { picks: number[]; bans: number[] }; activeTeam: 'Radiant' | 'Dire' | null; timeLeft: number | null }
@@ -100,10 +107,11 @@ export type GameView = {
   multi: Record<string, number>; best: string | null; streak: number; kills: number | null
 }
 export type Toast = GameEvent & { shownAt: number }
-export type OverlayView = 'lane' | 'draft'
+export type OverlayView = 'lane' | 'draft' | 'assistant'
 export type LiveState = {
   view: OverlayView; interactive: boolean; draft: DraftView; pick: Pick | null; coach: CoachView | null; data: DataStatus; support: Support | null; game: GameView | null; toasts: Toast[]; career: Record<string, number>;
   status: 'Idle' | 'Waiting for Dota' | 'Pick phase' | 'Live' | 'Paused' | 'Feed stale' | 'Unsupported session' | 'Connection error';
+  recovery: Recovery | null; awards: Record<string, AwardRecord>; assistantShortcutAvailable: boolean;
   lane: Lane | null; receivedAt: number | null; open: boolean; armed: boolean;
   pace: Pace[]; checkpoints: Checkpoint[]; settings: LiveSettings; shortcutAvailable: boolean; roshan: RoshanState
   displays?: DisplayChoice[]; overlayDisplay?: { name: string; following: boolean }
@@ -160,6 +168,9 @@ export interface AppApi {
   roshanClear(which: 'both' | 'aegis'): Promise<LiveState>;
   installConfig(): Promise<string>;
   toggleDraftOverlay(): Promise<LiveState>;
+  toggleAssistant(): Promise<LiveState>;
+  askLiveCoach(question: string): Promise<string>;
+  onAchievementSound(callback: () => void): () => void;
   checkUpdates(): Promise<UpdateInfo>;
   updateStatus(): Promise<UpdateInfo>;
   connectUpdates(token: string): Promise<UpdateInfo>;

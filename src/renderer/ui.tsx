@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ArrowDown, ArrowUp, Clock3, Gamepad2, Minus, Radio, Shield, Swords, Trophy, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BrainCircuit, Clock3, Gamepad2, Minus, Radio, Shield, Swords, Trophy, X } from 'lucide-react'
 import type { DraftInput, GameView, Hero, LiveSettings, LiveState, Toast } from '../shared/model.js'
 import { aegisView, clockText as roshanClock, roshanView } from '../shared/roshan.js'
 import type { RoshanState } from '../shared/roshan.js'
@@ -8,6 +8,7 @@ import type { CoachView } from '../shared/coach.js'
 import type { Support } from '../shared/guide.js'
 import type { Tip } from '../shared/coach.js'
 import type { ItemInfo } from '../shared/items.js'
+import type { Recovery } from '../shared/live-coach.js'
 import itemCatalog from 'virtual:dota-items'
 
 const base = import.meta.env.BASE_URL
@@ -123,7 +124,7 @@ export function DraftCard({ live, heroes, send, done }: { live: LiveState; heroe
   const [query, setQuery] = useState('')
   const { draft, interactive } = live
   const byId = (id: number) => heroes.find((hero) => hero.id === id)
-  const taken = new Set([...draft.enemy, ...draft.allied, ...draft.bans])
+  const taken = new Set([...draft.enemy, ...draft.allied, ...draft.bans, ...(draft.ownHero != null ? [draft.ownHero] : [])])
   const matches = query.length > 0 ? heroes.filter((hero) => !taken.has(hero.id) && hero.name.toLowerCase().includes(query.toLowerCase())).slice(0, 5) : []
   const pick = (ally: boolean, hero = matches[0]) => {
     if (!hero || !send) return
@@ -137,9 +138,10 @@ export function DraftCard({ live, heroes, send, done }: { live: LiveState; heroe
   const reason = (item: (typeof draft.suggestions)[number]) => { const best = [...item.why].sort((a, b) => b.rate - a.rate)[0]; return best ? 'best vs ' + (byId(best.enemy)?.name ?? 'enemy') + ' ' + fmt(best.rate * 100, 0) + '% (' + best.source + ')' + (draft.patched.includes(item.heroId) ? ' · patched recently' : '') : '' }
   return <article className="draft-card">
     {canEdit && <div className="overlay-edit"><span>Editing draft picks</span><button type="button" onClick={() => void done?.()}>Done <kbd>Esc</kbd></button></div>}
-    <Head icon={<Swords size={13} />} tag={'Draft' + (draft.activeTeam ? ' · ' + draft.activeTeam + ' picking' : '')} sub={draft.role + (draft.timeLeft != null ? ' · ' + Math.round(draft.timeLeft) + 's' : '')} />
+    <Head icon={<Swords size={13} />} tag={'Draft' + (draft.activeTeam ? ' · ' + draft.activeTeam + ' picking' : '')} sub={draft.role + ' · ' + draft.roleChoice.source + (draft.timeLeft != null ? ' · ' + Math.round(draft.timeLeft) + 's' : '')} />
+    {draft.ownHero != null && <div className="ov-team you"><span className="lbl you">You</span><span className="ov-pick" title={byId(draft.ownHero)?.name}><Portrait hero={byId(draft.ownHero)} />{byId(draft.ownHero)?.name}</span></div>}
     <Team label="Enemy" tone="e" ids={draft.enemy} heroes={heroes} remove={canEdit ? (id) => void send({ enemy: draft.enemy.filter((x) => x !== id) }) : undefined} />
-    <Team label="Allies" tone="a" ids={draft.allied} heroes={heroes} remove={canEdit ? (id) => void send({ allied: draft.allied.filter((x) => x !== id) }) : undefined} />
+    <Team label="Teammates" tone="a" ids={draft.allied} heroes={heroes} remove={canEdit ? (id) => void send({ allied: draft.allied.filter((x) => x !== id) }) : undefined} />
     {f.bans && draft.bans.length > 0 && <div className="ov-team bans"><span className="lbl">Bans</span>{draft.bans.slice(0, 10).map((id) => <Portrait key={id} hero={byId(id)} />)}</div>}
     {f.winMeter && <WinMeter allied={draft.teamWin} />}
     {canEdit && <div className="draft-entry"><input autoFocus spellCheck={false} aria-label="Find hero to add" placeholder="Search heroes" value={query}
@@ -268,5 +270,39 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
     {f.personal && coach.personal && <small className="draft-note">Your avg on this hero: {coach.personal.gpm} GPM · {coach.personal.xpm} XPM ({coach.personal.n} games, patch-weighted)</small>}
     {!coach.benchmarkAvailable && <small className="draft-note">No benchmark data for this hero yet. Open Heroes → Update data now.</small>}
     {f.hints && <Foot>Score = percentile vs this hero's benchmarks · <kbd>{mod}F8</kbd> detail · <kbd>{mod}F10</kbd> hide</Foot>}
+  </article>
+}
+
+/** A next step while dead: role- and build-aware, from your own practice feed. Never reads whether or where the game will let you respawn. */
+export function RecoveryCard({ recovery }: { recovery: Recovery }) {
+  return <article className="recovery-card">
+    <Head icon={<Clock3 size={13} />} tag="Respawn coach" sub={recovery.seconds != null ? clock(recovery.seconds) + ' left' : ''} />
+    <b>{recovery.title}</b><p>{recovery.tip}</p>
+  </article>
+}
+
+/** Floating assistant: ask Puter AI about the current draft or practice game. Opened with Ctrl/⌘+Shift+F7. */
+export function AssistantCard({ ask, done }: { ask?: (question: string) => Promise<string>; done?: () => Promise<void> }) {
+  const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const submit = () => {
+    const text = question.trim()
+    if (!ask || !text || busy) return
+    setBusy(true); setError('')
+    void ask(text).then((value) => { setAnswer(value); setQuestion('') }).catch((reason: Error) => setError(reason.message)).finally(() => setBusy(false))
+  }
+  return <article className="assistant-card reveal">
+    <Head icon={<BrainCircuit size={13} />} tag="Ask the coach" sub="Puter AI" />
+    <textarea autoFocus rows={2} value={question} placeholder="Ask about this draft or your practice game…"
+      onChange={(event) => setQuestion(event.target.value)}
+      onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submit() } }} />
+    <div className="assistant-actions">
+      <button type="button" className="button primary slim" disabled={busy || !question.trim()} onClick={submit}>{busy ? 'Thinking…' : 'Ask'}</button>
+      {done && <button type="button" className="button secondary slim" onClick={() => void done()}>Done <kbd>Esc</kbd></button>}
+    </div>
+    {error && <small className="draft-note">{error}</small>}
+    {answer && <div className="assistant-answer">{answer.split(/\n{2,}/).map((para, i) => <p key={i}>{para}</p>)}</div>}
   </article>
 }

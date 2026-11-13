@@ -11,7 +11,7 @@ const trophyName = (id: string) => id === 'first-blood' ? 'First Blood' : id.sta
 const trophyRank = (id: string) => id.includes('Rampage') ? 0 : id.includes('Ultra') ? 1 : id.includes('Triple') ? 2 : id.includes('Double') ? 3 : id === 'first-blood' ? 4 : 5
 
 /** Career trophy case: every achievement your own game feed has recorded on this device. */
-function Trophies({ career }: { career: Record<string, number> }) {
+export function Trophies({ career }: { career: Record<string, number> }) {
   const rows = Object.entries(career).sort((a, b) => trophyRank(a[0]) - trophyRank(b[0]) || b[1] - a[1])
   return <section className="panel form-panel reveal">
     <header className="panel-heading"><div><h2>Trophy case</h2><p>Achievements recorded from your own games on this device</p></div></header>
@@ -97,6 +97,7 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
           void act('draftOverlay', async () => { onState(await api.toggleDraftOverlay()) })}><Layers3 size={16} />Edit draft overlay · Ctrl/⌘ + Shift + F9</button>
         <p className="fine-print">The overlay passes mouse input through during play. Edit draft picks with the button or shortcut; Done, Escape, or leaving the editor returns it to click-through. Use Borderless or Companion if fullscreen covers the overlay.</p>
         <p className="fine-print">{live.shortcutAvailable ? 'Hide shortcut · Ctrl/⌘ + Shift + F10' : 'The hide shortcut is unavailable. Use this window to hide the overlay.'}</p>
+        {settings.features.overlayAssistant && <p className="fine-print">{live.assistantShortcutAvailable ? 'Ask the AI assistant · Ctrl/⌘ + Shift + F7' : 'The assistant shortcut is unavailable on this device.'}</p>}
       </section>
     </div>
     <section className="panel form-panel">
