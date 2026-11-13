@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Dota Improviser">
+  <defs>
+    <radialGradient id="bg" cx=".5" cy=".42" r=".75"><stop offset="0" stop-color="#1b1112"/><stop offset=".55" stop-color="#0b0a0b"/><stop offset="1" stop-color="#030303"/></radialGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a5c"/><stop offset=".5" stop-color="#ff2f1f"/><stop offset="1" stop-color="#a30f0a"/></linearGradient>
+    <radialGradient id="halo" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ff2a18" stop-opacity=".55"/><stop offset=".6" stop-color="#ff2a18" stop-opacity=".12"/><stop offset="1" stop-color="#ff2a18" stop-opacity="0"/></radialGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a1516"/><stop offset="1" stop-color="#050505"/></linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="14" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
+  </defs>
+  <!-- black outer shell, curved edges -->
+  <rect width="1024" height="1024" rx="236" fill="url(#bg)"/>
+  <rect x="10" y="10" width="1004" height="1004" rx="228" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width="4"/>
+  <circle cx="512" cy="512" r="400" fill="url(#halo)"/>
+  <!-- emblem: chamfered black stone frame with a glowing blade -->
+  <g filter="url(#glow)">
+    <path d="M318 252H650L742 344V706L650 798H318L226 706V344Z" fill="url(#body)" stroke="url(#edge)" stroke-width="18" stroke-linejoin="round"/>
+    <path d="M692 300L766 364L384 800L282 716Z" fill="#060606" stroke="url(#edge)" stroke-width="18" stroke-linejoin="round"/>
+  </g>
+  <path d="M318 252H650L742 344V706L650 798H318L226 706V344Z" fill="none" stroke="#ffb08a" stroke-opacity=".5" stroke-width="3" stroke-linejoin="round" transform="translate(0 0)"/>
+  <path d="M688 318L748 368L392 772" fill="none" stroke="#ffd2b0" stroke-opacity=".7" stroke-width="5" stroke-linecap="round"/>
+  <path d="M668 372L330 724" fill="none" stroke="#ff4a2c" stroke-opacity=".55" stroke-width="10" stroke-linecap="round" filter="url(#soft)"/>
+  <!-- embers -->
+  <g fill="#ff5a3c" filter="url(#soft)" opacity=".9">
+    <circle cx="786" cy="262" r="7"/><circle cx="262" cy="640" r="6"/><circle cx="820" cy="560" r="5"/><circle cx="230" cy="280" r="5"/><circle cx="700" cy="860" r="6"/><circle cx="350" cy="200" r="4"/>
+  </g>
+  <g fill="#ffd0a8">
+    <circle cx="786" cy="262" r="3"/><circle cx="262" cy="640" r="2.6"/><circle cx="820" cy="560" r="2.4"/><circle cx="230" cy="280" r="2.4"/><circle cx="700" cy="860" r="2.6"/><circle cx="350" cy="200" r="2"/>
+  </g>
+</svg>

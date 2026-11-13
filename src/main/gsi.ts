@@ -1,0 +1,190 @@
+import { createServer } from 'node:http'
+import { timingSafeEqual } from 'node:crypto'
+import type { AddressInfo } from 'node:net'
+import { asRecord, heroById, heroBySlug, number } from './data.js'
+import type { Checkpoint, DraftReveal, Frame, Lane, Pick } from '../shared/model.js'
+import { allowedGsiSections } from '../shared/guard.js'
+
+const activePhases = new Set(['DOTA_GAMERULES_STATE_PRE_GAME', 'DOTA_GAMERULES_STATE_GAME_IN_PROGRESS'])
+const pickPhases = new Set(['DOTA_GAMERULES_STATE_HERO_SELECTION', 'DOTA_GAMERULES_STATE_STRATEGY_TIME', 'DOTA_GAMERULES_STATE_PLAYER_DRAFT'])
+const practiceLobbyTypes = new Set([1, '1', 'DOTA_LOBBY_TYPE_PRACTICE'])
+const maxBody = 96 * 1024
+
+const stat = (value: unknown) => {
+  const result = number(value)
+  return result != null && Number.isSafeInteger(result) && result >= 0 ? result : null
+}
+
+function gate(value: unknown, expectedSteamId: string, matchmaking: boolean) {
+  const packet = asRecord(value)
+  const map = asRecord(packet.map)
+  const player = asRecord(packet.player)
+  const hero = asRecord(packet.hero)
+  const provider = asRecord(packet.provider)
+  const lobby = map.lobby_type ?? map.lobbytype
+  const clock = number(map.clock_time)
+  const heroSlug = typeof hero.name === 'string' && /^npc_dota_hero_[a-z0-9_]+$/.test(hero.name)
+    ? hero.name.slice('npc_dota_hero_'.length) : null
+  if (provider.appid !== 570 || !expectedSteamId || player.steamid !== expectedSteamId ||
+    player.activity !== 'playing' || !['radiant', 'dire'].includes(String(player.team_name).toLowerCase()) ||
+    // Current Dota builds omit lobby_type; real matches carry a nonzero matchid, so zero is the practice marker.
+    (!matchmaking && (![0, '0'].includes(map.matchid as string | number) || (lobby != null && !practiceLobbyTypes.has(lobby as string | number)))) ||
+    map.spectating === true || map.replay === true || !activePhases.has(String(map.game_state)) || clock == null || clock < -600 || clock > 21600 || !heroSlug ||
+    [player, hero].some((section) => Object.keys(section).some((key) => /^(team\d+|player\d+|radiant|dire)$/.test(key)))) return null
+  return { packet, map, player, hero, clock, heroSlug }
+}
+
+/** Own item keys from the player's own inventory: slots, backpack, stash, neutral. */
+export function ownItems(value: unknown) {
+  return Object.entries(asRecord(value)).flatMap(([slot, item]) => {
+    const name = asRecord(item).name
+    return /^(slot|stash|neutral|teleport)\d*$/.test(slot) && typeof name === 'string' && /^item_[a-z0-9_]+$/.test(name) ? [name.slice(5)] : []
+  })
+}
+
+/** Full own-player frame for the live coach. matchmaking=false restricts to practice lobbies. */
+export function parseFrame(value: unknown, expectedSteamId: string, matchmaking: boolean): Frame | null {
+  const g = gate(value, expectedSteamId, matchmaking)
+  if (!g) return null
+  const { packet, player, hero } = g
+  return {
+    clock: Math.floor(g.clock), heroSlug: g.heroSlug, heroId: heroBySlug.get(g.heroSlug) ?? null, level: stat(hero.level),
+    alive: hero.alive !== false, gold: stat(player.gold), gpm: stat(player.gpm), xpm: stat(player.xpm),
+    lastHits: stat(player.last_hits), denies: stat(player.denies), kills: stat(player.kills), deaths: stat(player.deaths),
+    assists: stat(player.assists), items: ownItems(packet.items), paused: g.map.paused === true,
+    matchmaking: ![0, '0'].includes(g.map.matchid as string | number),
+    team: String(player.team_name).toLowerCase() === 'dire' ? 'Dire' : 'Radiant', radiantScore: stat(g.map.radiant_score), direScore: stat(g.map.dire_score), killStreak: stat(player.kill_streak),
+  }
+}
+
+export function parsePracticeLane(value: unknown, expectedSteamId: string): Lane | null {
+  const g = gate(value, expectedSteamId, false)
+  if (!g) return null
+  return {
+    clock: Math.floor(g.clock), heroSlug: g.heroSlug, lastHits: stat(g.player.last_hits), denies: stat(g.player.denies),
+    deaths: stat(g.player.deaths), level: stat(g.hero.level), paused: g.map.paused === true,
+  }
+}
+
+export function updateCheckpoints(previous: Lane | null, next: Lane | null, values: Checkpoint[]) {
+  if (!previous || !next || previous.heroSlug !== next.heroSlug || next.clock < previous.clock) return []
+  if (next.paused || next.lastHits == null) return values
+  const lastHits = next.lastHits
+  return [...values, ...([5, 10] as const).flatMap((minute) => {
+    const time = minute * 60
+    return previous.clock < time && next.clock >= time && next.clock <= time + 8 &&
+      next.clock - previous.clock <= 12 && !values.some((value) => value.minute === minute)
+      ? [{ minute, lastHits }] : []
+  })]
+}
+
+/** Draft reveal as Dota sends it (team2 = Radiant, team3 = Dire). Reveals arrive in waves; this just reads whatever is present. */
+export function parseDraft(value: unknown): DraftReveal | null {
+  const draft = asRecord(asRecord(value).draft)
+  if (!Object.keys(draft).length) return null
+  const side = (raw: unknown) => {
+    const team = asRecord(raw)
+    const read = (kind: 'pick' | 'ban') => Object.keys(team).flatMap((key) => {
+      const m = key.match(new RegExp('^' + kind + '(\\d+)_class$'))
+      if (!m) return []
+      const slug = typeof team[key] === 'string' ? (team[key] as string).replace(/^npc_dota_hero_/, '') : ''
+      const id = heroBySlug.get(slug) ?? number(team[kind + m[1] + '_id'])
+      return id != null && heroById.has(id) ? [id] : []
+    })
+    return { picks: [...new Set(read('pick'))], bans: [...new Set(read('ban'))] }
+  }
+  const active = number(draft.activeteam)
+  return {
+    radiant: side(draft.team2), dire: side(draft.team3), activeTeam: active === 2 ? 'Radiant' : active === 3 ? 'Dire' : null,
+    timeLeft: number(draft.activeteam_time_remaining),
+  }
+}
+
+/** Pick/strategy phase: GSI gives players only their own side + locked hero. Enemy/ally picks are NOT exposed (draft = {}). */
+export function parsePick(value: unknown, expectedSteamId: string): Pick | null {
+  const packet = asRecord(value)
+  const map = asRecord(packet.map)
+  const player = asRecord(packet.player)
+  const team = String(player.team_name).toLowerCase()
+  if (asRecord(packet.provider).appid !== 570 || !expectedSteamId || player.steamid !== expectedSteamId ||
+    !['radiant', 'dire'].includes(team) ||
+    (player.activity != null && player.activity !== 'playing') || Object.keys(player).some((key) => /^(team\d+|player\d+|radiant|dire)$/.test(key)) || map.spectating === true || map.replay === true ||
+    !pickPhases.has(String(map.game_state))) return null
+  const id = number(asRecord(packet.hero).id)
+  return { team: team === 'radiant' ? 'Radiant' : 'Dire', heroId: id != null && id > 0 ? id : null }
+}
+
+export function redactedShape(value: unknown, accepted: boolean) {
+  const packet = asRecord(value)
+  const map = asRecord(packet.map)
+  const lobby = map.lobby_type ?? map.lobbytype
+  const sections = {
+    provider: ['appid'], map: ['matchid', 'lobby_type', 'lobbytype', 'game_state', 'clock_time', 'paused'],
+    player: ['steamid', 'activity', 'team_name', 'last_hits', 'denies', 'deaths'], hero: ['name', 'level'],
+  }
+  return {
+    receivedAt: new Date().toISOString(),
+    accepted,
+    context: {
+      matchId: [0, '0'].includes(map.matchid as string | number) ? 'zero' : map.matchid == null ? 'missing' : 'nonzero',
+      lobby: practiceLobbyTypes.has(lobby as string | number) ? 'practice' : lobby == null ? 'missing' : 'other',
+      activePhase: activePhases.has(String(map.game_state)),
+    },
+    fields: Object.fromEntries(Object.entries(sections).map(([name, fields]) => {
+      const section = asRecord(packet[name])
+      return [name, Object.fromEntries(fields.map((field) => [field, typeof section[field]]))]
+    })),
+  }
+}
+
+export function gsiConfig(port: number, token: string) {
+  return [
+    '"Dota Improviser"', '{', '  "uri" "http://127.0.0.1:' + port + '/gsi"',
+    '  "timeout" "2.0"', '  "buffer" "0.1"', '  "throttle" "1.0"', '  "heartbeat" "5.0"',
+    '  "auth"', '  {', '    "token" "' + token + '"', '  }',
+    '  "data"', '  {', ...allowedGsiSections.map((name) => '    "' + name + '" "1"'), '  }', '}', '',
+  ].join('\n')
+}
+
+export async function startGsi(token: string, onPacket: (packet: unknown) => void, port = 43182) {
+  const expected = Buffer.from(token)
+  const server = createServer({ requestTimeout: 5000, headersTimeout: 5000, connectionsCheckingInterval: 1000 }, (request, response) => {
+    const end = (status: number) => { if (!response.writableEnded) response.writeHead(status).end() }
+    const json = request.headers['content-type']?.split(';')[0].trim().toLowerCase()
+    // Source integrations may omit Content-Type. Reject browser origins and browser-simple text/form payloads.
+    if (request.method !== 'POST' || request.url !== '/gsi') { end(404); return }
+    if (request.headers.origin || request.headers['sec-fetch-site'] ||
+      (json && json !== 'application/json') || request.socket.remoteAddress !== '127.0.0.1') { end(403); return }
+    if (Number(request.headers['content-length']) > maxBody) { end(413); request.resume(); return }
+    request.setTimeout(4000, () => request.destroy())
+    const chunks: Buffer[] = []
+    let bytes = 0
+    request.on('error', () => end(400))
+    request.on('data', (chunk: Buffer) => {
+      bytes += chunk.length
+      if (bytes > maxBody) {
+        end(413)
+        request.destroy()
+      } else {
+        chunks.push(chunk)
+      }
+    })
+    request.on('end', () => {
+      if (bytes > maxBody) return
+      let value: unknown
+      try { value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown }
+      catch { end(400); return }
+      const supplied = asRecord(asRecord(value).auth).token
+      const actual = typeof supplied === 'string' ? Buffer.from(supplied) : Buffer.alloc(0)
+      if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) { end(401); return }
+      onPacket(value)
+      end(204)
+    })
+  })
+  server.maxConnections = 10
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(port, '127.0.0.1', () => { server.removeListener('error', reject); resolve() })
+  })
+  return { server, port: (server.address() as AddressInfo).port }
+}
