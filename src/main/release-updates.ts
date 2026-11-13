@@ -1,7 +1,7 @@
 import { app, safeStorage, shell } from 'electron'
 import { createHash } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
-import { mkdir, rename, rm, stat } from 'node:fs/promises'
+import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -120,6 +120,9 @@ export class ReleaseUpdates {
       }), createWriteStream(temp, { mode: 0o600, flags: 'wx' }), { signal })
       if (bytes !== asset.size || 'sha256:' + hash.digest('hex') !== asset.digest) throw new Error('The update failed its integrity check.')
       await rename(temp, file)
+      // Each version downloads under its own versioned filename; without this, every past installer piles up here forever.
+      const siblings = await readdir(directory).catch(() => [])
+      await Promise.all(siblings.filter((name) => name !== path.basename(file)).map((name) => rm(path.join(directory, name), { force: true }).catch(() => {})))
       return file
     } finally { await rm(temp, { force: true }).catch(() => {}) }
   }
