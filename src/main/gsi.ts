@@ -47,7 +47,7 @@ export function parseCompletedOwnMatch(value: unknown, expectedSteamId: string, 
   return { id, heroId, side, start: Math.floor(now / 1000) - Math.floor(g.clock), duration: Math.floor(g.clock),
     won: side.toLowerCase() === winner, kills: stat(g.player.kills), deaths: stat(g.player.deaths), assists: stat(g.player.assists),
     gpm: stat(g.player.gpm), xpm: stat(g.player.xpm), lastHits: stat(g.player.last_hits), denies: stat(g.player.denies),
-    patch: '', mode: '', role: null, source: 'local' }
+    patch: '', mode: '', role: null, source: 'local', status: 'completed' }
 }
 
 /** Own item keys from the player's own inventory: slots, backpack, stash, neutral. */

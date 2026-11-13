@@ -21,6 +21,9 @@ export type CoachView = {
   medians: { gpm: number | null; xpm: number | null; lhpm: number | null }
   planned?: { name: string; at: number | null }[]
   personal: { gpm: number; xpm: number; n: number } | null
+  /** True when GPM or XPM is both below your own recent average on this hero AND below the general-player benchmark
+   * for it: two independent signals agreeing, not just noise against one baseline. Debounced into a toast by main. */
+  lowPace: 'gpm' | 'xpm' | null
 }
 
 // Par times (seconds) for common power spikes in a normal All Pick game. Shown only when the hero's own item data lists them.
@@ -88,9 +91,20 @@ export function coach(frame: Frame, data: HeroData | undefined, percentiles: num
     if (score != null && score >= 70) tips.push({ level: 'good', text: `Ahead of pace for ${heroName} (${score}/100). Convert it into objectives.` })
   }
   // Self-learned baseline: your own recent average on this hero (patch- and recency-weighted).
-  if (mine && mine.n >= 3 && minutes >= 8 && frame.gpm != null) {
-    if (frame.gpm < mine.gpm * 0.85) tips.push({ level: 'warn', text: `GPM ${frame.gpm} is below your own average on this hero (${Math.round(mine.gpm)}).` })
-    else if (frame.gpm > mine.gpm * 1.1) tips.push({ level: 'good', text: `GPM ${frame.gpm} beats your usual ${Math.round(mine.gpm)} on this hero.` })
+  let lowPace: CoachView['lowPace'] = null
+  if (mine && mine.n >= 3 && minutes >= 8) {
+    if (frame.gpm != null) {
+      if (frame.gpm < mine.gpm * 0.85) {
+        tips.push({ level: 'warn', text: `GPM ${frame.gpm} is below your own average on this hero (${Math.round(mine.gpm)}).` })
+        if (gpmPct != null && gpmPct < 30) lowPace = 'gpm'
+      } else if (frame.gpm > mine.gpm * 1.1) tips.push({ level: 'good', text: `GPM ${frame.gpm} beats your usual ${Math.round(mine.gpm)} on this hero.` })
+    }
+    if (frame.xpm != null) {
+      if (frame.xpm < mine.xpm * 0.85) {
+        tips.push({ level: 'warn', text: `XPM ${frame.xpm} is below your own average on this hero (${Math.round(mine.xpm)}).` })
+        if (!lowPace && xpmPct != null && xpmPct < 30) lowPace = 'xpm'
+      } else if (frame.xpm > mine.xpm * 1.1) tips.push({ level: 'good', text: `XPM ${frame.xpm} beats your usual ${Math.round(mine.xpm)} on this hero.` })
+    }
   }
   if (frame.gold != null && frame.gold >= 1500 && frame.alive) tips.push({ level: 'warn', text: `${frame.gold} gold unspent. Buy your next item or buyback fund.` })
   if (deaths != null && excess >= 1) tips.push({ level: 'warn', text: `${deaths} deaths is above pace. Play around vision and your escapes.` })
@@ -119,5 +133,5 @@ export function coach(frame: Frame, data: HeroData | undefined, percentiles: num
     nextGoal: (() => { const g = achievements.filter((a) => a.state === 'live' && a.par > frame.clock).sort((a, b) => a.par - b.par)[0]; return g ? { label: g.label, left: g.par - frame.clock } : null })(),
     stats: { kills: frame.kills, deaths: frame.deaths, assists: frame.assists, lastHits: frame.lastHits, denies: frame.denies, level: frame.level, gold: frame.gold },
     medians: { gpm: data?.bench.gpm[2] ?? null, xpm: data?.bench.xpm[2] ?? null, lhpm: data?.bench.lhpm[2] ?? null },
-    personal: mine && mine.n >= 3 ? { gpm: Math.round(mine.gpm), xpm: Math.round(mine.xpm), n: Math.round(mine.n) } : null }
+    personal: mine && mine.n >= 3 ? { gpm: Math.round(mine.gpm), xpm: Math.round(mine.xpm), n: Math.round(mine.n) } : null, lowPace }
 }

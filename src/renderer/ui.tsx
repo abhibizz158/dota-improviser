@@ -1,8 +1,8 @@
 import { useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ArrowDown, ArrowUp, BrainCircuit, Clock3, Gamepad2, Minus, Radio, Shield, Swords, Trophy, X } from 'lucide-react'
-import type { DraftInput, GameView, Hero, LiveSettings, LiveState, Role, Toast } from '../shared/model.js'
-import { roleLabels, roles } from '../shared/model.js'
+import type { DraftInput, GameType, GameView, Hero, LiveSettings, LiveState, Role, Toast } from '../shared/model.js'
+import { gameTypes, roleLabels, roles } from '../shared/model.js'
 import { aegisView, clockText as roshanClock, roshanView } from '../shared/roshan.js'
 import type { RoshanState } from '../shared/roshan.js'
 import type { CoachView } from '../shared/coach.js'
@@ -171,7 +171,7 @@ const tone = (p: number | null) => p == null ? 'var(--dim)' : p >= 66 ? 'var(--g
 function Pace({ label, value, median, pct }: { label: string; value: string; median?: string; pct: number | null }) {
   return <div className="pace-row"><span>{label} <em>{value}{median ? ' / ' + median : ''}</em></span><div className="meter"><i style={{ width: (pct ?? 0) + '%', background: tone(pct) }} /></div><b>{pct == null ? '—' : Math.round(pct)}</b></div>
 }
-const toastIcon = (kind: string) => kind === 'first-blood' ? '🩸' : kind === 'multikill' ? '⚔' : kind === 'streak' ? '🔥' : kind === 'item' ? '★' : '✓'
+const toastIcon = (kind: string) => kind === 'first-blood' ? '🩸' : kind === 'multikill' ? '⚔' : kind === 'streak' ? '🔥' : kind === 'item' ? '★' : kind === 'alert' ? '⚠' : '✓'
 
 /** Animated achievement banners. Each fades itself out via CSS; the overlay just stops receiving them after 8s. */
 export function Toasts({ toasts }: { toasts: Toast[] }) {
@@ -287,7 +287,8 @@ export function RecoveryCard({ recovery }: { recovery: Recovery }) {
   </article>
 }
 
-/** Floating assistant: ask Puter AI about the current draft or practice game. Opened with Ctrl/⌘+Shift+F7. */
+/** Floating assistant: ask Puter AI about the current draft or practice game. Opened with Ctrl/⌘+Shift+F7.
+ * Rendered in the overlay's big, interactive, click-through-off window (same sizing as the draft editor). */
 export function AssistantCard({ ask, done }: { ask?: (question: string) => Promise<string>; done?: () => Promise<void> }) {
   const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState('')
@@ -299,9 +300,9 @@ export function AssistantCard({ ask, done }: { ask?: (question: string) => Promi
     setBusy(true); setError('')
     void ask(text).then((value) => { setAnswer(value); setQuestion('') }).catch((reason: Error) => setError(reason.message)).finally(() => setBusy(false))
   }
-  return <article className="assistant-card reveal">
+  return <article className="assistant-card reveal big-prompt">
     <Head icon={<BrainCircuit size={13} />} tag="Ask the coach" sub="Puter AI" />
-    <textarea autoFocus rows={2} value={question} placeholder="Ask about this draft or your practice game…"
+    <textarea autoFocus rows={5} value={question} placeholder="Ask about this draft or your practice game…"
       onChange={(event) => setQuestion(event.target.value)}
       onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submit() } }} />
     <div className="assistant-actions">
@@ -310,5 +311,36 @@ export function AssistantCard({ ask, done }: { ask?: (question: string) => Promi
     </div>
     {error && <small className="draft-note">{error}</small>}
     {answer && <div className="assistant-answer">{answer.split(/\n{2,}/).map((para, i) => <p key={i}>{para}</p>)}</div>}
+  </article>
+}
+
+/** Shown once per game in the overlay's big interactive window: GSI never reliably reports lane or game type,
+ * so the player picks both. Answering (or Escape to skip) returns the overlay to its normal compact size. */
+export function SessionPrompt({ onSubmit }: { onSubmit?: (gameType: GameType, lane: Role) => Promise<unknown> }) {
+  const [gameType, setGameType] = useState<GameType | null>(null)
+  const [lane, setLane] = useState<Role | null>(null)
+  const [busy, setBusy] = useState(false)
+  const submit = () => {
+    if (!onSubmit || !gameType || !lane || busy) return
+    setBusy(true)
+    void onSubmit(gameType, lane).finally(() => setBusy(false))
+  }
+  return <article className="assistant-card reveal big-prompt session-prompt">
+    <Head icon={<Gamepad2 size={13} />} tag="This game" sub="Helps the coach guide the right lane" />
+    <p className="fine-print">Dota doesn't tell the app your lane or game type, so pick them here. Used for this game's advice and history only.</p>
+    <div className="session-prompt-group">
+      <b>Game type</b>
+      <div className="session-prompt-options">{gameTypes.map((option) => <button type="button" key={option}
+        className={'button slim' + (gameType === option ? ' primary' : ' secondary')} onClick={() => setGameType(option)}>{option}</button>)}</div>
+    </div>
+    <div className="session-prompt-group">
+      <b>Your lane</b>
+      <div className="session-prompt-options">{roles.map((option) => <button type="button" key={option}
+        className={'button slim' + (lane === option ? ' primary' : ' secondary')} onClick={() => setLane(option)}>{roleLabels[option]}</button>)}</div>
+    </div>
+    <div className="assistant-actions">
+      <button type="button" className="button primary" disabled={!gameType || !lane || busy} onClick={submit}>{busy ? 'Saving…' : 'Start coaching'}</button>
+    </div>
+    <p className="fine-print">Esc skips for this game &mdash; the coach still works, just without lane-specific advice or a tagged history entry.</p>
   </article>
 }

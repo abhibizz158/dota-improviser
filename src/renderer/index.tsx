@@ -4,7 +4,7 @@ import { Activity, ArrowDownToLine, ArrowRight, Award, BookOpen, BrainCircuit, C
 import type { AppApi, Bootstrap, LiveState, MatchSummary, PuterStatus, SourceResult, UpdateInfo } from '../shared/model'
 import { browserApi, demoCatalog, demoHistory, initialLive } from './demo'
 import { Overview } from './overview'
-import { AssistantCard, CoachCard, Dialog, DraftCard, Feedback, LaneCard, RecoveryCard, RoshanTimer, Toasts, clock } from './ui'
+import { AssistantCard, CoachCard, Dialog, DraftCard, Feedback, LaneCard, RecoveryCard, RoshanTimer, SessionPrompt, Toasts, clock } from './ui'
 import { fairPlay } from '../shared/guard'
 import { playAchievementChime } from './sound'
 import '@fontsource-variable/inter/wght.css'
@@ -15,7 +15,7 @@ import './styles.css'
 declare global {
   interface Window {
     dota?: AppApi
-    overlayApi?: { height: (height: number) => void; state: () => Promise<LiveState>; draft: AppApi['draft'] extends (i: infer I) => unknown ? (i: I) => Promise<unknown> : never; done: () => Promise<void>; ask: (question: string) => Promise<string>; onAchievementSound: (callback: () => void) => () => void; onLive: AppApi['onLive'] }
+    overlayApi?: { height: (height: number) => void; state: () => Promise<LiveState>; draft: AppApi['draft'] extends (i: infer I) => unknown ? (i: I) => Promise<unknown> : never; done: () => Promise<void>; ask: (question: string) => Promise<string>; sessionInfo: (gameType: string, lane: string) => Promise<unknown>; onAchievementSound: (callback: () => void) => () => void; onLive: AppApi['onLive'] }
   }
 }
 const Draft = lazy(() => import('./draft').then((module) => ({ default: module.Draft })))
@@ -65,7 +65,9 @@ function Overlay() {
   const compact = live.settings.size === 'Compact'
   const editorial = live.view !== 'draft' && live.view !== 'assistant'
   return <div className={'overlay-scroll' + (live.interactive ? ' interactive' : '')}><div className="overlay-view" ref={card}>
-    {live.view === 'assistant'
+    {live.needsSessionInfo
+      ? <SessionPrompt onSubmit={(gameType, lane) => window.overlayApi?.sessionInfo(gameType, lane) ?? Promise.resolve()} />
+      : live.view === 'assistant'
       ? <AssistantCard ask={window.overlayApi?.ask} done={window.overlayApi?.done} />
       : live.view === 'draft'
       ? <DraftCard live={live} heroes={demoCatalog.heroes} send={window.overlayApi?.draft} done={window.overlayApi?.done} />

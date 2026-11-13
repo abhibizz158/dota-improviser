@@ -123,6 +123,12 @@ export class ReleaseUpdates {
       return file
     } finally { await rm(temp, { force: true }).catch(() => {}) }
   }
+  /** Launches the downloaded, verified installer. This still opens the OS's own installer UI (NSIS's small
+   * click-through wizard on Windows, Installer.app with your admin password on macOS): this app's fair-play
+   * guardrail (tests/guard.test.mjs) blanket-forbids spawning other processes anywhere in the source tree, so
+   * there's no `/S`-silent or in-place-swap path available to it either — the automation this app can offer is
+   * launching that installer itself the moment a verified update is ready and you're not mid-game, instead of
+   * making you find the button (see scheduleAppUpdates in main/index.ts and the autoInstallApp feature). */
   async install() {
     const installer = this.installer
     if (!installer || this.info.state !== 'ready') throw new Error('There is no verified update ready to install.')

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, ArrowRight, ChevronRight, Coins, Crosshair, Flame, Gamepad2, RefreshCw, Swords, Target, TrendingUp, Trophy, Zap } from 'lucide-react'
-import type { AppApi, Catalog, LocalStatus, MatchSummary, SourceResult } from '../shared/model'
-import { roles } from '../shared/model'
+import { Activity, ArrowRight, CheckCircle2, ChevronRight, Coins, Crosshair, Flame, Gamepad2, History, RefreshCw, Swords, Target, TrendingUp, Trophy, XCircle, Zap } from 'lucide-react'
+import type { AppApi, Catalog, LocalStatus, MatchSummary, SessionRecord, SourceResult } from '../shared/model'
+import { roleLabels, roles } from '../shared/model'
 import { available, summarize } from '../shared/analysis'
 import { day, HistoryChart, rollingWins, Sparkline } from './charts'
 import { clock, Empty, fmt, Portrait, Trend } from './ui'
@@ -14,6 +14,8 @@ type Props = {
 const base = import.meta.env.BASE_URL
 
 export function Overview({ api, onUseHero, showStyle = true, catalog, history, loading, demo, account, onAccount, onRefresh, onMatch, onImport, onPrivateHistory, onDraft, onOpenGame, local }: Props) {
+  const [sessions, setSessions] = useState<SessionRecord[]>([])
+  useEffect(() => { void api.sessionHistory().then(setSessions).catch(() => {}) }, [api])
   const [hero, setHero] = useState('')
   const [role, setRole] = useState('')
   const [mode, setMode] = useState('')
@@ -82,6 +84,8 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, l
       </div>
     </section>
 
+    <SessionHistory sessions={sessions} byId={byId} publicGpm={total.gpm} publicXpm={total.xpm} />
+
     <Insights f={f} catalog={catalog} matches={matches} showStyle={showStyle} />
 
     <div className="overview-grid">
@@ -113,7 +117,8 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, l
           <thead><tr><th>Hero</th><th>Result</th><th>K / D / A</th><th>GPM</th><th>XPM</th><th>LH / DN</th><th>Duration</th><th>Date</th><th><span className="sr-only">Review</span></th></tr></thead>
           <tbody>{filtered.slice(currentPage * 6, currentPage * 6 + 6).map((match) => <tr key={match.id}>
             <td><button className="match-name" onClick={() => onMatch(match.id)}><Portrait hero={byId.get(match.heroId)} /><span><strong>{byId.get(match.heroId)?.name ?? 'Unknown hero'}</strong><small>{match.source === 'local' ? 'Local scoreboard' : [match.role, match.mode].filter(Boolean).join(' · ') || 'Role unavailable'}</small></span></button></td>
-            <td><span className={'result ' + (match.won == null ? '' : match.won ? 'win' : 'loss')}>{match.won == null ? 'Unknown' : match.won ? 'Victory' : 'Defeat'}</span></td>
+            <td><span className={'result ' + (match.won == null ? '' : match.won ? 'win' : 'loss')}>{match.won == null ? 'Unknown' : match.won ? 'Victory' : 'Defeat'}</span>
+              {match.status === 'abandoned' && <span className="status-tag abandoned">Abandoned</span>}</td>
             <td>{[match.kills, match.deaths, match.assists].map((number) => fmt(number)).join(' / ')}</td><td>{fmt(match.gpm)}</td><td>{fmt(match.xpm)}</td>
             <td>{fmt(match.lastHits)} / {fmt(match.denies)}</td><td>{clock(match.duration || null)}</td><td>{day(match.start)}</td>
             <td><button className="icon-button" onClick={() => onMatch(match.id)} aria-label={'Review match ' + match.id}><ChevronRight size={17} /></button></td>
@@ -133,4 +138,40 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, l
       {loadGuide ? <GuideSections f={f} catalog={catalog} /> : <button type="button" className="button slim" onClick={() => setLoadGuide(true)}>Load hero guide</button>}
     </div>
   </>
+}
+
+/** Every own-feed game recorded locally while the listener was running (practice, normal or ranked alike), tagged
+ * completed or abandoned (AGENTS.md's half-recorded rule: app/game closed or you left = abandoned, ancient fell = completed),
+ * plus what those sessions say about your real pace next to your public match history. */
+function SessionHistory({ sessions, byId, publicGpm, publicXpm }: { sessions: SessionRecord[]; byId: Map<number, Catalog['heroes'][number]>; publicGpm: number | null; publicXpm: number | null }) {
+  if (!sessions.length) return null
+  const completed = sessions.filter((s) => s.status === 'completed')
+  const abandoned = sessions.length - completed.length
+  const avg = (pick: (s: SessionRecord) => number | null) => {
+    const values = sessions.map(pick).filter((v): v is number => v != null)
+    return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null
+  }
+  const sessionGpm = avg((s) => s.gpm), sessionXpm = avg((s) => s.xpm)
+  const gpmDelta = sessionGpm != null && publicGpm != null ? sessionGpm - publicGpm : null
+  const xpmDelta = sessionXpm != null && publicXpm != null ? sessionXpm - publicXpm : null
+  return <section className="panel sessions-panel" aria-labelledby="sessions-title">
+    <header className="panel-heading">
+      <div><h2 id="sessions-title"><History size={17} className="quiet-icon" /> Recorded sessions</h2>
+        <p>Every own-feed game while the listener ran, local-only &mdash; {completed.length} completed, {abandoned} abandoned.</p></div>
+    </header>
+    {(gpmDelta != null || xpmDelta != null) && <p className="fine-print">
+      Across these recorded sessions you average {fmt(sessionGpm)} GPM and {fmt(sessionXpm)} XPM, versus {fmt(publicGpm)} GPM and {fmt(publicXpm)} XPM in your public match history
+      {gpmDelta != null && Math.abs(gpmDelta) >= 15 ? (gpmDelta > 0 ? ' — noticeably faster lately.' : ' — noticeably slower lately.') : ' — consistent with your usual pace.'}
+    </p>}
+    <div className="match-table-wrap"><table className="match-table">
+      <thead><tr><th>Hero</th><th>Status</th><th>K / D / A</th><th>GPM</th><th>XPM</th><th>Lane / type</th><th>Duration</th><th>Recorded</th></tr></thead>
+      <tbody>{sessions.slice().reverse().slice(0, 8).map((session) => <tr key={session.at}>
+        <td><button className="match-name"><Portrait hero={session.heroId != null ? byId.get(session.heroId) : undefined} /><span><strong>{byId.get(session.heroId ?? -1)?.name ?? session.hero.replace(/_/g, ' ')}</strong></span></button></td>
+        <td><span className={'status-tag ' + session.status}>{session.status === 'completed' ? <CheckCircle2 size={13} /> : <XCircle size={13} />} {session.status === 'completed' ? 'Completed' : 'Abandoned'}</span></td>
+        <td>{[session.kills, session.deaths, session.assists].map((n) => fmt(n)).join(' / ')}</td><td>{fmt(session.gpm)}</td><td>{fmt(session.xpm)}</td>
+        <td>{[session.lane && roleLabels[session.lane], session.gameType].filter(Boolean).join(' · ') || 'Not set'}</td>
+        <td>{clock(session.clock || null)}</td><td>{day(Math.floor(session.at / 1000))}</td>
+      </tr>)}</tbody>
+    </table></div>
+  </section>
 }
