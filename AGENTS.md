@@ -45,6 +45,7 @@ Considered, not used: STRATZ GraphQL (needs a token and sits behind Cloudflare),
 - First blood (which team, you or not), double/triple/ultra kill and rampage (kills chained within 18 s), kill streaks, and a kill-lead momentum graph come from your own kill count, kill streak and the public team score.
 - Tower, Roshan and barracks state are **not** in a player's feed (spectator-only `buildings` is blocked by the guardrails). They appear post-match in Match Review's Objective timeline, from OpenDota's parsed replay, with Dota's own gold/XP advantage graph.
 - The overlay adapts by phase (laning: lane tools; mid game: goals + momentum; late game: essentials) and shows animated achievement pop-ups. A trophy case on Live & Coach keeps career counts.
+- **Achievements page**: item/timing goals scored from each hero's own real OpenDota item-popularity and timing data (`src/shared/coach.ts`), never a fixed hero or item list — whichever hero and role you actually play earns its own record (`src/shared/live-coach.ts: observeAchievement`), keyed per hero so Anti-Mage's Battle Fury and Troll Warlord's Battle Fury track separately. Works in practice, normal and ranked games alike. Awarding one plays a short synthesized chime (`src/renderer/sound.ts`, no bundled audio) when "Dota achievement sound" is on.
 - Playstyle (Hard Carry, Tempo Core, Frontline Initiator, Dynamic Support, Utility Support, plus Endurance/Aggression/Survival/Farm traits) is learned from your last 40 matches. The coach also adapts its scoring role per hero from the role you usually play it in.
 - **Roshan/Aegis timer** (`src/shared/roshan.ts`) is a manual stopwatch started by the player. Use the dashboard buttons or Ctrl/⌘+Alt+F6 (both), F7 (Roshan), F8 (Aegis), or F9 (clear). Window: Roshan 8:00–11:00, Aegis expires at 5:00 — approximate, Valve has changed these before. Feature-toggleable (`roshanTimer`).
 
@@ -74,7 +75,7 @@ Considered, not used: STRATZ GraphQL (needs a token and sits behind Cloudflare),
 1. First run: detect Dota install + Steam user -> offer "Use my Steam account" -> history loads.
 2. Install GSI cfg (one click into `game/dota/cfg/gamestate_integration`), add `-gamestateintegration` launch option.
 3. Draft: type enemy picks (dashboard, or overlay hotkey Ctrl/⌘+Shift+F9). Suggestions appear instantly from seed, upgrade when live data lands.
-4. In game: lane card (practice lobbies, GSI own-player data only). Ctrl/⌘+Shift+F10 hides.
+4. In game: live coach/lane card (any practice, normal or ranked game — GSI own-player data only, never reads opponents or hidden info). Ctrl/⌘+Shift+F10 hides.
 5. After game: open match -> review -> profile relearns.
 6. After a Dota patch: watcher flags it; `npm run seed` refreshes the offline table; nudges halve until you re-confirm.
 

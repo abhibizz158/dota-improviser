@@ -19,6 +19,7 @@
     "seed": "node scripts/build-seed.mjs",
     "data": "node scripts/build-seed.mjs && node scripts/build-heroes.mjs && node scripts/build-kits.mjs && node scripts/build-timings.mjs",
     "package:local": "npm run build && npm run build:overlay -- darwin arm64 && electron-packager . --platform=darwin --arch=arm64 --out=release --overwrite --asar --app-bundle-id=com.dotaimproviser.app --icon=build/icon --ignore=\"^/(src|native|tests|release|public|scripts|build|docs|data|\\\\.claude|AGENTS.md|README.md|index.html|vite.config.ts|tsconfig)\" && codesign --force --deep --sign - \"release/Dota Improviser-darwin-arm64/Dota Improviser.app\"",
+    "package:mac-pkg": "npm run package:mac && bash scripts/build-macos-pkg.sh \"release/Dota Improviser-darwin-arm64/Dota Improviser.app\" \"release/Dota Improviser.pkg\" $npm_package_version",
     "build:overlay": "node scripts/build-overlay.mjs"
   },
   "engines": {

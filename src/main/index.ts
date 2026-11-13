@@ -9,8 +9,8 @@ import type { Display, IpcMainInvokeEvent } from 'electron'
 import type { Bootstrap, Checkpoint, Pick, DraftView, KnowledgeContext, Lane, LiveSettings, LiveState, Matchups, OverlayView, Placement, PuterStatus, Role, UpdateInfo } from '../shared/model.js'
 import { defaultFeatures, defaultLiveSettings, featureKeys, placements, roleLabels, roles } from '../shared/model.js'
 import { draftLineup, mergePicks } from '../shared/draft-picks.js'
-import { chooseRole, observeMilestone, recoveryAdvice } from '../shared/live-coach.js'
-import type { AwardRecord, ItemMilestone } from '../shared/live-coach.js'
+import { chooseRole, observeAchievement, recoveryAdvice } from '../shared/live-coach.js'
+import type { AwardRecord } from '../shared/live-coach.js'
 import { momentum, newTrack, trackFrame } from '../shared/game.js'
 import { emptyRoshan } from '../shared/roshan.js'
 import type { RoshanState } from '../shared/roshan.js'
@@ -49,6 +49,17 @@ app.setName('Dota Improviser')
 // user's Documents, the same on macOS and Windows, instead of the OS default (Application Support / AppData).
 // Survives app updates untouched since it's keyed by this fixed path, not the app version.
 app.setPath('userData', path.join(app.getPath('documents'), '.dota-improviser'))
+// Node 15+ terminates the process on an unhandled promise rejection by default. With this much async code
+// (network fetches, GSI, timers), one uncaught rejection anywhere — a hiccup mid-download, for example — would
+// silently kill the whole app with no crash dialog. Log it and keep running instead.
+for (const event of ['unhandledRejection', 'uncaughtException'] as const) {
+  process.on(event, (error: unknown) => {
+    console.error(event, error)
+    void writeFile(path.join(app.getPath('userData'), 'crash.log'),
+      new Date().toISOString() + ' ' + event + ': ' + (error instanceof Error ? error.stack ?? error.message : String(error)) + '\n',
+      { flag: 'a' }).catch(() => {})
+  })
+}
 const singleInstance = app.requestSingleInstanceLock()
 const dir = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
@@ -85,14 +96,18 @@ async function openSteam() {
   catch { return false }
 }
 
+/** steam://rungameid launches Steam itself if it isn't running yet, so try it first — the common case needs no
+ * Steam-install-path detection at all. Only fall back to opening Steam explicitly (by install path, then protocol)
+ * when the direct run command itself fails to dispatch, then retry. */
 async function launchDotaThroughSteam() {
-  const steam = await openSteam()
-  await new Promise((resolve) => setTimeout(resolve, steam ? 1200 : 350))
-  try { await shell.openExternal('steam://rungameid/570') }
-  catch {
-    try { await shell.openExternal('steam://run/570') }
-    catch { throw new Error('Steam could not start Dota 2. Open Steam, sign in, and launch Dota from your Library.') }
+  const tryRun = () => shell.openExternal('steam://rungameid/570').then(() => true, () => false)
+  if (await tryRun()) return
+  if (await openSteam()) {
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    if (await tryRun()) return
   }
+  try { await shell.openExternal('steam://run/570'); return } catch { /* fall through to the error below */ }
+  throw new Error('Steam could not start Dota 2. Open Steam, sign in, and launch Dota from your Library.')
 }
 let provider: OpenDota
 let dashboard: BrowserWindow | null = null
@@ -304,19 +319,19 @@ function refreshDraftMatchups() {
 
 const TOAST_MS = 8000
 
-/** Record an achievement/event: toast for the overlay, career counter for the trophy case. */
-function emit(events: GameEvent[], milestone: { goal: ItemMilestone; at: number } | null) {
+/** Record an achievement/event: toast for the overlay, career counter for the trophy case, and — for a per-hero
+ * item/timing achievement — a per-hero award record (every hero's own data, never a fixed hero list). */
+function emit(events: GameEvent[], award: { id: string; heroId: number; label: string; role: Role; at: number; elite: boolean } | null) {
   if (!events.length) return
   const now = Date.now()
   career = { ...career }
   for (const e of events) {
     career[e.id] = (career[e.id] ?? 0) + 1
   }
-  if (milestone) {
-    const { goal, at } = milestone
-    const old = awards[goal.id]
-    awards = { ...awards, [goal.id]: { count: (old?.count ?? 0) + 1, onTime: (old?.onTime ?? 0) + Number(at <= goal.target),
-      best: Math.min(old?.best ?? at, at), last: at } }
+  if (award) {
+    const old = awards[award.id]
+    awards = { ...awards, [award.id]: { heroId: award.heroId, label: award.label, role: award.role,
+      count: (old?.count ?? 0) + 1, onTime: (old?.onTime ?? 0) + Number(award.elite), best: Math.min(old?.best ?? award.at, award.at), last: award.at } }
     store.set('item-awards', awards)
   }
   store.set('career', career)
@@ -486,7 +501,7 @@ function receive(value: unknown) {
       }
     }
   }
-  const nextFrame = parseFrame(value, steamId, false)
+  const nextFrame = parseFrame(value, steamId, true)
   const nextPick = nextFrame ? null : parsePick(value, steamId)
   const next: Lane | null = nextFrame && {
     clock: nextFrame.clock, heroSlug: nextFrame.heroSlug, lastHits: nextFrame.lastHits,
@@ -530,28 +545,21 @@ function receive(value: unknown) {
   if (!nextFrame) coachView = null
   const refreshCoach = nextFrame && (!coachView || !sameItems || nextStatus !== status ||
     nextFrame.alive !== frameBefore?.alive || coachView.role !== roleChoice().role || now - lastCoachAt >= 1000)
-  const milestone = nextFrame && settings.features.achievements ? observeMilestone(newPractice ? null : frameBefore, nextFrame, roleChoice().role, awarded) : null
   const events = nextFrame && !nextFrame.paused ? trackFrame(track, nextFrame).filter((event) =>
     event.kind === 'milestone' ? settings.features.achievements : settings.features.multikills) : []
-  if (milestone) {
-    const { goal, at } = milestone
-    events.push({ id: goal.id, kind: 'item', label: goal.name + ' · ' + (catalog.heroes.find((hero) => hero.slug === goal.hero)?.name ?? ''),
-      sub: `${roleLabels[goal.role]} · ${Math.floor(at / 60)}:${String(at % 60).padStart(2, '0')}`, epic: at <= goal.target, at })
-  }
+  let award: { id: string; heroId: number; label: string; role: Role; at: number; elite: boolean } | null = null
   if (refreshCoach) {
     const result = refreshCoachView()
-    if (settings.features.achievements && !nextFrame.paused && frameBefore && !newPractice && nextFrame.clock - frameBefore.clock <= 12) {
+    if (settings.features.achievements && nextFrame && !nextFrame.paused && frameBefore && !newPractice && nextFrame.clock - frameBefore.clock <= 12) {
       for (const goal of result?.achievements ?? []) {
-        const id = 'goal-' + goal.id
-        const happened = goal.id === 'lh10' ? frameBefore.clock < 600 && nextFrame.clock >= 600 :
-          frameBefore.itemsObserved && nextFrame.itemsObserved && !frameBefore.items.includes(goal.id) && goal.got === nextFrame.clock
-        if (goal.state !== 'done' || !happened || awarded.has(id) || milestone?.goal.item === goal.id) continue
-        awarded.add(id)
-        events.push({ id, kind: 'item', label: goal.label, sub: goal.elite ? 'Elite timing' : 'Goal reached', epic: goal.elite, at: nextFrame.clock })
+        const hit = observeAchievement(frameBefore, nextFrame, goal, awarded)
+        if (!hit) continue
+        award = { id: hit.id, heroId: hit.heroId, label: goal.label, role: roleChoice().role, at: hit.at, elite: goal.elite }
+        events.push({ id: hit.id, kind: 'item', label: goal.label, sub: goal.elite ? 'Elite timing' : 'Goal reached', epic: goal.elite, at: hit.at })
       }
     }
   }
-  emit(events, milestone)
+  emit(events, award)
   const statusChanged = status !== nextStatus
   status = nextStatus
   if (nextFrame && !frameBefore && interactive) {

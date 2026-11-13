@@ -75,7 +75,7 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
             <span className="inline-actions">{context.local.installFound && <button className="button secondary slim" disabled={!!busy} onClick={() => void act('install', async () => { const message = await api.installConfig(); setInstalled(true); return message })}><Download size={15} /> {installed || context.local.gsiInstalled ? 'Reinstall' : 'Install'}</button>}
             <button className="button secondary slim" disabled={!!busy || !context.desktop} onClick={() => void act('config', async () =>
               await api.saveConfig() ? 'Config saved. Restart Dota after installing it.' : undefined)}><Download size={15} /> Save as…</button></span></li>
-          <li><div><strong>Join a local practice lobby</strong><p>Start the listener, then enter a local practice lobby with your own hero.</p></div></li>
+          <li><div><strong>Start a game</strong><p>Start the listener, then enter any practice lobby, normal or ranked matchmaking game with your own hero.</p></div></li>
         </ol>
         <div className="actions">
           <button className="button primary" disabled={!!busy || !context.desktop || (!context.accountId && !live.armed)}
@@ -92,7 +92,7 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
         <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={context.catalog.heroes} settings={settings} heroName={hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} /> : <LaneCard live={live} preview={!actual} hero={hero} />}</div>
         <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay' || (!active && !live.open)} onClick={() =>
           void act('overlay', async () => { onState(await api.toggleOverlay()) })}><Layers3 size={16} />{live.open ? 'Hide overlay' : 'Show overlay'}</button>
-        {!active && settings.display === 'Overlay' && <p className="fine-print">Connect a supported practice lobby to show the overlay.</p>}
+        {!active && settings.display === 'Overlay' && <p className="fine-print">Connect a supported game (practice, normal or ranked) to show the overlay.</p>}
         <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay'} onClick={() =>
           void act('draftOverlay', async () => { onState(await api.toggleDraftOverlay()) })}><Layers3 size={16} />Edit draft overlay · Ctrl/⌘ + Shift + F9</button>
         <p className="fine-print">The overlay passes mouse input through during play. Edit draft picks with the button or shortcut; Done, Escape, or leaving the editor returns it to click-through. Use Borderless or Companion if fullscreen covers the overlay.</p>
@@ -131,8 +131,9 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
     <div className="detail-grid live-grid">
       <section className="panel form-panel policy-panel">
         <header className="panel-heading"><div><h2>Session availability</h2><p>Live mode eligibility</p></div><ShieldCheck size={19} className="quiet-icon" /></header>
-        <div className="eligibility"><CheckCircle2 size={16} /> Practice lobbies</div>
-        <div className="eligibility pending"><CircleHelp size={16} /> Matchmaking games: draft and post-match review</div>
+        <div className="eligibility"><CheckCircle2 size={16} /> Practice lobbies: live coach, draft and achievements</div>
+        <div className="eligibility"><CheckCircle2 size={16} /> Normal and ranked matchmaking: live coach, draft and achievements</div>
+        <div className="eligibility pending"><CircleHelp size={16} /> Post-match review relies on OpenDota's public match parse, which can lag behind the game.</div>
       </section>
       <section className="panel form-panel policy-panel">
         <header className="panel-heading"><div><h2>Connection diagnostics</h2><p>Export field shapes and validation results from the current session.</p></div></header>
