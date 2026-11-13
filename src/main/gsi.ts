@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import { asRecord, heroById, heroBySlug, number } from './data.js'
-import type { Checkpoint, DraftReveal, Frame, Lane, Pick } from '../shared/model.js'
+import type { Checkpoint, DraftReveal, Frame, Lane, MatchSummary, Pick } from '../shared/model.js'
 import { allowedGsiSections } from '../shared/guard.js'
 
 const activePhases = new Set(['DOTA_GAMERULES_STATE_PRE_GAME', 'DOTA_GAMERULES_STATE_GAME_IN_PROGRESS'])
@@ -15,7 +15,7 @@ const stat = (value: unknown) => {
   return result != null && Number.isSafeInteger(result) && result >= 0 ? result : null
 }
 
-function gate(value: unknown, expectedSteamId: string, matchmaking: boolean) {
+function gate(value: unknown, expectedSteamId: string, matchmaking: boolean, phases = activePhases) {
   const packet = asRecord(value)
   const map = asRecord(packet.map)
   const player = asRecord(packet.player)
@@ -29,9 +29,25 @@ function gate(value: unknown, expectedSteamId: string, matchmaking: boolean) {
     player.activity !== 'playing' || !['radiant', 'dire'].includes(String(player.team_name).toLowerCase()) ||
     // Current Dota builds omit lobby_type; real matches carry a nonzero matchid, so zero is the practice marker.
     (!matchmaking && (![0, '0'].includes(map.matchid as string | number) || (lobby != null && !practiceLobbyTypes.has(lobby as string | number)))) ||
-    map.spectating === true || map.replay === true || !activePhases.has(String(map.game_state)) || clock == null || clock < -600 || clock > 21600 || !heroSlug ||
+    map.spectating === true || map.replay === true || !phases.has(String(map.game_state)) || clock == null || clock < -600 || clock > 21600 || !heroSlug ||
     [player, hero].some((section) => Object.keys(section).some((key) => /^(team\d+|player\d+|radiant|dire)$/.test(key)))) return null
   return { packet, map, player, hero, clock, heroSlug }
+}
+
+const completedPhases = new Set(['DOTA_GAMERULES_STATE_POST_GAME'])
+/** This projection is only used for local history, after a result is available. */
+export function parseCompletedOwnMatch(value: unknown, expectedSteamId: string, now = Date.now()): MatchSummary | null {
+  const g = gate(value, expectedSteamId, true, completedPhases)
+  if (!g) return null
+  const id = String(g.map.matchid ?? '')
+  const winner = String(g.map.win_team ?? '').toLowerCase()
+  const heroId = heroBySlug.get(g.heroSlug)
+  if (!/^[1-9]\d{5,14}$/.test(id) || !['radiant', 'dire'].includes(winner) || !heroId || g.clock < 0) return null
+  const side = String(g.player.team_name).toLowerCase() === 'dire' ? 'Dire' : 'Radiant'
+  return { id, heroId, side, start: Math.floor(now / 1000) - Math.floor(g.clock), duration: Math.floor(g.clock),
+    won: side.toLowerCase() === winner, kills: stat(g.player.kills), deaths: stat(g.player.deaths), assists: stat(g.player.assists),
+    gpm: stat(g.player.gpm), xpm: stat(g.player.xpm), lastHits: stat(g.player.last_hits), denies: stat(g.player.denies),
+    patch: '', mode: '', role: null, source: 'local' }
 }
 
 /** Own item keys from the player's own inventory: slots, backpack, stash, neutral. */

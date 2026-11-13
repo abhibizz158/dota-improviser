@@ -45,7 +45,7 @@ Main process ── GSI loopback receiver (127.0.0.1:43182)
 - `kits.json`: Valve hero data with tagged abilities and role levels.
 - `timings.json`: public purchase-time aggregates for selected items.
 
-The seed and hero datasets use OpenDota. The kits dataset uses Valve's Dota data feed. Item timings depend on `heroes.json`, so the build scripts run in that order. These snapshots are for local development. Production data refresh runs in the app and caches results under the user's app data directory. Generated snapshots are excluded from Git and packaged test builds; source builds should use `npm run data` when offline sample data is needed.
+The seed and hero datasets use OpenDota. The kits dataset uses Valve's Dota data feed. Item timings depend on `heroes.json`, so the build scripts run in that order. Generated developer snapshots in `data/` are ignored. Desktop packages include the reviewed public snapshots in `starter-data/`. Production refresh saves progress and replaces completed datasets under the user's app data directory.
 
 ## GSI and overlay path
 

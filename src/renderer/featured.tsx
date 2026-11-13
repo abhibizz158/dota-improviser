@@ -61,7 +61,7 @@ export function FeaturedStage({ f, catalog, demo, account, localInstall, localBu
     <h1 className="stage-name">Your Dota workspace</h1>
     <p className="stage-hype">{account ? <>Steam account <b>{account}</b> is linked. {localInstall ? 'The local Dota 2 install and its item builds are ready to use.' : 'Link a local Dota 2 install to use its item builds and live player feed.'} Match history appears when public data is available or you open a completed match by ID.</> : <>Link your Steam account to load public match history. Local Dota item builds and your opt-in player-visible game feed can support planning and practice.</>}</p>
     <div className="local-source-row"><span className={account ? 'source-ready' : ''}>Steam account {account ? 'linked' : 'not linked'}</span><span className={localInstall ? 'source-ready' : ''}>Local Dota {localInstall ? 'found' : 'not found'}</span>{localBuilds > 0 && <span className="source-ready">{localBuilds} local item builds</span>}<span>History from public match data or match ID</span></div>
-    <div className="actions">{localInstall && <button className="button primary" onClick={onOpenGame}><Gamepad2 size={16} /> Open Dota 2</button>}{!account && <button className="button primary" onClick={onAccount}>Add Dota account <ArrowRight size={16} /></button>}<button className="button" onClick={onImport}>Open match by ID</button>{localInstall && <button className="button" onClick={onDraft}>Use local item builds</button>}</div></div><TornEdge /></section>
+    <div className="actions"><button className="button primary" onClick={onOpenGame}><Gamepad2 size={16} /> Open Dota 2 via Steam</button>{!account && <button className="button primary" onClick={onAccount}>Add Dota account <ArrowRight size={16} /></button>}<button className="button" onClick={onImport}>Open match by ID</button>{localInstall && <button className="button" onClick={onDraft}>Use local item builds</button>}</div></div><TornEdge /></section>
   const heroName = (id: number) => catalog.heroes.find((h) => h.id === id)?.name ?? 'Hero'
   return <section className="stage">
     <div className="stage-art" aria-hidden="true">
@@ -82,6 +82,7 @@ export function FeaturedStage({ f, catalog, demo, account, localInstall, localBu
       </div>
       <div className="actions">
         <button className="button primary" onClick={() => onUseHero(hero.id)}><Swords size={16} /> Plan a draft with {hero.name}</button>
+        <button className="button" onClick={onOpenGame}><Gamepad2 size={16} /> Open Dota 2 via Steam</button>
         {!account && <button className="button" onClick={onAccount}>Add Dota account</button>}
         <button className="button" onClick={onImport}>Open match by ID</button>
       </div>

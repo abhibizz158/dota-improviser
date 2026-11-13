@@ -41,6 +41,8 @@ if (location.hash === '#overlay') {
     defaultBuild: (slug) => ipcRenderer.invoke('draft:default-build', slug),
     detectSteam: () => ipcRenderer.invoke('profile:steam'),
     openGame: () => ipcRenderer.invoke('app:open-game'),
+    importHistory: (value) => ipcRenderer.invoke('history:import-local', value),
+    cachedHistory: () => ipcRenderer.invoke('history:cached'),
     puterStatus: () => ipcRenderer.invoke('puter:status'),
     puterSignIn: () => ipcRenderer.invoke('puter:sign-in'),
     puterSignOut: () => ipcRenderer.invoke('puter:sign-out'),
@@ -52,6 +54,15 @@ if (location.hash === '#overlay') {
     installConfig: () => ipcRenderer.invoke('live:install'),
     toggleDraftOverlay: () => ipcRenderer.invoke('live:draft-overlay'),
     checkUpdates: () => ipcRenderer.invoke('app:updates'),
+    updateStatus: () => ipcRenderer.invoke('updates:status'),
+    connectUpdates: (token) => ipcRenderer.invoke('updates:connect', token),
+    disconnectUpdates: () => ipcRenderer.invoke('updates:disconnect'),
+    installUpdate: () => ipcRenderer.invoke('updates:install'),
+    onUpdate: (callback) => {
+      const listener = (_event: unknown, status: Awaited<ReturnType<AppApi['updateStatus']>>) => callback(status)
+      ipcRenderer.on('updates:changed', listener)
+      return () => ipcRenderer.removeListener('updates:changed', listener)
+    },
     openExternal: (target) => ipcRenderer.invoke('app:external', target),
     onLive,
   }

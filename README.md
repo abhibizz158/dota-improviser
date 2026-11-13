@@ -10,6 +10,10 @@ Dota Improviser combines public match aggregates, read-only local Steam/Dota dis
 
 Download the desktop testing builds from [GitHub Releases](https://github.com/abhibizz158/dota-improviser/releases). Access to this private repository is required.
 
+On macOS, open the PKG for your chip (Apple Silicon or Intel). It installs or upgrades **Dota Improviser.app** in **Applications**. On Windows, run the x64 setup EXE. Quit Dota Improviser before upgrading. The installers leave your linked Dota account, settings, cached data, and saved Puter sign-in in the existing local profile. An older ad hoc signed macOS build may prompt you to approve Keychain access again.
+
+In **Settings → App updates**, connect a GitHub fine-grained token scoped to this repository with **Contents: Read-only**. The app checks shortly after startup and every six hours, downloads a verified matching installer in the background, then offers **Install**. GitHub repository access controls who can download; the token is encrypted locally.
+
 ## What it does
 
 - **Overview and match history:** summarize recent games and show available win rate, KDA, GPM, XPM, last hits, denies, and performance trends. Coverage depends on OpenDota availability and Dota's **Expose Public Match Data** setting.
@@ -19,6 +23,10 @@ Download the desktop testing builds from [GitHub Releases](https://github.com/ab
 - **Live & Coach:** in supported local practice games, show an own-player lane card with the clock and available player-visible stats. Defensive lane advice and personal pace comparisons appear only when the necessary own-player data is available.
 - **Optional Puter AI:** ask strategy questions grounded in selected app data. Sign in from **Settings → Puter AI** using your browser. The AI is optional; its model availability and usage limits are set by Puter.
 - **Local Dota and Steam discovery:** detect the installed game, build number, Steam account selection, and local item builds. The local game files do not provide completed match history; that comes from public/cached OpenDota data or a match ID.
+
+### Your history with public sharing off
+
+Use **Overview → Import own matches** to paste up to 20 of your own completed scoreboards as CSV or tab-separated rows. The import dialog shows the column order and opens Steam's personal game data page. These rows stay on your device. To collect future games, opt in to **Save my completed match stats locally** in **Live & Coach** and connect GSI. It saves your own summary only when the feed supplies a completed result and cannot retrieve games from before it was enabled. The ranked overlay remains disabled.
 
 ## Requirements
 

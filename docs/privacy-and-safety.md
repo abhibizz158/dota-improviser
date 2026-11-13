@@ -11,6 +11,7 @@ Dota Improviser is a stats and practice companion. Its data boundaries are enfor
 - Heroes and picks the player manually selects or types.
 - Optional Puter AI context explicitly selected by the player and the question they submit.
 - OS-reported foreground Dota window bounds, used only for overlay placement. No window contents, titles, or game data are collected through this path.
+- User-pasted completed scoreboard rows and, when separately enabled, the linked player's own completed-match GSI summary. Up to 20 local matches are stored on the device and no private replay or account session is accessed.
 
 ## Not used
 
@@ -36,6 +37,7 @@ The current approved section set is `provider`, `map`, `player`, `hero`, `items`
 - Match history and saved reviews stay in the local SQLite database. Do not add them to Puter prompts or other outbound requests without changing the privacy design and asking the user.
 - Puter is optional and user-initiated. The browser handles sign-in; the app receives a session token through a one-time state-checked loopback callback. The token uses OS secure storage where supported. The AI receives the question, selected hero/picks/items, app-derived hero/patch/matchup/reference facts, and supported own-player practice values. It does not receive the Steam account ID or personal match history.
 - Users can disconnect Puter and clear local app data from Settings. A GSI config contains a local token; regenerate/install it after clearing app data.
+- Private GitHub updates use a user-provided fine-grained read token, encrypted by the operating system. The token is sent only to GitHub's API. The asset download uses GitHub's temporary URL without forwarding the credential and must match the published size and SHA-256 digest.
 
 ## Ranked release gate
 

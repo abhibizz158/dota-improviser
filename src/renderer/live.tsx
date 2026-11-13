@@ -114,6 +114,8 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
       <label className="field">Overlay opacity ({Math.round(settings.opacity * 100)}%)<input type="range" min={50} max={100} step={5} disabled={!!busy} value={Math.round(settings.opacity * 100)} onChange={(event) => setting('opacity', Number(event.target.value) / 100)} /></label>
       <label className="check-field"><input type="checkbox" checked={settings.cues} disabled={!!busy} onChange={(event) => setting('cues', event.target.checked)} />
         <span>Show practice timing cues <small>Approximate clock-based stack and pull windows. Camp and side timings vary.</small></span></label>
+      <label className="check-field"><input type="checkbox" checked={settings.saveOwnMatches} disabled={!!busy} onChange={(event) => setting('saveOwnMatches', event.target.checked)} />
+        <span>Save my completed match stats locally <small>With GSI connected, save your own scoreboard when Dota sends a result. Keeps up to 20 matches on this device. It cannot backfill past games.</small></span></label>
     </section>
     <RoshanPanel api={api} live={live} onState={onState} />
     <Trophies career={live.career} />

@@ -73,7 +73,7 @@ export function Review({ api, catalog, account, id, sample, history, onImport, o
   }, [api, id, sample, refresh])
 
   useEffect(() => {
-    if (!id || sample || !result || result.data.parsed) return
+    if (!id || sample || !result || result.data.parsed || result.data.localOnly) return
     let active = true
     void api.parseStatus(id).then((state) => {
       if (!active || !state.jobId) return
@@ -184,7 +184,8 @@ export function Review({ api, catalog, account, id, sample, history, onImport, o
           ['GPM', fmt(player.gpm)], ['XPM', fmt(player.xpm)], ['Last hits', fmt(player.lastHits)], ['Denies', fmt(player.denies)]].map(([label, value]) =>
           <article key={label} className="panel review-stat"><span>{label}</span><strong>{value}</strong></article>)}
       </div>
-      {!match.parsed && <section className="panel standalone">
+      {match.localOnly && <section className="panel standalone"><p>Local scoreboard. Replay charts and purchase timelines are unavailable for this entry.</p></section>}
+      {!match.parsed && !match.localOnly && <section className="panel standalone">
         <div><h2>Replay data is unavailable</h2><p>{parse === 'pending' ? 'OpenDota is processing the replay. This view will refresh when it finishes.' :
           parse === 'unavailable' ? 'The parse job ended without detailed replay data. The replay may have expired.' :
             'The scoreboard is available. You can ask OpenDota to parse the replay for detailed stats.'}</p></div>

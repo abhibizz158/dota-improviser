@@ -55,7 +55,11 @@ jobs:
           ELECTRON_RUN_AS_NODE=1 "$app/Contents/MacOS/Dota Improviser" scripts/smoke-overlay-module.cjs "$helper"
           mkdir -p artifacts
           version=$(node -p 'require("./package.json").version')
-          ditto -c -k --sequesterRsrc --keepParent "$app" "artifacts/Dota-Improviser-${version}-$PLATFORM.zip"
+          installer="artifacts/Dota-Improviser-${version}-$PLATFORM.pkg"
+          bash scripts/build-macos-pkg.sh "$app" "$installer" "$version"
+          sudo /usr/sbin/installer -pkg "$installer" -target /
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' '/Applications/Dota Improviser.app/Contents/Info.plist')" = "$version"
+          codesign --verify --deep --strict '/Applications/Dota Improviser.app'
       - name: Verify and archive Windows application
         if: runner.os == 'Windows'
         shell: pwsh
@@ -69,13 +73,25 @@ jobs:
           Remove-Item Env:ELECTRON_RUN_AS_NODE
           New-Item -ItemType Directory -Force artifacts | Out-Null
           $version = node -p 'require("./package.json").version'
-          $archive = "$PWD/artifacts/Dota-Improviser-$version-$env:PLATFORM.zip"
-          & "$env:ProgramFiles/7-Zip/7z.exe" a -tzip $archive "./$package"
+          $compiler = "${env:ProgramFiles(x86)}/NSIS/makensis.exe"
+          if (!(Test-Path $compiler)) {
+            choco install nsis --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          $output = "$PWD/artifacts/Dota-Improviser-$version-$env:PLATFORM-setup.exe"
+          $source = (Resolve-Path $package).Path
+          & $compiler "/DAPP_DIR=$source" "/DOUTPUT_FILE=$output" scripts/windows-installer.nsi
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $installation = Start-Process -FilePath $output -ArgumentList '/S' -Wait -PassThru
+          if ($installation.ExitCode -ne 0) { exit $installation.ExitCode }
+          $installed = "$env:LOCALAPPDATA/Programs/Dota Improviser"
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          & "$installed/Dota Improviser.exe" scripts/smoke-overlay-module.cjs "$installed/resources/app.asar.unpacked/dist/main/main/overlay-window.node" | Out-Host
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.platform }}
-          path: artifacts/*.zip
+          path: artifacts/*
           if-no-files-found: error
           compression-level: 0
           retention-days: 7

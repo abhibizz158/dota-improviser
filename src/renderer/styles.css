@@ -88,6 +88,7 @@ select:focus, input:focus { border-color: var(--gold); outline: 0; }
 .dialog { background: var(--s1); border: 1px solid var(--line-strong); border-radius: 14px; color: var(--text); width: min(560px, 92vw); padding: 20px; } .dialog::backdrop { background: rgba(0,0,0,.65); }
 .dialog-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
 .settings-dialog, .modal-form { display: grid; gap: 10px; }
+.settings-dialog textarea { width: 100%; resize: vertical; padding: 10px; color: var(--text); background: var(--s2); border: 1px solid var(--line-strong); border-radius: 8px; font: inherit; }
 .settings-choice { display: flex; gap: 12px; align-items: center; text-align: left; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--s2); } .settings-choice:hover { border-color: var(--line-strong); }
 .settings-choice > span { flex: 1; } .settings-choice small { display: block; color: var(--muted); }
 .clear-area { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 8px; color: var(--muted); }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Database, Search } from 'lucide-react'
 import type { AppApi, Catalog, HeroDetail, LiveState } from '../shared/model'
 import { FEATURE_LABELS, GLOSSARY, atLevel } from '../shared/mechanics'
-import { Dialog, Empty, fmt, Portrait } from './ui'
+import { Dialog, Empty, Feedback, fmt, Portrait } from './ui'
 
 const brackets = ['Herald', 'Guardian', 'Crusader', 'Archon', 'Legend', 'Ancient', 'Divine', 'Immortal']
 const metrics = [['gpm', 'GPM'], ['xpm', 'XPM'], ['lhpm', 'Last hits/min'], ['kpm', 'Kills/min'], ['dpm', 'Hero dmg/min']] as const
@@ -42,7 +42,7 @@ export function Heroes({ api, catalog, live, onDraft }: { api: AppApi; catalog: 
   const [id, setId] = useState(catalog.heroes.find((h) => h.slug === 'phantom_assassin')?.id ?? catalog.heroes[0].id)
   const [detail, setDetail] = useState<HeroDetail | null>(null)
   const [guide, setGuide] = useState(false)
-  useEffect(() => { let on = true; void api.heroDetail(id).then((d) => { if (on) setDetail(d) }).catch(() => {}); return () => { on = false } }, [api, id])
+  useEffect(() => { let on = true; void api.heroDetail(id).then((d) => { if (on) setDetail(d) }).catch(() => {}); return () => { on = false } }, [api, id, live.data.updatedAt, live.data.state])
   const roles = useMemo(() => [...new Set(catalog.heroes.flatMap((h) => h.roles))].sort(), [catalog])
   const list = catalog.heroes.filter((h) => (!query || h.name.toLowerCase().includes(query.toLowerCase())) && (!role || h.roles.includes(role)))
   const hero = catalog.heroes.find((h) => h.id === id)!
@@ -50,6 +50,7 @@ export function Heroes({ api, catalog, live, onDraft }: { api: AppApi; catalog: 
   const d = detail?.data
   const totalPick = d ? d.pick.reduce((a, b) => a + b, 0) : 0
   return <>
+    {live.data.state === 'error' && <Feedback error message={live.data.message} />}
     <div className="page-heading"><div><h1>Hero database</h1><p>Win rates, benchmarks and counters for every hero, from public OpenDota data.</p></div>
       <div className="actions">
         {live.data.state === 'updating' && <span className="status-pill"><i /> Updating {live.data.done}/{live.data.total}</span>}

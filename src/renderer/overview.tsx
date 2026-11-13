@@ -9,11 +9,11 @@ import { FeaturedStage, GuideSections, Insights, useFeatured } from './featured'
 
 type Props = {
   api: AppApi; onUseHero: (id: number) => void; showStyle?: boolean; catalog: Catalog; history: SourceResult<MatchSummary[]> | null; loading: boolean; demo: boolean; account: string;
-  onAccount: () => void; onRefresh: () => void; onMatch: (id: string) => void; onImport: () => void; onDraft: () => void; onOpenGame: () => void; local: LocalStatus;
+  onAccount: () => void; onRefresh: () => void; onMatch: (id: string) => void; onImport: () => void; onPrivateHistory: () => void; onDraft: () => void; onOpenGame: () => void; local: LocalStatus;
 }
 const base = import.meta.env.BASE_URL
 
-export function Overview({ api, onUseHero, showStyle = true, catalog, history, loading, demo, account, onAccount, onRefresh, onMatch, onImport, onDraft, onOpenGame, local }: Props) {
+export function Overview({ api, onUseHero, showStyle = true, catalog, history, loading, demo, account, onAccount, onRefresh, onMatch, onImport, onPrivateHistory, onDraft, onOpenGame, local }: Props) {
   const [hero, setHero] = useState('')
   const [role, setRole] = useState('')
   const [mode, setMode] = useState('')
@@ -69,6 +69,7 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, l
         <div className="section-actions">
           {!demo && history && <span className="fine-print">{history.stale ? 'Cached · ' : 'Updated '}{new Date(history.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
           {account && <button className="button secondary slim" disabled={loading} onClick={onRefresh}><RefreshCw size={15} className={loading ? 'spin' : ''} /> {loading ? 'Refreshing…' : 'Refresh'}</button>}
+          {account && !demo && <button className="button secondary slim" onClick={onPrivateHistory}>Import own matches</button>}
         </div>
       </div>
       <div className="metrics-grid">
@@ -111,7 +112,7 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, l
         <div className="match-table-wrap"><table className="match-table">
           <thead><tr><th>Hero</th><th>Result</th><th>K / D / A</th><th>GPM</th><th>XPM</th><th>LH / DN</th><th>Duration</th><th>Date</th><th><span className="sr-only">Review</span></th></tr></thead>
           <tbody>{filtered.slice(currentPage * 6, currentPage * 6 + 6).map((match) => <tr key={match.id}>
-            <td><button className="match-name" onClick={() => onMatch(match.id)}><Portrait hero={byId.get(match.heroId)} /><span><strong>{byId.get(match.heroId)?.name ?? 'Unknown hero'}</strong><small>{[match.role, match.mode].filter(Boolean).join(' · ') || 'Role unavailable'}</small></span></button></td>
+            <td><button className="match-name" onClick={() => onMatch(match.id)}><Portrait hero={byId.get(match.heroId)} /><span><strong>{byId.get(match.heroId)?.name ?? 'Unknown hero'}</strong><small>{match.source === 'local' ? 'Local scoreboard' : [match.role, match.mode].filter(Boolean).join(' · ') || 'Role unavailable'}</small></span></button></td>
             <td><span className={'result ' + (match.won == null ? '' : match.won ? 'win' : 'loss')}>{match.won == null ? 'Unknown' : match.won ? 'Victory' : 'Defeat'}</span></td>
             <td>{[match.kills, match.deaths, match.assists].map((number) => fmt(number)).join(' / ')}</td><td>{fmt(match.gpm)}</td><td>{fmt(match.xpm)}</td>
             <td>{fmt(match.lastHits)} / {fmt(match.denies)}</td><td>{clock(match.duration || null)}</td><td>{day(match.start)}</td>
@@ -122,7 +123,7 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, l
           <div className="actions"><button className="button secondary slim" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</button><button className="button secondary slim" disabled={currentPage >= lastPage} onClick={() => setPage(currentPage + 1)}>Next</button></div></div>
       </> : matches.length ? <Empty title="No matches fit these filters">Try a different hero, role, mode, or patch.</Empty> : <div className="history-empty">
         <Empty title={loading ? 'Loading your match history' : 'No match history returned'}>
-          {account ? 'Your Steam account is linked. The local Dota client does not expose completed match history; enable Expose Public Match Data or open a completed match by ID.' : 'Link your Steam account, or open a completed match by ID.'}
+          {account ? 'If public sharing is off, import your own completed match scoreboards to fill the overview.' : 'Link your Steam account, or open a completed match by ID.'}
         </Empty>
         <div className="actions"><button className="button secondary slim" onClick={onImport}>Open match by ID</button>{local.installFound && <button className="button secondary slim" onClick={onOpenGame}><Gamepad2 size={14} /> Open Dota 2</button>}</div>
       </div>}

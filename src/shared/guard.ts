@@ -5,7 +5,7 @@
 export const allowedGsiSections = ['provider', 'map', 'player', 'hero', 'items', 'draft'] as const
 
 /** Every outbound HTTP request from any window or the main process must target one of these hosts. */
-export const allowedHosts = ['api.opendota.com', 'api.github.com', 'api.puter.com', 'puter.com', 'cdn.cloudflare.steamstatic.com', 'www.dota2.com', 'support.overwolf.com', 'blog.opendota.com'] as const
+export const allowedHosts = ['api.opendota.com', 'api.github.com', 'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com', 'steamcommunity.com', 'api.puter.com', 'puter.com', 'cdn.cloudflare.steamstatic.com', 'www.dota2.com', 'support.overwolf.com', 'blog.opendota.com'] as const
 
 export function hostAllowed(url: string) {
   try {
