@@ -242,6 +242,9 @@ function App() {
       <header className="topbar">
         <div className="breadcrumb"><Gamepad2 size={17} /><span>Workspace</span><span className="slash">/</span><strong>{pages.find(({ id }) => id === page)?.label}</strong></div>
         <div className="topbar-actions">
+          {live.data.state === 'updating' && <span className="data-download" title={'Downloading hero data: ' + live.data.done + ' of ' + live.data.total}>
+            <small>Downloading hero data {live.data.done}/{live.data.total}</small>
+            <div className="data-download-bar"><i style={{ width: (live.data.total ? 100 * live.data.done / live.data.total : 0) + '%' }} /></div></span>}
           <button className={'status-pill ' + (sample ? 'sample' : 'connected')} title={sample ? 'Switch to your workspace' : 'Workspace settings'} onClick={() => sample ? setSample(false) : showModal('settings')}>
             <i />{statusText}</button>
           <button className="icon-button top-settings" aria-label="Settings" onClick={() => showModal('settings')}><Settings2 size={18} /></button>

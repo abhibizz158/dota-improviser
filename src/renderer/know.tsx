@@ -113,7 +113,7 @@ export function Know({ api, catalog, live, puter }: Props) {
       <div className="actions"><button className="button primary" disabled={!puter.connected || busy || !question.trim()} onClick={() => void ask()}>{busy ? 'Thinking…' : 'Ask Puter AI'} <ArrowRight size={15} /></button><span className="fine-print">{puter.connected ? `Model: ${puter.model}` : 'Connect Puter AI in Settings to ask.'}</span></div>
       <p className="fine-print">Sent to Puter: your typed question, selected hero/picks/items and, only in a supported practice session, your own clock, GPM and unspent gold. Steam ID and match history are excluded. Availability and quotas follow Puter’s account plan.</p>
       <Feedback error message={error} />
-      {answer && <article className="know-answer"><h3>Strategy notes</h3><p>{answer}</p></article>}
+      {answer && <article className="know-answer"><h3>Strategy notes</h3>{answer.split(/\n{2,}/).map((para, i) => <p key={i}>{para}</p>)}</article>}
     </section>
 
     <section className="panel form-panel know-glossary">

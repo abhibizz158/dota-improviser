@@ -50,6 +50,10 @@ nav { display: grid; gap: 2px; }
 .topbar button { -webkit-app-region: no-drag; }
 .breadcrumb { display: flex; align-items: center; gap: 8px; color: var(--muted); } .breadcrumb strong { color: var(--text); font: 700 14px var(--display); letter-spacing: .1em; text-transform: uppercase; } .slash { color: var(--dim); }
 .topbar-actions { display: flex; gap: 8px; align-items: center; }
+.data-download { display: inline-flex; flex-direction: column; gap: 3px; min-width: 150px; }
+.data-download small { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.data-download-bar { height: 4px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.data-download-bar i { display: block; height: 100%; background: var(--gold); border-radius: inherit; transition: width .3s ease; }
 .status-pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 99px; border: 1px solid var(--line-strong); background: var(--s2); font-size: 12px; }
 .status-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); } .status-pill.connected i { background: var(--good); box-shadow: 0 0 8px var(--good); } .status-pill.sample i { background: var(--gold); }
 .content-scroll { flex: 1; overflow: auto; overscroll-behavior: contain; } .content { max-width: 1320px; margin: 0 auto; padding: 24px; display: grid; gap: 18px; align-content: start; }
