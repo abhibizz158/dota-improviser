@@ -32,7 +32,9 @@ export type Build = Record<'starting' | 'early' | 'mid' | 'late', { item: string
 export type ItemUpgrade = { name: string; text: string }
 export type Catalog = { heroes: Hero[]; items: Record<string, string>; patch: string; patches: string[]; upgrades?: Record<number, { scepter?: ItemUpgrade; shard?: ItemUpgrade }> }
 export type DataStatus = { state: 'idle' | 'updating' | 'ready' | 'error'; done: number; total: number; updatedAt: number; message: string }
-export type Placement = 'Top left' | 'Top right' | 'Bottom left' | 'Bottom right'
+export const placements = ['Auto', 'Top left', 'Top right', 'Bottom left', 'Bottom right'] as const
+export type Placement = typeof placements[number]
+export type DisplayChoice = { id: string; name: string }
 export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'coachTips', 'achievements', 'personal', 'hints', 'toasts', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'learning', 'patchAware'] as const
 export type FeatureKey = typeof featureKeys[number]
 export type Features = Record<FeatureKey, boolean>
@@ -62,7 +64,7 @@ export type LiveSettings = {
   role: Role; cues: boolean; coach: boolean; opacity: number; detailed: boolean; features: Features
 }
 export const defaultLiveSettings: LiveSettings = {
-  display: 'Overlay', size: 'Compact', placement: 'Top right', monitor: 'primary', role: 'Carry', cues: false, coach: false, opacity: 0.94, detailed: true, features: defaultFeatures,
+  display: 'Overlay', size: 'Compact', placement: 'Auto', monitor: 'auto', role: 'Carry', cues: false, coach: false, opacity: 0.94, detailed: true, features: defaultFeatures,
 }
 export type Lane = {
   clock: number; heroSlug: string | null; lastHits: number | null; denies: number | null;
@@ -104,6 +106,7 @@ export type LiveState = {
   status: 'Idle' | 'Waiting for Dota' | 'Pick phase' | 'Live' | 'Paused' | 'Feed stale' | 'Unsupported session' | 'Connection error';
   lane: Lane | null; receivedAt: number | null; open: boolean; armed: boolean;
   pace: Pace[]; checkpoints: Checkpoint[]; settings: LiveSettings; shortcutAvailable: boolean; roshan: RoshanState
+  displays?: DisplayChoice[]; overlayDisplay?: { name: string; following: boolean }
 }
 export type MechRow = { heroId: number; edge: number; parts: { label: FeatureName; points: number }[] }
 export type MechSummary = { r2: number; samples: number; k?: number; importance: { name: FeatureName; weight: number; share: number }[] }
@@ -115,7 +118,7 @@ export type HeroDetail = {
 }
 export type Bootstrap = {
   accountId: string; catalog: Catalog; live: LiveState; cachedHistory?: SourceResult<MatchSummary[]>;
-  displays: { id: string; name: string }[]; desktop: boolean; local: LocalStatus
+  displays: DisplayChoice[]; desktop: boolean; local: LocalStatus
 }
 export type ParseProgress = { jobId: string; pending: boolean }
 export interface AppApi {

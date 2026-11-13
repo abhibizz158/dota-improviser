@@ -2,6 +2,7 @@
 node_modules/
 dist/
 release/
+/native/overlay/build/
 
 # Generated public-data snapshots (rebuild with `npm run data`)
 data/

@@ -8,6 +8,8 @@ Dota Improviser combines public match aggregates, read-only local Steam/Dota dis
 
 > **Fair-play status:** live overlay coaching is currently restricted to supported local practice sessions. Ranked live coaching is disabled. The app does not read game memory, capture the screen, inspect packets, automate inputs, or reveal hidden information.
 
+Download the desktop testing builds from [GitHub Releases](https://github.com/abhibizz158/dota-improviser/releases). Access to this private repository is required.
+
 ## What it does
 
 - **Overview and match history:** summarize recent games and show available win rate, KDA, GPM, XPM, last hits, denies, and performance trends. Coverage depends on OpenDota availability and Dota's **Expose Public Match Data** setting.
@@ -22,6 +24,7 @@ Dota Improviser combines public match aggregates, read-only local Steam/Dota dis
 
 - Windows 10/11 or macOS for the desktop app.
 - Node.js 24 or newer and npm for development/building.
+- Python 3 and a native C++ toolchain to build automatic display detection. See the [build checklist](docs/release-checklist.md).
 - Steam and Dota 2 are optional for dashboard development, and needed for local game discovery and GSI practice setup.
 
 ## Run from source
@@ -42,6 +45,8 @@ The first launch shows a sample workspace until you add a Dota account ID or ope
 3. Install the generated `gamestate_integration_dota_improviser.cfg` into `game/dota/cfg/gamestate_integration` in the Dota installation.
 4. Add `-gamestateintegration` to Dota 2's Steam launch options, then restart Dota.
 5. Start the listener and enter a supported local practice lobby. The overlay supports windowed/borderless play where available. Use **Companion** layout if an overlay cannot display reliably above the game.
+
+In **Live & Coach → Display preferences**, select **Follow Dota** and **Auto** placement to put the draft card in the upper left and the lane card in the upper right of the detected game window. Pick a specific monitor and corner if you prefer. The cards pass clicks through to Dota. To edit draft picks, press **Ctrl/⌘ + Shift + F9** or use **Edit draft overlay**. **Done**, **Esc**, or leaving the editor restores click-through. **Ctrl/⌘ + Shift + F10** hides the overlay.
 
 The GSI receiver listens on `127.0.0.1:43182` and authenticates updates with a per-install token. Live updates are transient; raw packets are not retained. The app validates updates in the desktop process and only exposes allowlisted own-player data. Clearing local app data also rotates the token, so reinstall the generated config afterward. Spectator/replay contexts, unknown contexts, stale updates, and unsupported matches must not populate the live player card.
 

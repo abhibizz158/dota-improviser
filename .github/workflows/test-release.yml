@@ -1,0 +1,79 @@
+name: Build desktop test release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            runner: windows-2025
+            command: package:win
+            package-dir: Dota Improviser-win32-x64
+          - platform: macos-arm64
+            runner: macos-15
+            command: package:mac
+            package-dir: Dota Improviser-darwin-arm64
+          - platform: macos-x64
+            runner: macos-15-intel
+            command: package:mac-intel
+            package-dir: Dota Improviser-darwin-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      PLATFORM: ${{ matrix.platform }}
+      PACKAGE_DIR: ${{ matrix.package-dir }}
+      PACKAGE_COMMAND: ${{ matrix.command }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - shell: bash
+        run: npm run "$PACKAGE_COMMAND"
+      - name: Run application tests against the packaged build inputs
+        shell: bash
+        run: node --test tests/*.test.mjs
+      - name: Verify and archive macOS application
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app="release/$PACKAGE_DIR/Dota Improviser.app"
+          helper="$app/Contents/Resources/app.asar.unpacked/dist/main/main/overlay-window.node"
+          codesign --verify --deep --strict "$app"
+          ELECTRON_RUN_AS_NODE=1 "$app/Contents/MacOS/Dota Improviser" scripts/smoke-overlay-module.cjs "$helper"
+          mkdir -p artifacts
+          version=$(node -p 'require("./package.json").version')
+          ditto -c -k --sequesterRsrc --keepParent "$app" "artifacts/Dota-Improviser-${version}-$PLATFORM.zip"
+      - name: Verify and archive Windows application
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $package = "release/$env:PACKAGE_DIR"
+          $exe = Join-Path $package 'Dota Improviser.exe'
+          $helper = Join-Path $package 'resources/app.asar.unpacked/dist/main/main/overlay-window.node'
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          & $exe scripts/smoke-overlay-module.cjs $helper | Out-Host
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item Env:ELECTRON_RUN_AS_NODE
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          $version = node -p 'require("./package.json").version'
+          $archive = "$PWD/artifacts/Dota-Improviser-$version-$env:PLATFORM.zip"
+          & "$env:ProgramFiles/7-Zip/7z.exe" a -tzip $archive "./$package"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.platform }}
+          path: artifacts/*.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

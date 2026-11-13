@@ -478,11 +478,17 @@ body { font-size: clamp(13px, 0.22vw + 11.2px, 16px); }
 .segment { max-width: 100%; flex-wrap: wrap; }
 .feedback { overflow-wrap: anywhere; }
 .overlay-scroll { max-height: 100dvh; overflow: hidden; }
+.overlay-scroll:not(.interactive) { pointer-events: none; user-select: none; }
 .overlay-scroll.interactive { overflow-y: auto; scrollbar-width: thin; }
-.overlay-view { padding: 8px; gap: 6px; justify-items: stretch; }
+.overlay-view { padding: 4px; gap: 5px; justify-items: stretch; }
 .overlay-view .lane-card, .overlay-view .draft-card, .overlay-view .coach-card {
-  max-width: none; box-shadow: 0 3px 10px #0007; padding: 12px 12px 11px 15px;
+  min-width: 0; max-width: none; box-shadow: 0 3px 10px #0007; padding: 10px 10px 9px 12px;
 }
+.overlay-view .compact-coach .stat-row { margin-top: 4px; }
+.overlay-edit { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--gold); font-size: 12px; }
+.overlay-edit button, .overlay-view .draft-entry button { color: var(--text); background: var(--s2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 7px; cursor: pointer; }
+.overlay-edit button:hover, .overlay-view .draft-entry button:hover { border-color: var(--gold); }
+.overlay-view .draft-entry small { color: var(--muted); }
 .overlay-view .toasts { min-width: 0; max-width: 100%; }
 .overlay-view .toasts > * { max-width: 100%; }
 

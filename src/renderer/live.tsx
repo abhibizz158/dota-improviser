@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { ArrowUpRight, CheckCircle2, CircleHelp, Download, FileDown, Layers3, Monitor, Radio, Shield, ShieldCheck } from 'lucide-react'
 import type { AppApi, Bootstrap, FeatureKey, LiveSettings, LiveState, Placement } from '../shared/model'
-import { featureInfo, featureKeys, roles } from '../shared/model'
+import { featureInfo, featureKeys, placements, roles } from '../shared/model'
 import { CoachCard, Feedback, LaneCard, RoshanTimer, clock } from './ui'
 
 type Props = { api: AppApi; context: Bootstrap; live: LiveState; onState: (live: LiveState) => void; onAccount: () => void }
-const positions: Placement[] = ['Top left', 'Top right', 'Bottom left', 'Bottom right']
 
 const trophyName = (id: string) => id === 'first-blood' ? 'First Blood' : id.startsWith('multi-') ? id.slice(6) : id.startsWith('streak-') ? ({ '3': 'Killing Spree', '4': 'Dominating', '5': 'Mega Kill', '6': 'Unstoppable', '7': 'Wicked Sick', '8': 'Monster Kill', '9': 'Godlike', '10': 'Beyond Godlike' } as Record<string, string>)[id.slice(7)] ?? id
   : id === 'no-death-10' ? 'Untouched at 10:00' : id === 'cs-60' ? '60 last hits by 10:00' : id.startsWith('goal-') ? 'Goal: ' + id.slice(5).replaceAll('_', ' ') : id
@@ -21,7 +20,7 @@ function Trophies({ career }: { career: Record<string, number> }) {
   </section>
 }
 
-/** Manual Roshan/Aegis stopwatch for mouse use (the global hotkeys work the same anywhere: Insert/Alt+Insert/Home to start, Ctrl/⌘+Alt+Insert or +Home to clear). You trigger it; nothing is read from the game. */
+/** Manual Roshan/Aegis stopwatch, started by the player. */
 function RoshanPanel({ api, live, onState }: { api: AppApi; live: LiveState; onState: (live: LiveState) => void }) {
   const [busy, setBusy] = useState(false)
   const act = (fn: () => Promise<LiveState>) => { setBusy(true); void fn().then(onState).finally(() => setBusy(false)) }
@@ -30,10 +29,10 @@ function RoshanPanel({ api, live, onState }: { api: AppApi; live: LiveState; onS
     <header className="panel-heading"><div><h2>Roshan / Aegis timer</h2><p>A stopwatch you start yourself when you see Roshan die. Reads nothing from the game.</p></div><Shield size={19} className="quiet-icon" /></header>
     <RoshanTimer roshan={live.roshan} />
     <div className="actions">
-      <button className="button secondary" disabled={busy} onClick={() => act(() => api.roshanStart('both'))}>Start both <kbd>Insert</kbd></button>
-      <button className="button secondary slim" disabled={busy} onClick={() => act(() => api.roshanStart('rosh'))}>Roshan only <kbd>Alt+Insert</kbd></button>
-      <button className="button secondary slim" disabled={busy} onClick={() => act(() => api.roshanStart('aegis'))}>Aegis only <kbd>Home</kbd></button>
-      <button className="button secondary slim" disabled={busy} onClick={() => act(() => api.roshanClear('both'))}>Clear <kbd>Ctrl/⌘+Alt+Insert</kbd></button>
+      <button className="button secondary" disabled={busy} onClick={() => act(() => api.roshanStart('both'))}>Start both <kbd>Ctrl/⌘+Alt+F6</kbd></button>
+      <button className="button secondary slim" disabled={busy} onClick={() => act(() => api.roshanStart('rosh'))}>Roshan only <kbd>Ctrl/⌘+Alt+F7</kbd></button>
+      <button className="button secondary slim" disabled={busy} onClick={() => act(() => api.roshanStart('aegis'))}>Aegis only <kbd>Ctrl/⌘+Alt+F8</kbd></button>
+      <button className="button secondary slim" disabled={busy} onClick={() => act(() => api.roshanClear('both'))}>Clear <kbd>Ctrl/⌘+Alt+F9</kbd></button>
     </div>
   </section>
 }
@@ -94,9 +93,9 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
         <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay' || (!active && !live.open)} onClick={() =>
           void act('overlay', async () => { onState(await api.toggleOverlay()) })}><Layers3 size={16} />{live.open ? 'Hide overlay' : 'Show overlay'}</button>
         {!active && settings.display === 'Overlay' && <p className="fine-print">Connect a supported practice lobby to show the overlay.</p>}
-        <button className="button secondary" disabled={!!busy || !context.desktop} onClick={() =>
-          void act('draftOverlay', async () => { onState(await api.toggleDraftOverlay()) })}><Layers3 size={16} />Draft overlay · Ctrl/⌘ + Shift + F9</button>
-        <p className="fine-print">Draft overlay works in any lobby: it only shows picks you type. Over fullscreen: macOS and Windows borderless are supported; Windows exclusive fullscreen cannot be overlaid, so pick Borderless in Dota's video settings.</p>
+        <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay'} onClick={() =>
+          void act('draftOverlay', async () => { onState(await api.toggleDraftOverlay()) })}><Layers3 size={16} />Edit draft overlay · Ctrl/⌘ + Shift + F9</button>
+        <p className="fine-print">The overlay passes mouse input through during play. Edit draft picks with the button or shortcut; Done, Escape, or leaving the editor returns it to click-through. Use Borderless or Companion if fullscreen covers the overlay.</p>
         <p className="fine-print">{live.shortcutAvailable ? 'Hide shortcut · Ctrl/⌘ + Shift + F10' : 'The hide shortcut is unavailable. Use this window to hide the overlay.'}</p>
       </section>
     </div>
@@ -104,11 +103,14 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
       <header className="panel-heading"><div><h2>Display preferences</h2><p>Choose the screen and placement for windowed or borderless play.</p></div></header>
       <div className="settings-grid">
         <label className="field">Layout<select disabled={!!busy} value={settings.display} onChange={(event) => setting('display', event.target.value as LiveSettings['display'])}><option>Overlay</option><option>Companion</option></select></label>
-        <label className="field">Monitor<select disabled={!!busy || settings.display === 'Companion'} value={settings.monitor} onChange={(event) => setting('monitor', event.target.value)}>{context.displays.map((display) => <option key={display.id} value={display.id}>{display.name}</option>)}</select></label>
-        <label className="field">Placement<select disabled={!!busy || settings.display === 'Companion'} value={settings.placement} onChange={(event) => setting('placement', event.target.value as Placement)}>{positions.map((position) => <option key={position}>{position}</option>)}</select></label>
+        <label className="field">Monitor<select disabled={!!busy || settings.display === 'Companion'} value={settings.monitor} onChange={(event) => setting('monitor', event.target.value)}>
+          {!(live.displays ?? context.displays).some(({ id }) => id === settings.monitor) && <option value={settings.monitor}>{settings.monitor === 'auto' ? 'Follow Dota' : 'Saved display unavailable'}</option>}
+          {(live.displays ?? context.displays).map((display) => <option key={display.id} value={display.id}>{display.name}</option>)}</select></label>
+        <label className="field">Placement<select disabled={!!busy || settings.display === 'Companion'} value={settings.placement} onChange={(event) => setting('placement', event.target.value as Placement)}>{placements.map((position) => <option key={position} value={position}>{position === 'Auto' ? 'Auto · draft left, lane right' : position}</option>)}</select></label>
         <label className="field">Card size<select disabled={!!busy} value={settings.size} onChange={(event) => setting('size', event.target.value as LiveSettings['size'])}><option>Compact</option><option>Large</option></select></label>
         <label className="field">Practice role<select disabled={!!busy} value={settings.role} onChange={(event) => setting('role', event.target.value as LiveSettings['role'])}>{roles.map((role) => <option key={role}>{role}</option>)}</select></label>
       </div>
+      {settings.display === 'Overlay' && settings.monitor === 'auto' && <p className="fine-print">{live.overlayDisplay ? (live.overlayDisplay.following ? 'Dota display: ' : 'Fallback display: ') + live.overlayDisplay.name + '. ' : ''}Follow Dota tracks the active game window. If it cannot detect the game, choose a monitor here.</p>}
       <label className="field">Overlay opacity ({Math.round(settings.opacity * 100)}%)<input type="range" min={50} max={100} step={5} disabled={!!busy} value={Math.round(settings.opacity * 100)} onChange={(event) => setting('opacity', Number(event.target.value) / 100)} /></label>
       <label className="check-field"><input type="checkbox" checked={settings.cues} disabled={!!busy} onChange={(event) => setting('cues', event.target.checked)} />
         <span>Show practice timing cues <small>Approximate clock-based stack and pull windows. Camp and side timings vary.</small></span></label>
