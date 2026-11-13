@@ -8,11 +8,11 @@ Dota Improviser combines public match aggregates, read-only local Steam/Dota dis
 
 > **Fair-play status:** live overlay coaching is currently restricted to supported local practice sessions. Ranked live coaching is disabled. The app does not read game memory, capture the screen, inspect packets, automate inputs, or reveal hidden information.
 
-Download the desktop testing builds from [GitHub Releases](https://github.com/abhibizz158/dota-improviser/releases). Access to this private repository is required.
+**[⬇ Download the latest release](https://github.com/abhibizz158/dota-improviser/releases/latest)** — macOS (Apple Silicon or Intel `.pkg`) and Windows (x64 `.exe`).
 
-On macOS, open the PKG for your chip (Apple Silicon or Intel). It installs or upgrades **Dota Improviser.app** in **Applications**. On Windows, run the x64 setup EXE. Quit Dota Improviser before upgrading. The installers leave your linked Dota account, settings, cached data, and saved Puter sign-in in the existing local profile. An older ad hoc signed macOS build may prompt you to approve Keychain access again.
+On macOS, open the PKG for your chip. It installs or upgrades **Dota Improviser.app** in **Applications**. On Windows, run the x64 setup EXE. Quit Dota Improviser before upgrading. The installers leave your linked Dota account, settings, cached data, and saved Puter sign-in in the existing local profile. An older ad hoc signed macOS build may prompt you to approve Keychain access again.
 
-In **Settings → App updates**, connect a GitHub fine-grained token scoped to this repository with **Contents: Read-only**. The app checks shortly after startup and every six hours, downloads a verified matching installer in the background, then offers **Install**. GitHub repository access controls who can download; the token is encrypted locally.
+The app checks for updates shortly after startup and every six hours with no setup needed, downloads a verified matching installer in the background, then offers **Install** in **Settings → App updates**. Connecting a GitHub token there is optional — only useful if you hit GitHub's unauthenticated rate limit (60 requests/hour).
 
 ## What it does
 

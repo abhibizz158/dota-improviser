@@ -339,13 +339,14 @@ function App() {
           <button className="button danger" disabled={formBusy} onClick={() => void clearData()}>{formBusy ? 'Clearing…' : confirmClear ? 'Confirm clear data' : 'Clear local data'}</button>
         </div>
       </div> : modal === 'updates' ? <div className="settings-dialog">
-        <p>Installed version: {appUpdate?.current ?? '—'}. The app checks every six hours when connected and downloads verified updates in the background. Installation opens your OS installer and closes the app.</p>
-        {appUpdate?.connected ? <div className="actions">
-          <button className="button secondary" disabled={formBusy || ['checking', 'downloading'].includes(appUpdate.state)} onClick={() => void updateAction('check')}>Check now</button>
-          {appUpdate.state === 'ready' && <button className="button primary" disabled={formBusy} onClick={() => void updateAction('install')}>Install {appUpdate.latest}</button>}
-          <button className="text-button" disabled={formBusy} onClick={() => void updateAction('disconnect')}>Disconnect GitHub</button>
-        </div> : <>
-          <p>Create a fine-grained GitHub token for the Dota Improviser repository with <strong>Contents: Read-only</strong>. The token is encrypted on this device and used only to check for and download private releases.</p>
+        <p>Installed version: {appUpdate?.current ?? '—'}. The repository is public, so the app checks every six hours with no setup needed, and downloads verified updates in the background. Installation opens your OS installer and closes the app.</p>
+        <div className="actions">
+          <button className="button secondary" disabled={formBusy || (appUpdate != null && ['checking', 'downloading'].includes(appUpdate.state))} onClick={() => void updateAction('check')}>Check now</button>
+          {appUpdate?.state === 'ready' && <button className="button primary" disabled={formBusy} onClick={() => void updateAction('install')}>Install {appUpdate.latest}</button>}
+          {appUpdate?.connected && <button className="text-button" disabled={formBusy} onClick={() => void updateAction('disconnect')}>Disconnect GitHub</button>}
+        </div>
+        {!appUpdate?.connected && <>
+          <p className="fine-print">Optional: connect a fine-grained GitHub token (<strong>Contents: Read-only</strong>) only if you hit GitHub's unauthenticated rate limit (60 requests/hour) — not needed otherwise. The token is encrypted on this device.</p>
           <button className="text-button" onClick={() => void api.openExternal('updateToken')}>Create token in GitHub</button>
           <label className="field">GitHub update token<input type="password" autoComplete="off" maxLength={270} value={updateCredential} onChange={(event) => setUpdateCredential(event.target.value)} /></label>
           <button className="button primary" disabled={formBusy || !updateCredential.trim() || !context.desktop} onClick={() => void updateAction('connect')}>Connect GitHub</button>

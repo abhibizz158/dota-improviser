@@ -21,6 +21,8 @@ export class ReleaseUpdates {
   private installer: { file: string; asset: Asset } | undefined
   private info: UpdateInfo
   constructor(private store: Store, private notify: (info: UpdateInfo) => void) {
+    // The repository is public, so update checks work with no token at all (GitHub's unauthenticated rate limit,
+    // 60 requests/hour, comfortably covers a check every few hours). A token only raises that ceiling.
     this.info = { current: app.getVersion(), latest: null, connected: Boolean(store.get(storedKey)), state: 'idle', message: '' }
   }
   status() { return this.info }
@@ -45,7 +47,7 @@ export class ReleaseUpdates {
     if (typeof value !== 'string' || !/^github_pat_[a-zA-Z0-9_]{20,255}$/.test(value)) throw new Error('Enter a fine-grained GitHub token with read access to this repository.')
     const operation = this.generation
     const response = await this.releases(value)
-    if (!response.ok) throw new Error('GitHub rejected access. Check that the token can read Contents for this private repository.')
+    if (!response.ok) throw new Error('GitHub rejected access. Check that the token can read Contents for this repository.')
     await response.body?.cancel()
     const encrypted = await safeStorage.encryptStringAsync(value)
     if (operation !== this.generation) return this.info
@@ -63,11 +65,12 @@ export class ReleaseUpdates {
     return this.set({ connected: false, latest: null, state: 'idle', message: '' })
   }
   private releases(credential: string) {
-    return fetch(api + '/releases?per_page=20', { headers: { Authorization: 'Bearer ' + credential, Accept: 'application/vnd.github+json' },
-      redirect: 'error', signal: AbortSignal.timeout(15000) })
+    const headers: Record<string, string> = { Accept: 'application/vnd.github+json' }
+    if (credential) headers.Authorization = 'Bearer ' + credential
+    return fetch(api + '/releases?per_page=20', { headers, redirect: 'error', signal: AbortSignal.timeout(15000) })
   }
   check() {
-    if (!this.info.connected || !app.isPackaged) return Promise.resolve(this.info)
+    if (!app.isPackaged) return Promise.resolve(this.info)
     this.operation ??= this.run(this.generation).finally(() => { this.operation = undefined })
     return this.operation
   }
@@ -76,7 +79,7 @@ export class ReleaseUpdates {
     this.set({ state: 'checking', message: '' })
     try {
       const credential = await this.readCredential()
-      if (!credential || generation !== this.generation) return this.info
+      if (generation !== this.generation) return this.info
       const response = await this.releases(credential)
       if (!response.ok) throw new Error('GitHub could not check for updates (HTTP ' + response.status + ').')
       const release = selectRelease(await response.json(), this.info.current, process.platform, process.arch)
@@ -97,9 +100,9 @@ export class ReleaseUpdates {
     const file = path.join(directory, asset.name)
     const temp = file + '.' + process.pid + '.partial'
     const signal = AbortSignal.timeout(20 * 60000)
-    let response = await fetch(api + '/releases/assets/' + asset.id, {
-      headers: { Authorization: 'Bearer ' + credential, Accept: 'application/octet-stream' }, redirect: 'manual', signal,
-    })
+    const headers: Record<string, string> = { Accept: 'application/octet-stream' }
+    if (credential) headers.Authorization = 'Bearer ' + credential
+    let response = await fetch(api + '/releases/assets/' + asset.id, { headers, redirect: 'manual', signal })
     if (response.status === 302) {
       const redirect = new URL(response.headers.get('location') ?? '')
       if (redirect.protocol !== 'https:' || redirect.username || redirect.password || redirect.port || !downloadHosts.has(redirect.hostname)) throw new Error('GitHub returned an unsupported download location.')
