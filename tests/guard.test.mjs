@@ -1,15 +1,18 @@
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import { allowedGsiSections, allowedHosts, hostAllowed } from '../dist/main/shared/guard.js'
 import { gsiConfig } from '../dist/main/main/gsi.js'
 
-const walk = (dir) => readdirSync(dir).flatMap((f) => { const p = path.join(dir, f); return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx|cts|mjs)$/.test(p) ? [p] : [] })
-const files = walk('src')
+const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+  const p = path.join(dir, entry.name)
+  return entry.isDirectory() && entry.name !== 'build' ? walk(p) : /\.(ts|tsx|cts|mjs|cc|mm|h)$/.test(p) ? [p] : []
+})
+const files = [...walk('src'), ...walk('native')]
 
 test('source tree contains no memory/screen/input/packet-capture APIs', () => {
-  const forbidden = /child_process|desktopCapturer|robotjs|nut-tree|uiohook|iohook|node-pcap|\bpcap\b|node:dgram|ffi-napi|koffi|ReadProcessMemory|task_for_pid|vm_read|process_vm_readv|sendInput|CGEventPost|SendKeys|screencapture/i
+  const forbidden = /child_process|desktopCapturer|robotjs|nut-tree|uiohook|iohook|node-pcap|\bpcap\b|node:dgram|ffi-napi|koffi|ReadProcessMemory|PROCESS_VM_READ|task_for_pid|vm_read|process_vm_readv|sendInput|CGEventPost|SendKeys|screencapture|CGWindowListCreateImage|\bBitBlt\b|\bPrintWindow\b|SetWindowsHookEx|CGEventTapCreate/i
   for (const file of files) assert.equal(forbidden.test(readFileSync(file, 'utf8')), false, file + ' uses a forbidden API')
 })
 

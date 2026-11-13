@@ -5,9 +5,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { IpcMainInvokeEvent } from 'electron'
+import type { Display, IpcMainInvokeEvent } from 'electron'
 import type { Bootstrap, Checkpoint, Pick, DraftView, KnowledgeContext, Lane, LiveSettings, LiveState, Matchups, OverlayView, Placement, PuterStatus, Role, UpdateInfo } from '../shared/model.js'
-import { defaultFeatures, defaultLiveSettings, featureKeys, roles } from '../shared/model.js'
+import { defaultFeatures, defaultLiveSettings, featureKeys, placements, roles } from '../shared/model.js'
 import { momentum, newTrack, trackFrame } from '../shared/game.js'
 import { emptyRoshan } from '../shared/roshan.js'
 import type { RoshanState } from '../shared/roshan.js'
@@ -36,6 +36,8 @@ import { accountId, asRecord, catalog, itemInfo, matchId, steamId64, validHero }
 import { gsiConfig, parseDraft, parseFrame, parsePick, redactedShape, startGsi, updateCheckpoints } from './gsi.js'
 import { OpenDota } from './opendota.js'
 import { Store } from './store.js'
+import { gameDisplay, overlayBounds } from './overlay-layout.js'
+import type { Rect } from './overlay-layout.js'
 
 app.setName('Dota Improviser')
 // Store app data (downloaded hero/matchup data, local SQLite, Puter/GSI tokens) in a hidden folder under the
@@ -60,13 +62,22 @@ const publicLinks = {
   privacy: 'https://blog.opendota.com/2014/08/01/faq/',
   gsi: 'https://support.overwolf.com/support/solutions/articles/9000212745-how-to-enable-game-state-integration-for-dota-2',
 } as const
-const placements: Placement[] = ['Top left', 'Top right', 'Bottom left', 'Bottom right']
-
 let store: Store
 let provider: OpenDota
 let dashboard: BrowserWindow | null = null
 let overlay: BrowserWindow | null = null
 let overlayHeight: number | null = null
+let overlayRequested = false
+let overlayTimer: NodeJS.Timeout | undefined
+let editFocusTimer: NodeJS.Timeout | undefined
+let windowProbe: { foregroundBounds: () => Rect | null } | null | undefined
+let gameBounds: Rect | null = null
+let foregroundMisses = 0
+let fallbackDisplayId: number | undefined
+let displays: Display[] = []
+let displayChoices: Bootstrap['displays'] = []
+let overlayDisplay: LiveState['overlayDisplay']
+let returnToLane = false
 let plans = new Map<string, string[]>()
 let receiver: Awaited<ReturnType<typeof startGsi>> | null = null
 let receiverTask: Promise<void> | null = null
@@ -262,7 +273,7 @@ function state(): LiveState {
     view, interactive, draft: draftView(), pick, coach: coachView, data: dataStatus, support: supportView(), game: gameView(), career,
     toasts: toasts.filter((t) => Date.now() - t.shownAt < TOAST_MS),
     status, lane, receivedAt, settings, armed, shortcutAvailable, checkpoints, roshan,
-    open: overlay?.isVisible() ?? false, pace: key ? paceMemo?.pace ?? [] : [],
+    open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay,
   }
 }
 
@@ -286,7 +297,7 @@ function broadcastSoon() {
 }
 
 function broadcast() {
-  if (!frame && view === 'lane' && overlay?.isVisible()) hideOverlay()
+  if (!frame && view === 'lane' && overlayRequested) hideOverlay()
   lastBroadcast = Date.now()
   const value = state()
   dashboard?.webContents.send('live:update', value)
@@ -298,7 +309,7 @@ function resetSession(next: LiveState['status']) {
   clearTimeout(timeout)
   timeout = undefined
   finishGame()
-  if (pick && view === 'draft') hideOverlay()
+  if (pick || view === 'lane' || returnToLane) hideOverlay()
   track = newTrack(); prevAch = {}; toasts = []
   lane = null
   frame = null
@@ -317,16 +328,13 @@ function onPick(next: Pick | null) {
     revealMeta = { activeTeam: null, timeLeft: null }
     seen = {}
     liveMatchups = {}
-    if (settings.display === 'Overlay' && settings.features.autoOpen && !overlay?.isVisible()) {
+    if (settings.display === 'Overlay' && settings.features.autoOpen && !overlayRequested) {
       view = 'draft'
-      overlayHeight = null
-      const window = overlay ?? makeOverlay()
-      placeOverlay(window)
-      window.showInactive()
+      requestOverlay(false)
     }
   } else if (!next && pick && view === 'draft') {
     view = 'lane'
-    overlayHeight = null
+    returnToLane = false
     setInteractive(false)
     if (overlay && !overlay.isDestroyed()) placeOverlay(overlay)
   }
@@ -425,6 +433,11 @@ function receive(value: unknown) {
   applyReveal(nextPick ? parseDraft(value) : null)
   const statusChanged = status !== nextStatus
   status = nextStatus
+  if (nextFrame && !frameBefore && interactive) {
+    view = 'lane'
+    returnToLane = false
+    setInteractive(false)
+  }
   if (!!nextFrame !== !!frameBefore && overlay?.isVisible()) placeOverlay(overlay)
   if (statusChanged || nextPick?.heroId !== pickBefore?.heroId || !!nextPick !== !!pickBefore || !!nextFrame !== !!frameBefore || !!next !== !!laneBefore) broadcast()
   else if (refreshCoach || events.length || nextPick) broadcastSoon()
@@ -465,24 +478,78 @@ function makeDashboard() {
 }
 
 function displayList() {
-  return [{ id: 'primary', name: 'Primary display' }, ...screen.getAllDisplays().map((display, index) => ({
+  return [{ id: 'auto', name: 'Follow Dota' }, { id: 'primary', name: 'Primary display' }, ...displays.map((display, index) => ({
     id: String(display.id), name: display.label || 'Display ' + (index + 1),
   }))]
 }
 
+function detectDotaBounds() {
+  if (windowProbe === undefined) {
+    try { windowProbe = require(path.join(dir, 'overlay-window.node')) as NonNullable<typeof windowProbe> }
+    catch { windowProbe = null }
+  }
+  try {
+    const rect = windowProbe?.foregroundBounds()
+    if (!rect || ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) || rect.width <= 0 || rect.height <= 0) return null
+    return process.platform === 'win32' ? screen.screenToDipRect(null, rect) : rect
+  } catch { return null }
+}
+
 function placeOverlay(window: BrowserWindow) {
   if (window.isDestroyed()) return
-  const display = screen.getAllDisplays().find((display) => String(display.id) === settings.monitor) ?? screen.getPrimaryDisplay()
-  const { x, y, width, height } = display.workArea
-  const inset = 14
-  const w = Math.min(Math.max(1, width - 2 * inset), settings.size === 'Compact' ? 368 : 456)
-  const fallback = view === 'draft' ? 460 : coachView ? 390 : 186
-  const h = Math.min(Math.max(1, height - 2 * inset), Math.max(48, overlayHeight ?? fallback))
-  const left = settings.placement.endsWith('left')
-  const top = settings.placement.startsWith('Top')
-  const bounds = { x: x + (left ? inset : width - w - inset), y: y + (top ? inset : height - h - inset), width: w, height: h }
+  const automatic = settings.monitor === 'auto'
+  const detected = automatic ? gameDisplay(displays, gameBounds) : undefined
+  const manual = settings.monitor === 'primary' ? screen.getPrimaryDisplay() :
+    displays.find((display) => automatic ? display.id === fallbackDisplayId : String(display.id) === settings.monitor)
+  const display = detected ?? manual ?? screen.getPrimaryDisplay()
+  overlayDisplay = { name: display.label || 'Display ' + Math.max(1, displays.findIndex(({ id }) => id === display.id) + 1), following: Boolean(detected) }
+  const bounds = overlayBounds(display.workArea, detected ? gameBounds : null, settings, view, overlayHeight, interactive)
   const old = window.getBounds()
-  if (old.x !== bounds.x || old.y !== bounds.y || old.width !== w || old.height !== h) window.setBounds(bounds)
+  if (old.x !== bounds.x || old.y !== bounds.y || old.width !== bounds.width || old.height !== bounds.height) window.setBounds(bounds)
+}
+
+function trackOverlay() {
+  if (!overlayRequested || !overlay || overlay.isDestroyed() || interactive || settings.monitor !== 'auto') return
+  const detected = detectDotaBounds()
+  const previous = overlayDisplay
+  if (detected) {
+    foregroundMisses = 0
+    if (!gameBounds || detected.x !== gameBounds.x || detected.y !== gameBounds.y ||
+        detected.width !== gameBounds.width || detected.height !== gameBounds.height) {
+      gameBounds = detected
+      placeOverlay(overlay)
+    }
+    if (!overlay.isVisible()) { overlay.showInactive(); broadcast() }
+  } else if (gameBounds && ++foregroundMisses >= 2 && overlay.isVisible()) {
+    overlay.hide()
+  }
+  if (previous?.name !== overlayDisplay?.name || previous?.following !== overlayDisplay?.following) broadcastSoon()
+}
+
+function updateOverlayTracking() {
+  clearInterval(overlayTimer)
+  overlayTimer = undefined
+  if (!overlayRequested || settings.monitor !== 'auto' || interactive || windowProbe === null) return
+  overlayTimer = setInterval(trackOverlay, 800)
+  overlayTimer.unref()
+}
+
+function requestOverlay(edit: boolean) {
+  const window = overlay ?? makeOverlay()
+  if (!overlayRequested) {
+    fallbackDisplayId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id
+    gameBounds = settings.monitor === 'auto' ? detectDotaBounds() : null
+    foregroundMisses = 0
+  } else if (edit && settings.monitor === 'auto') {
+    gameBounds = detectDotaBounds() ?? gameBounds
+  }
+  overlayRequested = true
+  if (edit) setInteractive(true)
+  else {
+    placeOverlay(window)
+    window.showInactive()
+    updateOverlayTracking()
+  }
 }
 
 function makeOverlay() {
@@ -497,59 +564,87 @@ function makeOverlay() {
   overlayHeight = null
   windowGuard(window)
   // A high window level keeps the overlay above borderless games. Exclusive fullscreen uses the companion view.
-  window.setAlwaysOnTop(true, 'screen-saver')
+  window.setAlwaysOnTop(true, 'floating')
   window.setIgnoreMouseEvents(true)
   window.setOpacity(settings.opacity)
   if (process.platform === 'darwin') window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
-  placeOverlay(window)
-  window.on('closed', () => { overlay = null; overlayHeight = null; interactive = false })
+  window.on('focus', () => { if (interactive) window.setIgnoreMouseEvents(false) })
+  window.on('blur', () => { if (interactive) finishOverlayEditing() })
+  window.webContents.on('before-input-event', (event, input) => {
+    if (interactive && input.type === 'keyDown' && input.key === 'Escape') {
+      event.preventDefault()
+      finishOverlayEditing()
+    }
+  })
+  window.webContents.on('render-process-gone', () => { hideOverlay(); window.destroy(); broadcast() })
+  window.on('closed', () => {
+    overlay = null; overlayHeight = null; interactive = false; overlayRequested = false
+    overlayDisplay = undefined; gameBounds = null; returnToLane = false
+    clearTimeout(editFocusTimer)
+    updateOverlayTracking()
+  })
   void window.loadFile(ui, { hash: 'overlay' })
   return window
 }
 
 function setInteractive(on: boolean) {
+  if (interactive === on) return
   interactive = on
-  if (!overlay || overlay.isDestroyed()) return
-  overlay.setIgnoreMouseEvents(!on)
+  clearTimeout(editFocusTimer)
+  const window = overlay
+  if (!window || window.isDestroyed()) return
   if (on) {
-    overlay.setFocusable(true)
-    overlay.show()
-    overlay.focus()
+    placeOverlay(window)
+    window.setFocusable(true)
+    window.showInactive()
+    window.focus()
+    if (window.isFocused()) window.setIgnoreMouseEvents(false)
+    else editFocusTimer = setTimeout(() => {
+      if (interactive && overlay === window && !window.isFocused()) finishOverlayEditing()
+    }, 350)
   } else {
-    if (overlay.isFocused()) overlay.blur()
-    overlay.setFocusable(false)
+    window.setIgnoreMouseEvents(true)
+    if (window.isFocused()) window.blur()
+    window.setFocusable(false)
   }
+  updateOverlayTracking()
+}
+
+function finishOverlayEditing() {
+  if (!interactive) return broadcast()
+  if (returnToLane) view = 'lane'
+  returnToLane = false
+  setInteractive(false)
+  if (overlay) placeOverlay(overlay)
+  return broadcast()
 }
 
 function hideOverlay() {
+  overlayRequested = false
+  returnToLane = false
   setInteractive(false)
   overlay?.hide()
+  overlayDisplay = undefined
+  updateOverlayTracking()
 }
 
 function toggleDraftOverlay() {
   if (settings.display === 'Companion') return broadcast()
-  const window = overlay ?? makeOverlay()
-  if (view !== 'draft' || !window.isVisible()) {
-    view = 'draft'
-    overlayHeight = null
-    placeOverlay(window)
-    setInteractive(true)
-  } else setInteractive(!interactive)
+  if (interactive) return finishOverlayEditing()
+  returnToLane = Boolean(frame)
+  view = 'draft'
+  requestOverlay(true)
   return broadcast()
 }
 
 function toggleOverlay() {
   if (settings.display === 'Companion') return broadcast()
-  if (overlay?.isVisible()) {
+  if (overlayRequested) {
     hideOverlay()
   } else {
     if (!frame) throw new Error('Join a local practice match with the listener running before opening the overlay.')
-    const window = overlay ?? makeOverlay()
     view = 'lane'
-    overlayHeight = null
-    setInteractive(false)
-    placeOverlay(window)
-    window.showInactive()
+    requestOverlay(false)
   }
   return broadcast()
 }
@@ -663,7 +758,7 @@ async function checkUpdates(): Promise<UpdateInfo> {
 
 function readSettings(value: unknown): LiveSettings {
   const input = asRecord(value)
-  const monitor = typeof input.monitor === 'string' && /^(-?\d+|primary)$/.test(input.monitor) ? input.monitor : 'primary'
+  const monitor = typeof input.monitor === 'string' && /^(-?\d+|primary|auto)$/.test(input.monitor) ? input.monitor : defaultLiveSettings.monitor
   return {
     monitor,
     display: input.display === 'Companion' ? 'Companion' : 'Overlay',
@@ -909,6 +1004,10 @@ function handlers() {
     }
     return setDraft(input)
   })
+  ipcMain.handle('overlay:done', (event: IpcMainInvokeEvent) => {
+    if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || !interactive) return
+    return finishOverlayEditing()
+  })
   handle('app:bootstrap', async () => { await initialDiscovery; return bootstrap() })
   handle('draft:set', setDraft)
   handle('data:update', () => {
@@ -1027,6 +1126,7 @@ function handlers() {
   })
   handle('live:settings', (value) => {
     const autoUpdate = settings.features.autoUpdate
+    const oldMonitor = settings.monitor
     settings = readSettings(value)
     if (autoUpdate !== settings.features.autoUpdate) {
       if (!settings.features.autoUpdate) dataCancel.stop = true
@@ -1037,8 +1137,17 @@ function handlers() {
     lastCoachAt = 0
     overlay?.setOpacity(settings.opacity)
     if (overlay) {
-      placeOverlay(overlay)
       if (settings.display === 'Companion') hideOverlay()
+      else if (overlayRequested) {
+        if (settings.monitor === 'auto' && oldMonitor !== 'auto') {
+          gameBounds = detectDotaBounds() ?? gameBounds
+          foregroundMisses = 0
+          fallbackDisplayId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id
+        }
+        placeOverlay(overlay)
+        if (oldMonitor !== settings.monitor && !overlay.isVisible()) overlay.showInactive()
+        updateOverlayTracking()
+      }
     }
     return broadcast()
   })
@@ -1166,7 +1275,7 @@ else {
     setTimeout(() => { void refreshPatchNotes() }, 60000).unref()
     handlers()
     shortcutAvailable = globalShortcut.register(shortcut, () => {
-      if (overlay?.isVisible()) { hideOverlay(); view = 'lane'; broadcast() }
+      if (overlayRequested) { hideOverlay(); view = 'lane'; broadcast() }
     })
     globalShortcut.register(draftShortcut, () => { toggleDraftOverlay() })
     globalShortcut.register(detailShortcut, () => {
@@ -1176,13 +1285,21 @@ else {
       broadcast()
     })
     // Roshan/Aegis stopwatch: you press this when you SEE Roshan die. Reads nothing from the game, same as typing a draft pick.
-    const roshanGuard = (fn: () => void) => () => { if (settings.features.roshanTimer) fn() }
-    globalShortcut.register('Insert', roshanGuard(() => startRoshan('both')))
-    globalShortcut.register('Alt+Insert', roshanGuard(() => startRoshan('rosh')))
-    globalShortcut.register('Home', roshanGuard(() => startRoshan('aegis')))
-    globalShortcut.register('CommandOrControl+Alt+Insert', roshanGuard(() => clearRoshan('both')))
-    globalShortcut.register('CommandOrControl+Alt+Home', roshanGuard(() => clearRoshan('aegis')))
-    const reposition = () => { if (overlay) placeOverlay(overlay) }
+    const roshanGuard = (fn: () => void) => () => {
+      if (frame && overlayRequested && !interactive && settings.features.roshanTimer) fn()
+    }
+    globalShortcut.register('CommandOrControl+Alt+F6', roshanGuard(() => startRoshan('both')))
+    globalShortcut.register('CommandOrControl+Alt+F7', roshanGuard(() => startRoshan('rosh')))
+    globalShortcut.register('CommandOrControl+Alt+F8', roshanGuard(() => startRoshan('aegis')))
+    globalShortcut.register('CommandOrControl+Alt+F9', roshanGuard(() => clearRoshan('both')))
+    const reposition = () => {
+      displays = screen.getAllDisplays()
+      displayChoices = displayList()
+      if (overlay && overlayRequested) placeOverlay(overlay)
+      broadcastSoon()
+    }
+    displays = screen.getAllDisplays()
+    displayChoices = displayList()
     screen.on('display-added', reposition)
     screen.on('display-removed', reposition)
     screen.on('display-metrics-changed', reposition)
@@ -1214,6 +1331,8 @@ else {
     quitting = true
     dataCancel.stop = true
     globalShortcut.unregisterAll()
+    clearInterval(overlayTimer)
+    clearTimeout(editFocusTimer)
     clearTimeout(timeout)
     clearTimeout(autoRefreshTimer)
     receiver?.server.closeAllConnections()

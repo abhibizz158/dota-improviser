@@ -119,35 +119,38 @@ function Team({ label, tone, ids, heroes, remove }: { label: string; tone: 'a' |
 }
 
 /** Overlay draft card. Passive = click-through read-out; interactive (Ctrl/⌘+Shift+F9) = type a hero, Enter=enemy, Shift+Enter=ally. */
-export function DraftCard({ live, heroes, send }: { live: LiveState; heroes: Hero[]; send?: (input: DraftInput) => Promise<unknown> }) {
+export function DraftCard({ live, heroes, send, done }: { live: LiveState; heroes: Hero[]; send?: (input: DraftInput) => Promise<unknown>; done?: () => Promise<void> }) {
   const [query, setQuery] = useState('')
   const { draft, interactive } = live
   const byId = (id: number) => heroes.find((hero) => hero.id === id)
   const taken = new Set([...draft.enemy, ...draft.allied, ...draft.bans])
   const matches = query.length > 0 ? heroes.filter((hero) => !taken.has(hero.id) && hero.name.toLowerCase().includes(query.toLowerCase())).slice(0, 5) : []
-  const pick = (ally: boolean) => {
-    const hero = matches[0]
+  const pick = (ally: boolean, hero = matches[0]) => {
     if (!hero || !send) return
     setQuery('')
     void send(ally ? { allied: [...draft.allied, hero.id] } : { enemy: [...draft.enemy, hero.id] }).catch(() => {})
   }
   const canEdit = interactive && send
+  useEffect(() => { if (!interactive) setQuery('') }, [interactive])
+  const compact = live.settings.size === 'Compact' && !canEdit
   const f = live.settings.features, detailed = live.settings.detailed
   const reason = (item: (typeof draft.suggestions)[number]) => { const best = [...item.why].sort((a, b) => b.rate - a.rate)[0]; return best ? 'best vs ' + (byId(best.enemy)?.name ?? 'enemy') + ' ' + fmt(best.rate * 100, 0) + '% (' + best.source + ')' + (draft.patched.includes(item.heroId) ? ' · patched recently' : '') : '' }
   return <article className="draft-card">
+    {canEdit && <div className="overlay-edit"><span>Editing draft picks</span><button type="button" onClick={() => void done?.()}>Done <kbd>Esc</kbd></button></div>}
     <Head icon={<Swords size={13} />} tag={'Draft' + (draft.activeTeam ? ' · ' + draft.activeTeam + ' picking' : '')} sub={draft.role + (draft.timeLeft != null ? ' · ' + Math.round(draft.timeLeft) + 's' : '')} />
     <Team label="Enemy" tone="e" ids={draft.enemy} heroes={heroes} remove={canEdit ? (id) => void send({ enemy: draft.enemy.filter((x) => x !== id) }) : undefined} />
     <Team label="Allies" tone="a" ids={draft.allied} heroes={heroes} remove={canEdit ? (id) => void send({ allied: draft.allied.filter((x) => x !== id) }) : undefined} />
     {f.bans && draft.bans.length > 0 && <div className="ov-team bans"><span className="lbl">Bans</span>{draft.bans.slice(0, 10).map((id) => <Portrait key={id} hero={byId(id)} />)}</div>}
     {f.winMeter && <WinMeter allied={draft.teamWin} />}
-    {canEdit && <div className="draft-entry"><input autoFocus spellCheck={false} placeholder="Hero · Enter enemy · Shift+Enter ally · F9 click-through" value={query}
+    {canEdit && <div className="draft-entry"><input autoFocus spellCheck={false} aria-label="Find hero to add" placeholder="Search heroes" value={query}
       onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') pick(event.shiftKey) }} />
-      {matches.length > 0 && <div>{matches.map((hero) => <span key={hero.id}>{hero.name}</span>)}</div>}</div>}
-    <ol className="draft-list">{draft.suggestions.slice(0, 5).map((item, index) => <li key={item.heroId}>
+      {matches.length > 0 && <div>{matches.map((hero) => <button type="button" key={hero.id} onClick={(event) => pick(event.shiftKey, hero)}>{hero.name}</button>)}</div>}
+      <small>Click or Enter for enemy · hold Shift for ally</small></div>}
+    <ol className="draft-list">{draft.suggestions.slice(0, compact ? 3 : 5).map((item, index) => <li key={item.heroId}>
       <span className="rank">{index + 1}</span><Portrait hero={byId(item.heroId)} /><strong>{byId(item.heroId)?.name}</strong>
       <span className={'wr ' + (item.score >= 0 ? 'positive' : 'negative')}>{item.winRate == null ? '—' : fmt(item.winRate, 1) + '%'}</span>
       <small>{item.comfort != null ? 'you ' + (item.comfort >= 0 ? '+' : '') + fmt(item.comfort, 0) : item.why[0]?.source}</small>
-      {detailed && <em className="why">{reason(item)}</em>}
+      {detailed && !compact && <em className="why">{reason(item)}</em>}
       <i className="bar" style={{ width: Math.min(100, Math.max(4, ((item.winRate ?? 50) - 44) * 6)) + '%' }} /></li>)}</ol>
     {detailed && draft.model.samples > 0 && <small className="draft-note">Learning from {draft.model.samples} of your matches · comfort weight {draft.model.comfortWeight}</small>}
     {!draft.suggestions.length && <small className="draft-note">{draft.enemy.length ? 'Computing…' : 'Waiting for enemy picks.'}</small>}
@@ -221,12 +224,22 @@ export function RoshanTimer({ roshan }: { roshan: RoshanState }) {
 }
 
 /** Live coach: percentile score vs this hero's benchmarks, goals, tips, achievements. Own-player GSI data only. Detail mode (F8) adds stats and medians. */
-export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null }) {
+export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, compact = false }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; compact?: boolean }) {
   const f = settings.features, s = coach.stats
   // Phase-adaptive layout: laning = lane tools, mid game = goals + momentum, late game = essentials only.
   const adaptive = f.phaseAdaptive, late = adaptive && coach.phase === 'Late game', laning = !adaptive || coach.phase === 'Laning'
   const detailed = settings.detailed && !late
+  const primaryTip = [...(f.coachTips ? coach.tips : []), ...(f.laneWatch ? support?.tips ?? [] : [])][0]
   const med = (v: number | null, d = 0) => v == null ? undefined : fmt(v, d)
+  if (compact) return <article className="coach-card compact-coach">
+    <Head icon={<Trophy size={13} />} tag={heroName} sub={clockText} />
+    <div className="stat-row">
+      <span><b>{fmt(s.lastHits)}/{fmt(s.denies)}</b><small>LH/DN</small></span><span><b>{fmt(s.deaths)}</b><small>Deaths</small></span>
+      <span><b>{fmt(s.level)}</b><small>Level</small></span><span><b>{fmt(coach.gpm)}</b><small>GPM</small></span>
+    </div>
+    {detailed && primaryTip && <div className="tips">{renderTip(primaryTip)}</div>}
+    {detailed && !primaryTip && coach.nextGoal && f.achievements && <div className="next-goal"><b>{coach.nextGoal.label}</b><em>{mmss(coach.nextGoal.left)} left</em></div>}
+  </article>
   return <article className="coach-card">
     <Head icon={<Trophy size={13} />} tag={'Coach · ' + heroName} sub={coach.phase + ' · ' + clockText} />
     {coach.role && <span className="role-chip">{coach.role}{adaptive ? ' · adaptive view' : ''}</span>}

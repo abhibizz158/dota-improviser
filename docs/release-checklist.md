@@ -5,6 +5,7 @@ The package scripts create private test builds. Do not describe a build as ranke
 ## Before building
 
 - [ ] Use Node.js 24 or newer and a clean `npm ci` install.
+- [ ] Install Python 3 and the native build toolchain for the overlay helper: Xcode Command Line Tools on macOS, or Visual Studio Build Tools with **Desktop development with C++** on Windows.
 - [ ] Review the changed data sources, hosts, GSI fields, and dependencies.
 - [ ] Run `npm test`. It builds the app and runs unit and fair-play guardrail tests.
 - [ ] Confirm `npm audit --omit=dev` has no unresolved production dependency findings.
@@ -21,6 +22,8 @@ npm run package:win        # Windows x64 test build
 ```
 
 Build on the target OS for the final verification. Current scripts use Electron Packager and ad-hoc macOS signing; public macOS distribution needs an appropriate Developer ID signature and notarization. Windows packaging still needs to be run and tested on Windows before release. Keep test artifacts in the ignored `release/` directory.
+
+The **Build desktop test release** workflow can package Windows x64, Apple Silicon, and Intel Mac builds from the same commit on GitHub Actions. It runs the test suite and checks that the native overlay helper loads in the packaged Electron runtime. Download the ZIP files, verify their SHA-256 checksums, and attach them to a GitHub prerelease for testers with repository access.
 
 ## Desktop and dashboard checks
 
@@ -42,7 +45,9 @@ Build on the target OS for the final verification. Current scripts use Electron 
 - [ ] Confirm spectator, replay, non-practice, nonzero match ID, unknown phase/context, malformed payload, wrong token, and stale data do not populate the live card.
 - [ ] Confirm the overlay hides when the game context becomes unsupported and clears values on disconnect/staleness.
 - [ ] Confirm click-through and overlay controls do not send any input to Dota.
+- [ ] Confirm the automatic draft and lane cards never take focus. Open the editor explicitly, type and click picks, then verify Done, Escape, Alt/⌘-Tab, and leaving the editor restore click-through.
 - [ ] Check windowed and borderless modes, focus changes, game pause, multi-monitor placement, display scaling, and monitor removal/reconnect.
+- [ ] With **Follow Dota** and **Auto**, move the game between differently scaled displays, including one above or left of the primary monitor. Verify the lane card stays inside the padded top-right corner of the game area. Repeat for the draft card on the top left, then verify a manual monitor override.
 - [ ] Check the documented hide/draft/detail shortcuts and confirm they do not conflict with the user's game input.
 - [ ] Check macOS fullscreen Space and Windows fullscreen behavior; offer Companion layout where a topmost overlay is unavailable or unreliable.
 - [ ] Observe idle CPU/memory and verify update coalescing keeps the companion light during sustained GSI traffic.

@@ -14,7 +14,7 @@ import './styles.css'
 declare global {
   interface Window {
     dota?: AppApi
-    overlayApi?: { height: (height: number) => void; state: () => Promise<LiveState>; draft: AppApi['draft'] extends (i: infer I) => unknown ? (i: I) => Promise<unknown> : never; onLive: AppApi['onLive'] }
+    overlayApi?: { height: (height: number) => void; state: () => Promise<LiveState>; draft: AppApi['draft'] extends (i: infer I) => unknown ? (i: I) => Promise<unknown> : never; done: () => Promise<void>; onLive: AppApi['onLive'] }
   }
 }
 const Draft = lazy(() => import('./draft').then((module) => ({ default: module.Draft })))
@@ -47,17 +47,26 @@ function Overlay() {
     let active = true
     let received = false
     const element = card.current
-    const observer = new ResizeObserver(() => { if (element) window.overlayApi?.height(element.getBoundingClientRect().height) })
+    let lastHeight = 0
+    const observer = new ResizeObserver(([entry]) => {
+      const height = Math.ceil(entry.borderBoxSize[0]?.blockSize ?? element?.offsetHeight ?? 0)
+      if (height > 0 && height !== lastHeight) { lastHeight = height; window.overlayApi?.height(height) }
+    })
     if (element) observer.observe(element)
     const unsubscribe = window.overlayApi.onLive((state) => { received = true; setLive(state) })
     void window.overlayApi.state().then((state) => { if (active && !received) setLive(state) }).catch(() => {})
     return () => { active = false; observer.disconnect(); unsubscribe() }
   }, [])
   const hero = demoCatalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
-  return <div className={'overlay-scroll' + (live.interactive ? ' interactive' : '')}><div className="overlay-view" ref={card}>{live.settings.features.toasts && live.view !== 'draft' && <Toasts toasts={live.toasts} />}{live.view === 'draft'
-    ? <DraftCard live={live} heroes={demoCatalog.heroes} send={window.overlayApi?.draft} />
-    : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={demoCatalog.heroes} settings={live.settings} heroName={demoCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
-      : <LaneCard live={live} hero={hero} />}{live.settings.features.roshanTimer && live.view !== 'draft' && <RoshanTimer roshan={live.roshan} />}</div></div>
+  const compact = live.settings.size === 'Compact'
+  return <div className={'overlay-scroll' + (live.interactive ? ' interactive' : '')}><div className="overlay-view" ref={card}>
+    {live.view === 'draft'
+      ? <DraftCard live={live} heroes={demoCatalog.heroes} send={window.overlayApi?.draft} done={window.overlayApi?.done} />
+      : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={demoCatalog.heroes} settings={live.settings} compact={compact} heroName={demoCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
+        : <LaneCard live={live} hero={hero} />}
+    {live.settings.features.roshanTimer && live.view !== 'draft' && <RoshanTimer roshan={live.roshan} />}
+    {!compact && live.settings.features.toasts && live.view !== 'draft' && <Toasts toasts={live.toasts} />}
+  </div></div>
 }
 
 const demoResult: SourceResult<MatchSummary[]> = { data: demoHistory, updatedAt: 0, stale: false }

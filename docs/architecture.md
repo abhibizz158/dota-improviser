@@ -55,6 +55,8 @@ The seed and hero datasets use OpenDota. The kits dataset uses Valve's Dota data
 4. The practice gate rejects unsupported, stale, unknown, spectator/replay, and non-practice contexts. The overlay receives only the filtered state.
 5. The overlay is click-through and does not send game input.
 
+**Follow Dota** uses a small native helper to read only the OS-reported bounds of the foreground Dota window. On macOS it uses the Dota bundle identity and Core Graphics window geometry; on Windows it verifies the foreground executable and reads its client area. The main process maps those bounds to Electron's display coordinates, intersects them with the display work area, and places a separate overlay window. It does not capture pixels, inspect window titles, or read any game state. It checks for movement only while the automatic overlay is enabled and pauses while editing. A manual monitor choice is available when the OS does not provide usable bounds.
+
 The player and spectator GSI payloads differ. Do not add spectator-only sections such as `allplayers`, `buildings`, `minimap`, `events`, or `wearables` to the requested sections. `src/shared/guard.ts`, `src/main/gsi.ts`, and `tests/guard.test.mjs` define and enforce the current boundary.
 
 ## Recommendation path
