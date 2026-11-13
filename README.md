@@ -1,50 +1,105 @@
 # Dota Improviser
 
-A local-first Dota 2 companion for match history, post-match review, manual draft analysis, and local practice on Windows and macOS.
+<p align="center"><img src="public/logo.svg" alt="Dota Improviser" width="104" /></p>
 
-## Run
+**A local-first Dota 2 companion for draft planning, item decisions, match review, and practice.**
 
-Use Node.js 24 or newer.
+Dota Improviser combines public match aggregates, read-only local Steam/Dota discovery, user-entered picks, and Dota's opt-in Game State Integration (GSI) feed. The dashboard and overlay are designed for Windows and macOS.
+
+> **Fair-play status:** live overlay coaching is currently restricted to supported local practice sessions. Ranked live coaching is disabled. The app does not read game memory, capture the screen, inspect packets, automate inputs, or reveal hidden information.
+
+## What it does
+
+- **Overview and match history:** summarize recent games and show available win rate, KDA, GPM, XPM, last hits, denies, and performance trends. Coverage depends on OpenDota availability and Dota's **Expose Public Match Data** setting.
+- **Match Review:** inspect parsed timelines, item timings, objectives, and performance against comparable games when the data exists. Unparsed or unavailable fields are labeled as such.
+- **Draft & Builds:** manually enter revealed or known hero picks, compare counters and team fit, plan item purchases, inspect item effects and hero-level stat scaling, and save a personal build for practice.
+- **Know:** search Dota terminology and mechanics, compare public hero matchup samples, and explore counter-item options. Purchase times are estimates based on observed GPM and unspent gold, not guarantees.
+- **Live & Coach:** in supported local practice games, show an own-player lane card with the clock and available player-visible stats. Defensive lane advice and personal pace comparisons appear only when the necessary own-player data is available.
+- **Optional Puter AI:** ask strategy questions grounded in selected app data. Sign in from **Settings → Puter AI** using your browser. The AI is optional; its model availability and usage limits are set by Puter.
+- **Local Dota and Steam discovery:** detect the installed game, build number, Steam account selection, and local item builds. The local game files do not provide completed match history; that comes from public/cached OpenDota data or a match ID.
+
+## Requirements
+
+- Windows 10/11 or macOS for the desktop app.
+- Node.js 24 or newer and npm for development/building.
+- Steam and Dota 2 are optional for dashboard development, and needed for local game discovery and GSI practice setup.
+
+## Run from source
 
 ```sh
+git clone https://github.com/abhibizz158/dota-improviser.git
+cd dota-improviser
 npm ci
 npm run dev
 ```
 
-The app opens a labelled sample workspace. Use the signed-in Steam account detected on this computer, add another numeric Dota account ID (friend ID or SteamID64), or open a completed match by ID. The Overview can launch Dota 2 and shows whether the local install and Steam account were found. The app reads only Steam `loginusers.vdf`, Dota `steam.inf`, and Dota `itembuilds/`; Dota's own item builds and the opt-in player-visible GSI feed work locally. The Dota client does not provide completed match history through these local files, so history and parsed replay details use cached or public OpenDota data. Dota's **Expose Public Match Data** setting affects history coverage. Missing roles and replay fields appear as unavailable.
+The first launch shows a sample workspace until you add a Dota account ID or open a completed match by ID. You can use a numeric Dota account ID, a SteamID64, or the Steam account detected on this computer. Signing into Steam is not required for the manual workflow.
 
-```sh
-npm test
-npm run package:local
-```
+## Local practice setup
 
-`npm run package:local` builds the Apple Silicon app in `release/`. Use `npm run package:mac` for both Mac architectures or `npm run package:win` for Windows x64 when distributing test builds. These are private test builds. Test and sign distributable builds on the target platforms before sharing publicly. For a browser-only sample preview, run `npm run preview`.
+1. Open **Live & Coach** and link the Dota account that will play the practice match.
+2. Let the app locate Dota, or use Steam's **Browse local files** to find the installation.
+3. Install the generated `gamestate_integration_dota_improviser.cfg` into `game/dota/cfg/gamestate_integration` in the Dota installation.
+4. Add `-gamestateintegration` to Dota 2's Steam launch options, then restart Dota.
+5. Start the listener and enter a supported local practice lobby. The overlay supports windowed/borderless play where available. Use **Companion** layout if an overlay cannot display reliably above the game.
 
-## Plan items from your own matches
+The GSI receiver listens on `127.0.0.1:43182` and authenticates updates with a per-install token. Live updates are transient; raw packets are not retained. The app validates updates in the desktop process and only exposes allowlisted own-player data. Clearing local app data also rotates the token, so reinstall the generated config afterward. Spectator/replay contexts, unknown contexts, stale updates, and unsupported matches must not populate the live player card.
 
-Open **Draft & Builds → Build planner**, pick a hero, then choose **Load recent purchases**. The planner checks up to 12 recent All Pick matches for this hero and learns from purchase logs in up to 20 saved matches. Select an item to see the first-buy timeline, source values, effects, and estimated stats at levels 1–30. Compare an edited purchase order with your usual build using the same gold and XP rates. **Approve build** saves the item order to your local profile for that hero. In a local practice run, the overlay shows your next planned item and checks off items it sees in your inventory.
+## Puter AI and privacy
 
-## Connect a local practice match
+Puter is optional. Open **Settings → Puter AI → Sign in with Puter** to use the browser-based login. The app stores the session using Electron's OS-backed secure storage when available; otherwise, it keeps the session for the current run. You can disconnect Puter or clear the app's local data in Settings.
 
-1. Add your account ID in the app and open **Live Setup**.
-2. Use Steam's **Browse local files** for Dota 2. Create `game/dota/cfg/gamestate_integration` inside that installation if needed, then save the generated `gamestate_integration_dota_improviser.cfg` there.
-3. Add `-gamestateintegration` to Dota 2's Steam launch options and restart Dota.
-4. Start the practice listener and enter a local practice lobby with your own hero. Show the overlay in windowed or borderless mode, or choose **Companion** and keep Live Setup open on a second display. **Ctrl/⌘ + Shift + F10** hides the overlay.
-5. To create a personal last-hit baseline, open one of your matches in Match Review and choose **Load comparable matches**. The live card uses saved, parsed All Pick history for your selected practice role. It needs two or more comparable matches at each checkpoint.
+When you ask a question, the app may send the question, selected hero and picks, selected item data, relevant local hero/patch/matchup references, and supported own-player practice values such as clock, GPM, and unspent gold. It does **not** send Steam account IDs or personal match history to Puter. Review each prompt before submitting it. Puter usage is governed by your Puter account and its current plan.
 
-The listener accepts Dota's GSI POSTs on `127.0.0.1:43182`. The generated config contains a local token. Clearing data rotates that token, so save a fresh config afterward. Redacted diagnostics contain field types, broad session categories, and validation results. Raw live packets are transient.
+See [Privacy and fair-play boundaries](docs/privacy-and-safety.md) for the full data-flow summary.
 
-## Release qualification
+## Data sources and limitations
 
-The practice card is gated to the own-player packet shape, the selected Steam account, a zero match ID, and supported game phases. An explicit non-practice lobby type is rejected when Dota supplies it. Ranked live is disabled. For each platform, verify real local practice and bot payloads against the scoreboard, then confirm spectating, replays, nonzero match IDs, and unknown states clear the card. Verify pause, reconnect, the hide shortcut, click-through, window focus, and display changes. A ranked overlay release requires a verified player-visible source and a documented basis under Valve's rules for each feature.
+- **OpenDota:** public match history, parsed match details, hero matchups, benchmark percentiles, item popularity, and item timing aggregates. Results may be missing, delayed, rate-limited, or unavailable for private matches.
+- **Valve Dota data feeds:** hero/ability metadata and patch notes.
+- **dotaconstants:** hero, item, and patch catalogue.
+- **Local Steam/Dota files:** read-only discovery of `loginusers.vdf`, `steam.inf`, and `itembuilds/`.
+- **Dota GSI:** explicit local opt-in for player-visible game updates. GSI output varies by mode and phase; the application only uses verified, allowlisted fields.
+- **Manual picks:** the player may type picks that Dota has not exposed. The app does not infer or reveal unrevealed enemy picks.
 
-OpenDota provides public history, aggregate hero matchups, item purchase counts, and parsed match timelines. Sample workspace data is illustrative. Dota hero artwork is from [Valve's Dota 2 site](https://www.dota2.com/heroes), and catalog metadata comes from [dotaconstants](https://github.com/odota/dotaconstants). The [GSI reference implementation](https://github.com/xzion/dota2-gsi) documents the desktop connection. [dota-watch](https://github.com/c00kie17/dota-watch) is a reference for a future watch directory.
+Recommendations are guidance, not predictions or instructions. Matchup sample sizes and data scope should be considered before drawing conclusions. The app makes no claim that an overlay is permitted in ranked play; ranked live coaching remains off pending feature- and platform-specific qualification.
 
-## Verified against a live Dota client (build 6975)
-- GSI needs `-gamestateintegration` in Dota's Steam launch options. A `steam://run/570//-gamestateintegration/` link did not pass it.
-- Pick phase: GSI sends `draft: {}` to players. Enemy and ally picks are **not** exposed, so type enemy picks (Ctrl/⌘ + Shift + F9). GSI does give your side (`player.team_name`) and your hero (`hero.id`) once locked; the app adds your locked hero to allies automatically.
-- `player.steamid` in the feed matches the Steam account detected from the local Steam login file.
-- This build sends no `map.lobby_type`; practice is recognised by `matchid` of zero. Ranked/real matches carry a nonzero match ID and stay disabled.
-- Dota posts about 25 packets/s; the app coalesces UI updates to about 2/s.
-- The listener auto-starts when an account is linked and the GSI config is installed.
-- Overlay: verified visible over Dota on macOS (pick phase, auto-opened). Windows borderless not yet verified; exclusive fullscreen cannot be overlaid.
+## Development commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Build and launch the Electron app |
+| `npm run check` | Type-check renderer and desktop-process code |
+| `npm test` | Build and run unit and fair-play guardrail tests |
+| `npm run build` | Create the production UI and desktop-process build in `dist/` |
+| `npm run preview` | Build and serve the sample UI locally |
+| `npm run data` | Fetch/rebuild the generated public hero, matchup, kit, and timing datasets in `data/` |
+| `npm run seed` | Rebuild only the hero matchup seed |
+| `npm run package:local` | Package a local Apple Silicon macOS app |
+| `npm run package:mac` / `npm run package:mac-intel` | Package macOS Apple Silicon / Intel test builds |
+| `npm run package:win` | Package a Windows x64 test build |
+
+`npm run data` makes many public requests and can take several minutes; respect OpenDota rate limits. Generated `data/`, `dist/`, and `release/` artifacts are intentionally ignored by Git. The desktop app can refresh public datasets into its local application data folder. Use `npm test` before proposing changes to data parsing, GSI boundaries, draft scoring, or packaging.
+
+Packaging scripts create **private test builds**. Build and verify on each target operating system before distributing. See [the release checklist](docs/release-checklist.md).
+
+## Project documentation
+
+- [Architecture and data flow](docs/architecture.md)
+- [Privacy and fair-play boundaries](docs/privacy-and-safety.md)
+- [Build and release checklist](docs/release-checklist.md)
+- [Agent and contributor workflow](AGENTS.md)
+
+## References
+
+- [OpenDota API](https://opendota.apidocumentation.com/)
+- [Valve Dota 2 data feeds](https://www.dota2.com/datafeed/herodata)
+- [Dota Game State Integration reference](https://github.com/xzion/dota2-gsi)
+- [Steam Hero Builds](https://www.dota2.com/workshop/builds/overview?l=english)
+- [Puter authentication](https://docs.puter.com/Auth/signIn/) and [AI chat](https://docs.puter.com/AI/chat/)
+- [Valve's Dota Plus lane and build suggestions](https://www.dota2.com/plus/?l=english)
+- [Dota Watch](https://github.com/c00kie17/dota-watch), a reference for a separate match-discovery/watch feature
+
+## License and assets
+
+This repository includes the MIT-licensed `dotaconstants` package as a dependency. Dota 2 names, artwork, and game data are Valve's property; included artwork is used as game-related reference material. OpenDota and Puter are external services with their own terms and availability. Review their current terms before redistributing this app.
