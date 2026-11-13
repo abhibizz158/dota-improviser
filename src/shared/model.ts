@@ -176,6 +176,7 @@ export interface AppApi {
   importHistory(value: string): Promise<SourceResult<MatchSummary[]>>;
   cachedHistory(): Promise<SourceResult<MatchSummary[]> | undefined>;
   sessionHistory(): Promise<SessionRecord[]>;
+  parsingMatches(): Promise<string[]>;
   puterStatus(): Promise<PuterStatus>;
   puterSignIn(): Promise<PuterStatus>;
   puterSignOut(): Promise<PuterStatus>;

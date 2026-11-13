@@ -738,7 +738,9 @@ function makeOverlay() {
   windowGuard(window)
   // A high window level keeps the overlay above borderless games. Exclusive fullscreen uses the companion view.
   window.setAlwaysOnTop(true, 'floating')
-  window.setIgnoreMouseEvents(true)
+  // forward:true keeps mousemove events reaching the renderer so hover/leave still fire; without it the OS can
+  // leave the game's cursor stuck on whatever it showed when the pointer last crossed the (invisible) overlay.
+  window.setIgnoreMouseEvents(true, { forward: true })
   window.setOpacity(settings.opacity)
   if (process.platform === 'darwin') window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
   window.on('focus', () => { if (interactive) window.setIgnoreMouseEvents(false) })
@@ -777,7 +779,7 @@ function setInteractive(on: boolean) {
       if (interactive && overlay === window && !window.isFocused()) finishOverlayEditing()
     }, 350)
   } else {
-    window.setIgnoreMouseEvents(true)
+    window.setIgnoreMouseEvents(true, { forward: true })
     if (window.isFocused()) window.blur()
     window.setFocusable(false)
   }
@@ -1411,6 +1413,7 @@ function handlers() {
   })
   handle('history:cached', () => account ? historySnapshot(account) : undefined)
   handle('history:sessions', () => store.get<SessionRecord[]>('sessions') ?? [])
+  handle('history:parsing', () => provider.pendingParseIds())
   handle('match:get', async (id, refresh) => {
     const local = account && store.get<{ data: import('../shared/model.js').MatchSummary[]; updatedAt: number }>(localHistoryKey(account))
     const row = local ? local.data.find((match) => match.id === id) : undefined

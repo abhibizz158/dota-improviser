@@ -46,6 +46,13 @@ export class Store {
     this.db.prepare('DELETE FROM responses WHERE key LIKE ?').run(prefix + '%')
   }
 
+  /** Keys under `prefix` whose stored value is JSON-truthy (not "", 0, false, null) — e.g. pending replay-parse jobs. */
+  keysWithPrefix(prefix: string): string[] {
+    return this.db.prepare('SELECT key, value FROM settings WHERE key LIKE ?').all(prefix + '%')
+      .filter((row) => { try { return Boolean(JSON.parse(String(row.value))) } catch { return false } })
+      .map((row) => String(row.key).slice(prefix.length))
+  }
+
   clear() {
     this.db.exec('BEGIN; DELETE FROM responses; DELETE FROM settings; COMMIT;')
     this.db.exec('VACUUM;')

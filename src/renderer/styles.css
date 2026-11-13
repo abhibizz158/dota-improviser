@@ -117,6 +117,7 @@ select:focus, input:focus { border-color: var(--gold); outline: 0; }
 .match-name { display: flex; gap: 10px; align-items: center; background: none; border: 0; text-align: left; } .match-name small { display: block; color: var(--muted); }
 .result { font: 700 11px var(--display); letter-spacing: .12em; text-transform: uppercase; padding: 3px 9px; border-radius: 5px; background: var(--s3); color: var(--muted); } .result.win { background: rgba(88,179,104,.15); color: var(--good); } .result.loss { background: rgba(224,87,75,.15); color: var(--bad); }
 .status-tag { display: inline-flex; align-items: center; gap: 4px; font: 700 10px var(--display); letter-spacing: .08em; text-transform: uppercase; padding: 3px 7px; border-radius: 5px; margin-left: 6px; background: rgba(88,179,104,.15); color: var(--good); } .status-tag.abandoned { background: rgba(224,87,75,.15); color: var(--bad); margin-left: 0; }
+.status-tag.parsing { background: rgba(217,172,79,.15); color: var(--gold); margin-left: 6px; }
 .table-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; color: var(--muted); }
 .bottom-meta { display: flex; gap: 18px; color: var(--dim); font-size: 12px; } .bottom-meta span { display: inline-flex; gap: 6px; align-items: center; }
 

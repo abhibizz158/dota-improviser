@@ -16,6 +16,14 @@ const base = import.meta.env.BASE_URL
 export function Overview({ api, onUseHero, showStyle = true, catalog, history, loading, demo, account, onAccount, onRefresh, onMatch, onImport, onPrivateHistory, onDraft, onOpenGame, local }: Props) {
   const [sessions, setSessions] = useState<SessionRecord[]>([])
   useEffect(() => { void api.sessionHistory().then(setSessions).catch(() => {}) }, [api])
+  const [parsing, setParsing] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    let active = true
+    const check = () => void api.parsingMatches().then((ids) => { if (active) setParsing(new Set(ids)) }).catch(() => {})
+    check()
+    const timer = setInterval(check, 15000)
+    return () => { active = false; clearInterval(timer) }
+  }, [api])
   const [hero, setHero] = useState('')
   const [role, setRole] = useState('')
   const [mode, setMode] = useState('')
@@ -118,7 +126,8 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, l
           <tbody>{filtered.slice(currentPage * 6, currentPage * 6 + 6).map((match) => <tr key={match.id}>
             <td><button className="match-name" onClick={() => onMatch(match.id)}><Portrait hero={byId.get(match.heroId)} /><span><strong>{byId.get(match.heroId)?.name ?? 'Unknown hero'}</strong><small>{match.source === 'local' ? 'Local scoreboard' : [match.role, match.mode].filter(Boolean).join(' · ') || 'Role unavailable'}</small></span></button></td>
             <td><span className={'result ' + (match.won == null ? '' : match.won ? 'win' : 'loss')}>{match.won == null ? 'Unknown' : match.won ? 'Victory' : 'Defeat'}</span>
-              {match.status === 'abandoned' && <span className="status-tag abandoned">Abandoned</span>}</td>
+              {match.status === 'abandoned' && <span className="status-tag abandoned">Abandoned</span>}
+              {parsing.has(match.id) && <span className="status-tag parsing">Parsing replay…</span>}</td>
             <td>{[match.kills, match.deaths, match.assists].map((number) => fmt(number)).join(' / ')}</td><td>{fmt(match.gpm)}</td><td>{fmt(match.xpm)}</td>
             <td>{fmt(match.lastHits)} / {fmt(match.denies)}</td><td>{clock(match.duration || null)}</td><td>{day(match.start)}</td>
             <td><button className="icon-button" onClick={() => onMatch(match.id)} aria-label={'Review match ' + match.id}><ChevronRight size={17} /></button></td>
