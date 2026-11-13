@@ -16,7 +16,7 @@ export type CoachView = {
   heroId: number | null; score: number | null; gpm: number | null; xpm: number | null; lhpm: number | null
   gpmPct: number | null; xpmPct: number | null; lhPct: number | null; deaths: number | null
   tips: Tip[]; achievements: Achievement[]; benchmarkAvailable: boolean
-  role: Role; phase: 'Laning' | 'Mid game' | 'Late game'; nextGoal: { label: string; left: number } | null
+  role: Role; phase: 'Laning' | 'Mid game' | 'Late game'; nextGoal: { label: string; left: number } | null; matchmaking: boolean
   stats: { kills: number | null; deaths: number | null; assists: number | null; lastHits: number | null; denies: number | null; level: number | null; gold: number | null }
   medians: { gpm: number | null; xpm: number | null; lhpm: number | null }
   planned?: { name: string; at: number | null }[]
@@ -115,7 +115,7 @@ export function coach(frame: Frame, data: HeroData | undefined, percentiles: num
     achievements.push({ id: 'lh10', label: `${target} last hits by 10:00`, par: 600, got, state: frame.clock >= 600 ? (hit ? 'done' : 'missed') : 'live', elite: false })
   }
   return { heroId: frame.heroId, score, gpm: frame.gpm, xpm: frame.xpm, lhpm, gpmPct, xpmPct, lhPct, deaths, tips: tips.slice(0, 3), achievements, benchmarkAvailable: Boolean(data),
-    role, phase: frame.clock < 600 ? 'Laning' : frame.clock < 1500 ? 'Mid game' : 'Late game',
+    role, phase: frame.clock < 600 ? 'Laning' : frame.clock < 1500 ? 'Mid game' : 'Late game', matchmaking: frame.matchmaking,
     nextGoal: (() => { const g = achievements.filter((a) => a.state === 'live' && a.par > frame.clock).sort((a, b) => a.par - b.par)[0]; return g ? { label: g.label, left: g.par - frame.clock } : null })(),
     stats: { kills: frame.kills, deaths: frame.deaths, assists: frame.assists, lastHits: frame.lastHits, denies: frame.denies, level: frame.level, gold: frame.gold },
     medians: { gpm: data?.bench.gpm[2] ?? null, xpm: data?.bench.xpm[2] ?? null, lhpm: data?.bench.lhpm[2] ?? null },

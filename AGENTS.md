@@ -32,7 +32,8 @@ Stats-only companion. **No** memory reading, screen scraping, input injection, p
 | Valve `dota2.com/datafeed/herodata` | stats, role levels, abilities (kits.json) -> mechanics model |
 | `dotaconstants` (npm) | hero/item/patch catalogue |
 | Local game files + Steam | build number (`steam.inf`), default item builds, signed-in account |
-Considered, not used: STRATZ GraphQL (needs a token and sits behind Cloudflare), Steam Web API match history (needs a key; OpenDota already covers it).
+Considered, not used: STRATZ GraphQL (needs a token and sits behind Cloudflare), Steam Web API match history (needs a key; OpenDota already covers it, and Valve gates match history behind the same "Expose Public Match Data" setting as OpenDota regardless of API key, so it adds nothing when that setting is off).
+- **No download/export exists for a private player's own match history.** Checked: Steam's GCPD page (`steamcommunity.com/my/gcpd/570/`) is a rendered webpage, not a file, and the Steam Web API's match-history endpoints require that same Dota client setting to return anything at all — there is no self-auth bypass. The two real options with that setting off are (1) the GSI listener's own local capture (`saveOwnMatches`, below) or (2) hand-typing a manual CSV backfill (Settings -> "Matches without public sharing"); the app leads with (1).
 
 ## Game mechanics model (`src/shared/mechanics.ts`)
 - **Computed (exact):** attribute scaling (STR 22 HP, AGI attack speed and 1/6 armor, INT 12 mana, universal 0.7 damage), armor reduction `0.06A/(1+0.06|A|)`, magic resistance, attack time, damage per second, and a Lanchester-style 1v1 duel (HP x DPS after armor).

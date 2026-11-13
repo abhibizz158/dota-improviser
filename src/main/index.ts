@@ -1529,6 +1529,9 @@ else {
     })
     globalShortcut.register(draftShortcut, () => { toggleDraftOverlay() })
     assistantShortcutAvailable = globalShortcut.register(assistantShortcut, () => { toggleAssistant() })
+    // Closest valid equivalent to "Shift+Tab+1": Electron's accelerators allow modifiers plus exactly one
+    // trigger key, so a three-key chord (Shift, Tab, 1 all as triggers) can't be registered as one shortcut.
+    globalShortcut.register('Shift+Tab', () => { toggleAssistant() })
     globalShortcut.register(detailShortcut, () => {
       settings = { ...settings, detailed: !settings.detailed }
       store.set('live', settings)

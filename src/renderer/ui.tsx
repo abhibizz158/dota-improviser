@@ -1,7 +1,8 @@
 import { useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ArrowDown, ArrowUp, BrainCircuit, Clock3, Gamepad2, Minus, Radio, Shield, Swords, Trophy, X } from 'lucide-react'
-import type { DraftInput, GameView, Hero, LiveSettings, LiveState, Toast } from '../shared/model.js'
+import type { DraftInput, GameView, Hero, LiveSettings, LiveState, Role, Toast } from '../shared/model.js'
+import { roleLabels, roles } from '../shared/model.js'
 import { aegisView, clockText as roshanClock, roshanView } from '../shared/roshan.js'
 import type { RoshanState } from '../shared/roshan.js'
 import type { CoachView } from '../shared/coach.js'
@@ -143,6 +144,11 @@ export function DraftCard({ live, heroes, send, done }: { live: LiveState; heroe
     <Team label="Enemy" tone="e" ids={draft.enemy} heroes={heroes} remove={canEdit ? (id) => void send({ enemy: draft.enemy.filter((x) => x !== id) }) : undefined} />
     <Team label="Teammates" tone="a" ids={draft.allied} heroes={heroes} remove={canEdit ? (id) => void send({ allied: draft.allied.filter((x) => x !== id) }) : undefined} />
     {f.bans && draft.bans.length > 0 && <div className="ov-team bans"><span className="lbl">Bans</span>{draft.bans.slice(0, 10).map((id) => <Portrait key={id} hero={byId(id)} />)}</div>}
+    {canEdit && <label className="overlay-role"><span>Your role</span>
+      <select value={draft.roleChoice.source === 'Manual' ? draft.role : ''} onChange={(event) => void send({ role: event.target.value ? event.target.value as Role : null })}>
+        <option value="">Auto ({roleLabels[draft.role]})</option>
+        {roles.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}
+      </select></label>}
     {f.winMeter && <WinMeter allied={draft.teamWin} />}
     {canEdit && <div className="draft-entry"><input autoFocus spellCheck={false} aria-label="Find hero to add" placeholder="Search heroes" value={query}
       onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') pick(event.shiftKey) }} />
@@ -243,7 +249,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
     {detailed && !primaryTip && coach.nextGoal && f.achievements && <div className="next-goal"><b>{coach.nextGoal.label}</b><em>{mmss(coach.nextGoal.left)} left</em></div>}
   </article>
   return <article className="coach-card">
-    <Head icon={<Trophy size={13} />} tag={'Coach · ' + heroName} sub={coach.phase + ' · ' + clockText} />
+    <Head icon={<Trophy size={13} />} tag={'Coach · ' + heroName} sub={(coach.matchmaking ? 'Matchmaking' : 'Practice') + ' · ' + coach.phase + ' · ' + clockText} />
     {coach.role && <span className="role-chip">{coach.role}{adaptive ? ' · adaptive view' : ''}</span>}
     <div className="coach-top">
       <div className="score-ring" style={{ ['--v' as string]: coach.score ?? 0, ['--c' as string]: tone(coach.score) }}><span>{coach.score ?? '—'}</span></div>
