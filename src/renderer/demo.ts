@@ -149,6 +149,7 @@ export const browserApi: AppApi = {
   async importHistory() { throw new Error('Open the desktop app to import matches.') },
   async cachedHistory() { return undefined },
   async sessionHistory() { return [] },
+  async parsingMatches() { return [] },
   async puterStatus() { return { connected: false, saved: false, model: 'gpt-5.4-nano' } },
   async puterSignIn() { throw new Error('Open the desktop app to connect Puter AI.') },
   async puterSignOut() { return { connected: false, saved: false, model: 'gpt-5.4-nano' } },

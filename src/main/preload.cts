@@ -51,6 +51,7 @@ if (location.hash === '#overlay') {
     importHistory: (value) => ipcRenderer.invoke('history:import-local', value),
     cachedHistory: () => ipcRenderer.invoke('history:cached'),
     sessionHistory: () => ipcRenderer.invoke('history:sessions'),
+    parsingMatches: () => ipcRenderer.invoke('history:parsing'),
     puterStatus: () => ipcRenderer.invoke('puter:status'),
     puterSignIn: () => ipcRenderer.invoke('puter:sign-in'),
     puterSignOut: () => ipcRenderer.invoke('puter:sign-out'),

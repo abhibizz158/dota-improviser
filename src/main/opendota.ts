@@ -69,24 +69,48 @@ export class OpenDota {
     return request
   }
 
+  private historyKey = (id: string) => 'history-all:' + id
+
+  /** OpenDota's own /matches response only ever covers its current ~100-match window; merge each fetch into a
+   * durable local ledger (keyed by match id) so the app keeps every match it has ever seen, not just the latest slice. */
+  private mergeHistory(id: string, fresh: MatchSummary[]) {
+    const existing = this.store.get<MatchSummary[]>(this.historyKey(id)) ?? []
+    const byId = new Map(existing.map((row) => [row.id, row]))
+    for (const row of fresh) byId.set(row.id, row)
+    const merged = [...byId.values()].sort((a, b) => b.start - a.start).slice(0, 1000)
+    this.store.set(this.historyKey(id), merged)
+    return merged
+  }
+
+  private withRoles(id: string, rows: MatchSummary[]) {
+    return rows.map((row) => {
+      const review = this.cachedMatch(row.id)?.players.find((player) => player.accountId === id)
+      return review?.role ? { ...row, role: review.role } : row
+    })
+  }
+
   async history(id: string, refresh = false) {
     // OpenDota only re-polls Steam for a player on request; without this, newly-public matches (or a player it has
     // never seen) can sit unindexed indefinitely even with "Expose Public Match Data" on.
     if (refresh) await this.request('/players/' + id + '/refresh', 'POST').catch(() => {})
     const result = await this.load('/players/' + id + '/matches?' + historyQuery, hour / 2, normalizeHistory, refresh)
-    return { ...result, data: result.data.map((row) => {
-      const review = this.cachedMatch(row.id)?.players.find((player) => player.accountId === id)
-      return review?.role ? { ...row, role: review.role } : row
-    }) }
+    return { ...result, data: this.withRoles(id, this.mergeHistory(id, result.data)) }
   }
 
   historySnapshot(id: string) {
-    const cached = this.store.cached<MatchSummary[]>('/players/' + id + '/matches?' + historyQuery)
-    return cached && { ...cached, stale: Date.now() - cached.updatedAt >= hour / 2 }
+    const live = this.store.cached<MatchSummary[]>('/players/' + id + '/matches?' + historyQuery)
+    const merged = this.store.get<MatchSummary[]>(this.historyKey(id))
+    if (!merged) return live
+    return { data: this.withRoles(id, merged), updatedAt: live?.updatedAt ?? 0, stale: !live || Date.now() - live.updatedAt >= hour / 2 }
   }
 
   cachedHistory(id: string) {
     return this.historySnapshot(id)?.data ?? []
+  }
+
+  /** Match ids with a replay-parse job still in flight — persisted, so the list can show "parsing" after a restart too. */
+  pendingParseIds() {
+    return this.store.keysWithPrefix('parse:')
   }
 
   match(id: string, refresh = false) {
