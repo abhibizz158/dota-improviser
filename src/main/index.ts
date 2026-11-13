@@ -731,7 +731,10 @@ function makeOverlay() {
     skipTaskbar: true, hasShadow: false, fullscreenable: false,
     // A panel can join fullscreen Spaces on macOS.
     type: process.platform === 'darwin' ? 'panel' : undefined,
-    webPreferences: { ...webPreferences, spellcheck: false },
+    // The overlay is essentially never focused during a match (the game has focus) — unlike the dashboard,
+    // throttling it here is exactly what caused visible stutter in its own animations and in how fast it
+    // reflects live state, so it opts back out of the shared default above.
+    webPreferences: { ...webPreferences, spellcheck: false, backgroundThrottling: false },
   })
   overlay = window
   overlayHeight = null
