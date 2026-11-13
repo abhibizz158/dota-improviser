@@ -12,6 +12,7 @@ if (location.hash === '#overlay') {
     state: () => ipcRenderer.invoke('live:snapshot'),
     height: (value: number) => ipcRenderer.send('overlay:height', value),
     draft: (input: unknown) => ipcRenderer.invoke('overlay:draft', input),
+    done: () => ipcRenderer.invoke('overlay:done'),
     onLive,
   })
 } else {

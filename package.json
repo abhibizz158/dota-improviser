@@ -7,18 +7,19 @@
   "description": "Local-first Dota 2 draft, match review and practice companion",
   "main": "dist/main/main/index.js",
   "scripts": {
-    "dev": "npm run build && electron .",
+    "dev": "npm run build && npm run build:overlay -- --optional && electron .",
     "start": "electron .",
     "preview": "npm run build && vite preview --host 127.0.0.1",
     "check": "tsc -p tsconfig.renderer.json && tsc -p tsconfig.main.json --noEmit",
     "build": "npm run check && vite build && tsc -p tsconfig.main.json",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "package:mac": "npm run build && electron-packager . --platform=darwin --arch=arm64 --out=release --overwrite --asar --app-bundle-id=com.dotaimproviser.app --icon=build/icon --ignore=\"^/(src|tests|release|public|scripts|build|docs|data|\\\\.claude|AGENTS.md|README.md|index.html|vite.config.ts|tsconfig)\" && codesign --force --deep --sign - \"release/Dota Improviser-darwin-arm64/Dota Improviser.app\"",
-    "package:mac-intel": "npm run build && electron-packager . --platform=darwin --arch=x64 --out=release --overwrite --asar --app-bundle-id=com.dotaimproviser.app --icon=build/icon --ignore=\"^/(src|tests|release|public|scripts|build|docs|data|\\\\.claude|AGENTS.md|README.md|index.html|vite.config.ts|tsconfig)\" && codesign --force --deep --sign - \"release/Dota Improviser-darwin-x64/Dota Improviser.app\"",
-    "package:win": "npm run build && electron-packager . --platform=win32 --arch=x64 --out=release --overwrite --asar --icon=build/icon --ignore=\"^/(src|tests|release|public|scripts|build|docs|data|\\\\.claude|AGENTS.md|README.md|index.html|vite.config.ts|tsconfig)\"",
+    "package:mac": "npm run build && npm run build:overlay -- darwin arm64 && electron-packager . --platform=darwin --arch=arm64 --out=release --overwrite --asar --app-bundle-id=com.dotaimproviser.app --icon=build/icon --ignore=\"^/(src|native|tests|release|public|scripts|build|docs|data|\\\\.claude|AGENTS.md|README.md|index.html|vite.config.ts|tsconfig)\" && codesign --force --deep --sign - \"release/Dota Improviser-darwin-arm64/Dota Improviser.app\"",
+    "package:mac-intel": "npm run build && npm run build:overlay -- darwin x64 && electron-packager . --platform=darwin --arch=x64 --out=release --overwrite --asar --app-bundle-id=com.dotaimproviser.app --icon=build/icon --ignore=\"^/(src|native|tests|release|public|scripts|build|docs|data|\\\\.claude|AGENTS.md|README.md|index.html|vite.config.ts|tsconfig)\" && codesign --force --deep --sign - \"release/Dota Improviser-darwin-x64/Dota Improviser.app\"",
+    "package:win": "npm run build && npm run build:overlay -- win32 x64 && electron-packager . --platform=win32 --arch=x64 --out=release --overwrite --asar --icon=build/icon --ignore=\"^/(src|native|tests|release|public|scripts|build|docs|data|\\\\.claude|AGENTS.md|README.md|index.html|vite.config.ts|tsconfig)\"",
     "seed": "node scripts/build-seed.mjs",
     "data": "node scripts/build-seed.mjs && node scripts/build-heroes.mjs && node scripts/build-kits.mjs && node scripts/build-timings.mjs",
-    "package:local": "npm run build && electron-packager . --platform=darwin --arch=arm64 --out=release --overwrite --asar --app-bundle-id=com.dotaimproviser.app --icon=build/icon --ignore=\"^/(src|tests|release|public|scripts|build|docs|data|\\\\.claude|AGENTS.md|README.md|index.html|vite.config.ts|tsconfig)\" && codesign --force --deep --sign - \"release/Dota Improviser-darwin-arm64/Dota Improviser.app\""
+    "package:local": "npm run build && npm run build:overlay -- darwin arm64 && electron-packager . --platform=darwin --arch=arm64 --out=release --overwrite --asar --app-bundle-id=com.dotaimproviser.app --icon=build/icon --ignore=\"^/(src|native|tests|release|public|scripts|build|docs|data|\\\\.claude|AGENTS.md|README.md|index.html|vite.config.ts|tsconfig)\" && codesign --force --deep --sign - \"release/Dota Improviser-darwin-arm64/Dota Improviser.app\"",
+    "build:overlay": "node scripts/build-overlay.mjs"
   },
   "engines": {
     "node": ">=24"
@@ -33,6 +34,7 @@
     "@vitejs/plugin-react": "^6.0.0",
     "electron": "^45.3.1",
     "lucide-react": "^1.72.0",
+    "node-gyp": "^12.4.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "typescript": "~5.9.3",

@@ -1,6 +1,6 @@
 # Dota Improviser: agents and flow
 
-Stats-only companion. **No** memory reading, screen scraping, input injection, packet sniffing, or hidden-info extraction. Only: Valve GSI (player-visible, opt-in cfg), public OpenDota aggregates, local read-only files (`steam.inf`, `itembuilds/`, Steam `loginusers.vdf`), and picks the user types.
+Stats-only companion. **No** memory reading, screen scraping, input injection, packet sniffing, or hidden-info extraction. Gameplay inputs: Valve GSI (player-visible, opt-in cfg), public OpenDota aggregates, local read-only files (`steam.inf`, `itembuilds/`, Steam `loginusers.vdf`), and picks the user types. For overlay placement only, the main process may use the OS-reported foreground Dota window bounds.
 
 ## Project agents (`.claude/agents/`)
 | Agent | Owns | Files |
@@ -46,7 +46,7 @@ Considered, not used: STRATZ GraphQL (needs a token and sits behind Cloudflare),
 - Tower, Roshan and barracks state are **not** in a player's feed (spectator-only `buildings` is blocked by the guardrails). They appear post-match in Match Review's Objective timeline, from OpenDota's parsed replay, with Dota's own gold/XP advantage graph.
 - The overlay adapts by phase (laning: lane tools; mid game: goals + momentum; late game: essentials) and shows animated achievement pop-ups. A trophy case on Live & Coach keeps career counts.
 - Playstyle (Hard Carry, Tempo Core, Frontline Initiator, Dynamic Support, Utility Support, plus Endurance/Aggression/Survival/Farm traits) is learned from your last 40 matches. The coach also adapts its scoring role per hero from the role you usually play it in.
-- **Roshan/Aegis timer** (`src/shared/roshan.ts`) is a manual stopwatch, not a read of game state: a global hotkey or a button you press when you SEE Roshan die starts it (`Insert` both, `Alt+Insert` Roshan only, `Home` Aegis only; `Ctrl/⌘+Alt+Insert`/`+Home` clear). Window: Roshan 8:00–11:00, Aegis expires at 5:00 — approximate, Valve has changed these before. Same category as typing a draft pick: pure user input, nothing read from Dota. Feature-toggleable (`roshanTimer`).
+- **Roshan/Aegis timer** (`src/shared/roshan.ts`) is a manual stopwatch started by the player. Use the dashboard buttons or Ctrl/⌘+Alt+F6 (both), F7 (Roshan), F8 (Aegis), or F9 (clear). Window: Roshan 8:00–11:00, Aegis expires at 5:00 — approximate, Valve has changed these before. Feature-toggleable (`roshanTimer`).
 
 ## Puter AI coach
 - An optional AI Q&A layer (`@heyputer/puter.js`), signed in from Settings, token stored via `safeStorage` (OS keychain), never sent anywhere but `api.puter.com`/`puter.com` (both allowlisted).

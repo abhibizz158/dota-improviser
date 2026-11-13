@@ -10,6 +10,7 @@ Dota Improviser is a stats and practice companion. Its data boundaries are enfor
 - Read-only local discovery of Steam `loginusers.vdf`, Dota `steam.inf`, and Dota `itembuilds/`.
 - Heroes and picks the player manually selects or types.
 - Optional Puter AI context explicitly selected by the player and the question they submit.
+- OS-reported foreground Dota window bounds, used only for overlay placement. No window contents, titles, or game data are collected through this path.
 
 ## Not used
 
