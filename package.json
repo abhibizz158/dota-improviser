@@ -17,7 +17,7 @@
     "package:mac-intel": "npm run build && electron-packager . --platform=darwin --arch=x64 --out=release --overwrite --asar --app-bundle-id=com.dotaimproviser.app --icon=build/icon --ignore=\"^/(src|tests|release|public|scripts|build|docs|data|\\\\.claude|AGENTS.md|README.md|index.html|vite.config.ts|tsconfig)\" && codesign --force --deep --sign - \"release/Dota Improviser-darwin-x64/Dota Improviser.app\"",
     "package:win": "npm run build && electron-packager . --platform=win32 --arch=x64 --out=release --overwrite --asar --icon=build/icon --ignore=\"^/(src|tests|release|public|scripts|build|docs|data|\\\\.claude|AGENTS.md|README.md|index.html|vite.config.ts|tsconfig)\"",
     "seed": "node scripts/build-seed.mjs",
-    "data": "node scripts/build-seed.mjs && node scripts/build-heroes.mjs",
+    "data": "node scripts/build-seed.mjs && node scripts/build-heroes.mjs && node scripts/build-kits.mjs && node scripts/build-timings.mjs",
     "package:local": "npm run build && electron-packager . --platform=darwin --arch=arm64 --out=release --overwrite --asar --app-bundle-id=com.dotaimproviser.app --icon=build/icon --ignore=\"^/(src|tests|release|public|scripts|build|docs|data|\\\\.claude|AGENTS.md|README.md|index.html|vite.config.ts|tsconfig)\" && codesign --force --deep --sign - \"release/Dota Improviser-darwin-arm64/Dota Improviser.app\""
   },
   "engines": {
