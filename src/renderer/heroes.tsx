@@ -11,10 +11,10 @@ const dmgName: Record<number, string> = { 1: 'physical', 2: 'magical', 4: 'pure'
 const chipTone = (s: string) => ['stun', 'hex', 'sleep', 'fear', 'taunt', 'root'].includes(s) ? 'hard' : ['silence', 'disarm', 'mute', 'break', 'slow', 'knockback', 'blind'].includes(s) ? 'soft' : 'util'
 
 /** Everything the model knows about a hero: attributes, computed stats at three levels, each ability's effects. */
-function KitPanel({ detail, catalog }: { detail: HeroDetail; catalog: Catalog }) {
+function KitPanel({ detail, catalog, updating }: { detail: HeroDetail; catalog: Catalog; updating: boolean }) {
   const kit = detail.kit
   const name = (id: number) => catalog.heroes.find((h) => h.id === id)?.name ?? 'Hero ' + id
-  if (!kit) return <Empty title="Mechanics data not loaded">Run <code>npm run data</code> or use Update data now.</Empty>
+  if (!kit) return <Empty title={updating ? 'Downloading hero data…' : 'Mechanics data not available yet'}>{updating ? 'This hero’s ability data is on its way.' : 'Press Update data now above to fetch it.'}</Empty>
   const s = kit.s
   const levels = [1, 11, 25].map((l) => ({ l, v: atLevel(kit, l) }))
   const row = (label: string, f: (v: ReturnType<typeof atLevel>) => string) => <tr key={label}><td>{label}</td>{levels.map(({ l, v }) => <td key={l}>{f(v)}</td>)}</tr>
@@ -67,7 +67,7 @@ export function Heroes({ api, catalog, live, onDraft }: { api: AppApi; catalog: 
       <section className="panel hero-detail">
         <div className="review-hero"><Portrait hero={hero} /><div><h2>{hero.name}</h2><p>{hero.roles.join(' · ')}{live.draft.patched.includes(id) ? ' · changed in a recent patch (older matchup data down-weighted)' : ''}</p></div>
           <button className="button primary" onClick={() => onDraft(id)}><Search size={15} /> Use in draft</button></div>
-        {!d ? <Empty title="No downloaded data for this hero">Run <code>npm run data</code> to download hero stats.</Empty> : <>
+        {!d ? <Empty title={live.data.state === 'updating' ? 'Downloading hero data…' : 'No data for this hero yet'}>{live.data.state === 'updating' ? 'Stats for this hero are on their way (' + live.data.done + '/' + live.data.total + ').' : 'Press Update data now above to fetch it.'}</Empty> : <>
           <div><h3>Win rate by rank</h3><div className="stat-bars">{brackets.map((b, i) => {
             const wr = d.pick[i] ? 100 * d.win[i] / d.pick[i] : null
             return <div className="stat-bar" key={b}><span>{b}</span><div className="meter single"><i style={{ width: Math.min(100, Math.max(0, ((wr ?? 50) - 40) * 5)) + '%' }} /></div><b>{wr == null ? '—' : fmt(wr, 1) + '%'}</b></div>
@@ -80,7 +80,7 @@ export function Heroes({ api, catalog, live, onDraft }: { api: AppApi; catalog: 
           <div><h3>Strong against</h3><div className="counter-list">{detail?.strongAgainst.map((r) => <div key={r.heroId}><Portrait hero={catalog.heroes.find((h) => h.id === r.heroId)} />{name(r.heroId)}<b className="positive">{fmt(r.rate, 1)}%</b></div>)}</div></div>
           <div><h3>Weak against</h3><div className="counter-list">{detail?.weakAgainst.map((r) => <div key={r.heroId}><Portrait hero={catalog.heroes.find((h) => h.id === r.heroId)} />{name(r.heroId)}<b className="negative">{fmt(r.rate, 1)}%</b></div>)}</div></div>
         </div>
-        <KitPanel detail={detail ?? ({ id, data: null, patch: '', percentiles: [], strongAgainst: [], weakAgainst: [] } as HeroDetail)} catalog={catalog} />
+        <KitPanel detail={detail ?? ({ id, data: null, patch: '', percentiles: [], strongAgainst: [], weakAgainst: [] } as HeroDetail)} catalog={catalog} updating={live.data.state === 'updating'} />
         <p className="fine-print"><Database size={12} /> Matchup rates come from the bundled seed ({fmt(detail?.strongAgainst.length ?? 0)}+ pairs with 60+ games), shrunk toward what overall strength and mechanics predict on small samples.</p>
       </section>
     </div>
