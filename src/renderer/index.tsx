@@ -140,7 +140,9 @@ function App() {
       if (value.accountId) {
         setSample(false)
         if (value.cachedHistory) setHistory(value.cachedHistory)
-        void loadHistory(value.accountId)
+        // An empty cached result could just mean nothing was fetched after public match data was turned on
+        // (the 30-minute cache can't tell "truly empty" from "not asked yet") — always force a live check then.
+        void loadHistory(value.accountId, !value.cachedHistory?.data.length)
       }
     }).catch((reason: Error) => { if (mounted) setError(reason.message) })
     return () => { mounted = false; unsubscribe() }
