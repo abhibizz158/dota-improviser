@@ -1,0 +1,25 @@
+export type KnowledgeEntry = { term: string; summary: string; detail: string; related: string[] }
+
+/** Offline reference language is deliberately short and points back to the data behind each estimate. */
+export const knowledge: KnowledgeEntry[] = [
+  { term: 'Counter pick', summary: 'A hero whose matchup tools answer a specific enemy.', detail: 'Check the matchup edge separately from overall hero strength. A high base win rate alone does not make a hero a counter; inspect the sample size and how the hero fits your role and team.', related: ['matchup edge', 'sample size', 'role fit'] },
+  { term: 'Matchup edge', summary: 'How a pair performs after accounting for both heroes’ overall strength.', detail: 'The app shrinks small samples toward an even matchup. Treat thin or old-patch samples as weak evidence, not a guarantee for the next game.', related: ['counter pick', 'sample size', 'patch'] },
+  { term: 'Item timing', summary: 'The match minute when an item becomes useful and affordable.', detail: 'An ETA based on current GPM is only a planning estimate. Kills, deaths, lane access, courier trips, components and spending change the real purchase time.', related: ['power spike', 'GPM', 'components'] },
+  { term: 'Power spike', summary: 'A level, ability or item point that changes what your hero can safely do.', detail: 'A timing is useful only if it matches the lineup and the next objective. A later item can be stronger on paper while giving up lane safety or earlier team utility.', related: ['item timing', 'tempo', 'defensive item'] },
+  { term: 'Sample size', summary: 'How many games support a matchup or item statistic.', detail: 'Small samples are noisy. Compare samples from the same patch and role when available; the app marks missing or thin slices instead of presenting them as certain.', related: ['matchup edge', 'patch', 'win rate'] },
+  { term: 'Dispel', summary: 'Removes some negative effects or buffs, depending on the item or ability.', detail: 'A dispel does not remove every disable. Check the effect description and whether the target effect is dispellable before relying on it.', related: ['debuff', 'disable', 'Manta Style', 'Lotus Orb'] },
+  { term: 'Disable', summary: 'An effect that limits actions, such as stun, hex, root or silence.', detail: 'Different disables block different actions. BKB, Linken’s Sphere and dispels answer different parts of a lineup; inspect duration and piercing rather than counting every disable as equivalent.', related: ['BKB piercing', 'dispel', 'Black King Bar'] },
+  { term: 'BKB piercing', summary: 'An effect that continues to affect a target protected by spell immunity.', detail: 'The app flags piercing from the game data where available. It does not imply that every part of an ability ignores immunity.', related: ['disable', 'magic resistance', 'Black King Bar'] },
+  { term: 'Lane equilibrium', summary: 'Where the creep waves meet and how safely each side can farm.', detail: 'A difficult lane often calls for safer last hits, experience range, regeneration and support help. Stacks, pulls and map position vary by camp and game state.', related: ['safe farm', 'pull', 'last hit'] },
+  { term: 'GPM and XPM', summary: 'Gold and experience earned per minute.', detail: 'Use these to compare your current pace with your own hero history or a published benchmark. They do not reveal opponent inventory or hidden map state.', related: ['item timing', 'farm', 'experience'] },
+  { term: 'Sustain', summary: 'Health or mana recovery that lets a hero remain active.', detail: 'Regeneration, healing and lifesteal are different mechanics. Anti-heal items trade gold and an item slot for pressure against sustain-heavy enemies.', related: ['Spirit Vessel', 'Eye of Skadi', 'regen'] },
+  { term: 'Defensive lane', summary: 'A lane plan that reduces deaths while preserving safe farm and experience.', detail: 'When behind, value survivable wave access and cheap, timely defenses. Avoid spending an entire early budget on an expensive item that does not help you survive or farm the next several minutes.', related: ['lane equilibrium', 'Magic Stick', 'Raindrops'] },
+  { term: 'Tempo', summary: 'How quickly a hero or lineup can turn a timing into map pressure.', detail: 'An item can be strong but arrive too late for your team’s next window. Compare its estimated arrival with your role, team spikes and the cost of delaying other items.', related: ['power spike', 'item timing', 'objective'] },
+]
+
+export function searchKnowledge(query: string) {
+  const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean)
+  if (!words.length) return knowledge
+  return knowledge.map((entry) => ({ entry, score: words.reduce((score, word) => score + Number(entry.term.toLowerCase().includes(word)) * 3 + Number(entry.summary.toLowerCase().includes(word)) + Number(entry.detail.toLowerCase().includes(word)) + Number(entry.related.some((term) => term.toLowerCase().includes(word))) * 2, 0) }))
+    .filter(({ score }) => score > 0).sort((a, b) => b.score - a.score).map(({ entry }) => entry)
+}
