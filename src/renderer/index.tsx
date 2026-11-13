@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Activity, ArrowDownToLine, ArrowRight, BookOpen, BrainCircuit, CircleHelp, Database, Gamepad2, LayoutDashboard, PanelTop, Radio, Settings2, ShieldCheck, Swords, UserRound } from 'lucide-react'
-import type { AppApi, Bootstrap, LiveState, MatchSummary, PuterStatus, SourceResult } from '../shared/model'
+import type { AppApi, Bootstrap, LiveState, MatchSummary, PuterStatus, SourceResult, UpdateInfo } from '../shared/model'
 import { browserApi, demoCatalog, demoHistory, initialLive } from './demo'
 import { Overview } from './overview'
 import { CoachCard, Dialog, DraftCard, Feedback, LaneCard, RoshanTimer, Toasts, clock } from './ui'
@@ -32,7 +32,7 @@ const pages = [
   { id: 'know', label: 'Know', icon: BookOpen },
 ] as const
 type Page = typeof pages[number]['id']
-type Modal = 'account' | 'import' | 'settings' | 'puter' | 'fair' | null
+type Modal = 'account' | 'import' | 'settings' | 'puter' | 'fair' | 'updates' | 'privateHistory' | null
 
 function BrandMark() {
   return <img className="brand-logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={34} height={34} />
@@ -88,6 +88,9 @@ function App() {
   const [confirmClear, setConfirmClear] = useState(false)
   const [puter, setPuter] = useState<PuterStatus>({ connected: false, saved: false, model: 'gpt-5.4-nano' })
   const [puterModelDraft, setPuterModelDraft] = useState('gpt-5.4-nano')
+  const [appUpdate, setAppUpdate] = useState<UpdateInfo | null>(null)
+  const [updateCredential, setUpdateCredential] = useState('')
+  const [privateRows, setPrivateRows] = useState('')
   const request = useRef(0)
   const currentPage = useRef<Page>('overview')
   const latestLive = useRef(initialLive)
@@ -112,8 +115,13 @@ function App() {
     const unsubscribe = api.onLive((value) => {
       received = true
       const styleChanged = value.settings.features.styleProfile !== latestLive.current.settings.features.styleProfile
+      const downloadChanged = value.data.state !== latestLive.current.data.state || value.data.done !== latestLive.current.data.done
+      if (value.historyChangedAt && value.historyChangedAt !== latestLive.current.historyChangedAt) {
+        const pending = request.current
+        void api.cachedHistory().then((saved) => { if (saved && mounted && pending === request.current) setHistory(saved) }).catch(() => {})
+      }
       latestLive.current = value
-      if (styleChanged || currentPage.current === 'live' || currentPage.current === 'draft' || currentPage.current === 'heroes' || currentPage.current === 'know') setLive(value)
+      if (styleChanged || downloadChanged || currentPage.current === 'live' || currentPage.current === 'draft' || currentPage.current === 'heroes' || currentPage.current === 'know') setLive(value)
     })
     void api.bootstrap().then((value) => {
       if (!mounted) return
@@ -129,6 +137,12 @@ function App() {
   }, [])
 
   useEffect(() => { void api.puterStatus().then((value) => { setPuter(value); setPuterModelDraft(value.model) }).catch(() => {}) }, [])
+  useEffect(() => {
+    let eventReceived = false
+    const unsubscribe = api.onUpdate((info) => { eventReceived = true; setAppUpdate(info) })
+    void api.updateStatus().then((info) => { if (!eventReceived) setAppUpdate(info) }).catch(() => {})
+    return unsubscribe
+  }, [])
 
   function navigate(next: Page) {
     currentPage.current = next
@@ -141,6 +155,8 @@ function App() {
     setInput(next === 'account' ? context.accountId : '')
     setFormError('')
     setConfirmClear(false)
+    setUpdateCredential('')
+    if (next === 'privateHistory') setPrivateRows('')
     setModal(next)
   }
 
@@ -178,9 +194,25 @@ function App() {
     if (id) setInput(id); else setFormError('No signed-in Steam user found on this computer.')
   }
 
-  async function updates() {
-    const info = await api.checkUpdates()
-    setFormError(info.latest ? 'Update ' + info.latest + ' available (you have ' + info.current + ').' : info.configured ? 'Up to date (' + info.current + ').' : 'Updates are not configured: set dotaImproviser.updateRepo in package.json.')
+  async function updateAction(action: 'check' | 'connect' | 'disconnect' | 'install') {
+    const credential = updateCredential.trim()
+    setFormError(''); setFormBusy(true)
+    if (action === 'connect') setUpdateCredential('')
+    try {
+      if (action === 'install') await api.installUpdate()
+      else setAppUpdate(await (action === 'connect' ? api.connectUpdates(credential) : action === 'disconnect' ? api.disconnectUpdates() : api.checkUpdates()))
+    } catch (error) { setFormError(error instanceof Error ? error.message : 'Update action failed.') }
+    finally { setFormBusy(false) }
+  }
+
+  async function importPrivateHistory() {
+    setFormError(''); setFormBusy(true)
+    try {
+      const result = await api.importHistory(privateRows)
+      ++request.current
+      setHistory(result); setLoading(false); setSample(false); setError(''); setModal(null); navigate('overview')
+    } catch (error) { setFormError(error instanceof Error ? error.message : 'Could not import matches.') }
+    finally { setFormBusy(false) }
   }
 
   async function connectPuter() {
@@ -251,8 +283,9 @@ function App() {
       <header className="topbar">
         <div className="breadcrumb"><Gamepad2 size={17} /><span>Workspace</span><span className="slash">/</span><strong>{pages.find(({ id }) => id === page)?.label}</strong></div>
         <div className="topbar-actions">
+          {appUpdate?.state === 'ready' && <button className="button secondary slim" onClick={() => showModal('updates')}>Update ready</button>}
           {live.data.state === 'updating' && <span className="data-download" title={'Downloading hero data: ' + live.data.done + ' of ' + live.data.total}>
-            <small>Downloading hero data {live.data.done}/{live.data.total}</small>
+            <small>Downloading hero data{live.data.total > 0 ? ` ${live.data.done}/${live.data.total}` : '…'}</small>
             <div className="data-download-bar"><i style={{ width: (live.data.total ? 100 * live.data.done / live.data.total : 0) + '%' }} /></div></span>}
           <button className={'status-pill ' + (sample ? 'sample' : 'connected')} title={sample ? 'Switch to your workspace' : 'Workspace settings'} onClick={() => sample ? setSample(false) : showModal('settings')}>
             <i />{statusText}</button>
@@ -265,7 +298,7 @@ function App() {
           {page === 'overview' && <Overview api={api} showStyle={live.settings.features.styleProfile} onUseHero={(id) => { void api.draft({ pool: [...new Set([...latestLive.current.draft.pool, id])] }); navigate('draft') }} catalog={context.catalog} account={context.accountId} loading={loading} demo={sample} history={rows}
             onAccount={() => showModal('account')} onRefresh={() => { setSample(false); void loadHistory(context.accountId, true) }}
             onMatch={(id) => openMatch(id, sample)} onImport={() => showModal('import')} onDraft={() => navigate('draft')}
-            onOpenGame={() => { void api.openGame().catch((reason: Error) => setError(reason.message)) }} local={context.local} />}
+            onPrivateHistory={() => showModal('privateHistory')} onOpenGame={() => { setError(''); void api.openGame().catch((reason: Error) => setError(reason.message)) }} local={context.local} />}
           <Suspense fallback={<p role="status">Loading {pages.find(({ id }) => id === page)?.label}…</p>}>
           {page === 'review' && <Review key={selection.id + ':' + selection.sample} api={api} catalog={context.catalog} account={context.accountId}
             id={selection.id} sample={selection.sample} history={selection.sample ? demoHistory : history?.data ?? []} onImport={() => showModal('import')} onBack={() => navigate('overview')} />}
@@ -277,26 +310,48 @@ function App() {
         </main>
       </div>
     </div>
-    {modal && <Dialog title={modal === 'account' ? 'Dota account' : modal === 'import' ? 'Open match by ID' : modal === 'fair' ? 'Fair-play guardrails' : modal === 'puter' ? 'Puter AI connection' : 'Workspace settings'}
+    {modal && <Dialog title={modal === 'account' ? 'Dota account' : modal === 'import' ? 'Open match by ID' : modal === 'fair' ? 'Fair-play guardrails' : modal === 'puter' ? 'Puter AI connection' : modal === 'updates' ? 'App updates' : modal === 'privateHistory' ? 'Import your own matches' : 'Workspace settings'}
       onClose={() => { if (!formBusy) setModal(null) }}>
       {modal === 'fair' ? <div className="settings-dialog"><ul className="fair-list">{fairPlay.map((rule) => <li key={rule}>{rule}</li>)}</ul>
         <p className="fine-print">Enforced in code (network allowlist, fixed GSI sections) and by tests that fail the build on forbidden APIs. Valve's rules can change: this is not legal advice, and you remain responsible for how you use any tool.</p></div> : modal === 'settings' ? <div className="settings-dialog">
         <button className="settings-choice" onClick={() => { setSample(!sample); setModal(null); navigate('overview') }}><PanelTop size={18} /><span><strong>{sample ? 'Open your workspace' : 'Explore sample data'}</strong><small>{sample ? 'Use public match data from your Dota account.' : 'Try the dashboard with example matches.'}</small></span><ArrowRight size={16} /></button>
         <button className="settings-choice" onClick={() => showModal('account')}><UserRound size={18} /><span><strong>Dota account</strong><small>{context.accountId || 'Add a numeric Dota account ID'}</small></span><ArrowRight size={16} /></button>
         <button className="settings-choice" onClick={() => showModal('puter')}><BrainCircuit size={18} /><span><strong>Puter AI</strong><small>{puter.connected ? `Connected · ${puter.model}` : 'Sign in in your browser to request AI coaching'}</small></span><ArrowRight size={16} /></button>
-        <button className="settings-choice" onClick={() => void updates()}><ArrowDownToLine size={18} /><span><strong>Check for app updates</strong><small>Game patches are detected automatically from your Dota install.</small></span><ArrowRight size={16} /></button>
+        <button className="settings-choice" onClick={() => showModal('updates')}><ArrowDownToLine size={18} /><span><strong>App updates</strong><small>{appUpdate?.state === 'ready' ? 'An update is ready to install' : 'Connect to private GitHub releases'}</small></span><ArrowRight size={16} /></button>
+        <button className="settings-choice" disabled={!context.accountId} onClick={() => showModal('privateHistory')}><Database size={18} /><span><strong>Import your own matches</strong><small>Keep public match sharing off</small></span><ArrowRight size={16} /></button>
         <button className="settings-choice" onClick={() => void api.openExternal('patches')}><ArrowDownToLine size={18} /><span><strong>Official patch notes</strong><small>Open the Dota 2 patch page.</small></span><ArrowRight size={16} /></button>
         <div className="clear-area">
           <p>{confirmClear ? 'Clear this account, cached matches, practice preferences, Puter sign-in, and the local GSI token?' : 'Clear the account and app data stored on this device.'}</p>
           <button className="button danger" disabled={formBusy} onClick={() => void clearData()}>{formBusy ? 'Clearing…' : confirmClear ? 'Confirm clear data' : 'Clear local data'}</button>
         </div>
+      </div> : modal === 'updates' ? <div className="settings-dialog">
+        <p>Installed version: {appUpdate?.current ?? '—'}. The app checks every six hours when connected and downloads verified updates in the background. Installation opens your OS installer and closes the app.</p>
+        {appUpdate?.connected ? <div className="actions">
+          <button className="button secondary" disabled={formBusy || ['checking', 'downloading'].includes(appUpdate.state)} onClick={() => void updateAction('check')}>Check now</button>
+          {appUpdate.state === 'ready' && <button className="button primary" disabled={formBusy} onClick={() => void updateAction('install')}>Install {appUpdate.latest}</button>}
+          <button className="text-button" disabled={formBusy} onClick={() => void updateAction('disconnect')}>Disconnect GitHub</button>
+        </div> : <>
+          <p>Create a fine-grained GitHub token for the Dota Improviser repository with <strong>Contents: Read-only</strong>. The token is encrypted on this device and used only to check for and download private releases.</p>
+          <button className="text-button" onClick={() => void api.openExternal('updateToken')}>Create token in GitHub</button>
+          <label className="field">GitHub update token<input type="password" autoComplete="off" maxLength={270} value={updateCredential} onChange={(event) => setUpdateCredential(event.target.value)} /></label>
+          <button className="button primary" disabled={formBusy || !updateCredential.trim() || !context.desktop} onClick={() => void updateAction('connect')}>Connect GitHub</button>
+        </>}
+        <button className="text-button" onClick={() => void api.openExternal('releases')}>Open GitHub releases</button>
+        <Feedback error={appUpdate?.state === 'error' || Boolean(formError)} message={formError || appUpdate?.message || (appUpdate?.state === 'checking' ? 'Checking GitHub…' : appUpdate?.state === 'downloading' ? 'Downloading and verifying the installer…' : appUpdate?.state === 'current' ? 'You have the latest compatible build.' : '')} />
+      </div> : modal === 'privateHistory' ? <div className="settings-dialog">
+        <p>Open your completed match scoreboards in Dota or your personal game data in Steam. Paste up to 20 of your own rows as CSV or tab-separated values. These rows stay on this device.</p>
+        <button className="text-button" onClick={() => void api.openExternal('personal')}>Open Steam personal game data</button>
+        <label className="field">Completed match rows<textarea rows={6} maxLength={16000} value={privateRows} onChange={(event) => setPrivateRows(event.target.value)} placeholder={'match_id,hero,side,result,date,duration,kills,deaths,assists,gpm,xpm,last_hits,denies\n8123456789,Axe,Radiant,Win,2026-01-20,2100,8,4,15,510,630,160,12'} /></label>
+        <p className="fine-print">Use hero name or ID, Radiant or Dire, Win or Loss, YYYY-MM-DD, and duration in seconds. Leave unavailable stats blank.</p>
+        <Feedback message={formError} error />
+        <button className="button primary" disabled={formBusy || !privateRows.trim()} onClick={() => void importPrivateHistory()}>Import into Overview</button>
       </div> : modal === 'puter' ? <div className="settings-dialog puter-settings">
         <p>Puter opens its own browser sign-in. Its AI runs with the account you choose; availability and any free usage limits are set by Puter and may change.</p>
-        <div className="puter-connection"><i className={puter.connected ? 'ready' : ''} /><span><strong>{puter.connected ? 'Connected' : 'Not connected'}</strong><small>{puter.connected ? (puter.saved ? 'Encrypted on this device' : 'Session only · secure storage unavailable') : 'No Puter session stored'}</small></span></div>
+        <div className="puter-connection"><i className={puter.connected || puter.saved ? 'ready' : ''} /><span><strong>{puter.connected ? 'Connected' : puter.saved ? 'Saved sign-in' : 'Not connected'}</strong><small>{puter.saved ? 'Encrypted on this device. The system may ask to unlock it after an update.' : puter.connected ? 'Session only' : 'No Puter session stored'}</small></span></div>
         <label className="field">Puter model identifier<input value={puterModelDraft} maxLength={80} onChange={(event) => setPuterModelDraft(event.target.value)} placeholder="gpt-5.4-nano" /></label>
         <button className="button secondary" disabled={formBusy || !puterModelDraft.trim()} onClick={() => void savePuterModel()}>Save model choice</button>
         <div className="actions"><button className="button primary" disabled={formBusy} onClick={() => void connectPuter()}>{formBusy ? 'Waiting for browser…' : puter.connected ? 'Switch Puter account' : 'Sign in with Puter'}</button>
-          {puter.connected && <button className="button" disabled={formBusy} onClick={() => void disconnectPuter()}>Disconnect</button>}</div>
+          {(puter.connected || puter.saved) && <button className="button" disabled={formBusy} onClick={() => void disconnectPuter()}>Disconnect</button>}</div>
         <p className="fine-print">AI requests send your question and the selected hero/picks/items plus optional own-player practice clock, GPM and unspent gold. Steam ID and match history are not sent. Sign out clears the encrypted local token.</p>
         <Feedback message={formError} error />
       </div> : <form onSubmit={(event) => void submit(event)} className="modal-form">

@@ -13,6 +13,13 @@ const steamRoots = () => process.platform === 'win32'
   ? [...new Set([process.env['ProgramFiles(x86)'], process.env.ProgramFiles, process.env.ProgramW6432].flatMap((root) => root ? [path.join(root, 'Steam')] : []).concat(['C:/Program Files (x86)/Steam', 'C:/Program Files/Steam']))]
   : [path.join(os.homedir(), 'Library/Application Support/Steam')]
 
+export function steamLauncher() {
+  const candidates = process.platform === 'darwin'
+    ? ['/Applications/Steam.app', path.join(os.homedir(), 'Applications', 'Steam.app')]
+    : process.platform === 'win32' ? steamRoots().map((root) => path.join(root, 'steam.exe')) : []
+  return candidates.find((candidate) => existsSync(candidate))
+}
+
 const quoted = (text: string) => [...text.matchAll(/"([^"]*)"/g)].map((m) => m[1])
 
 async function libraries(root: string) {

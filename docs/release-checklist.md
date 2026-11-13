@@ -23,7 +23,7 @@ npm run package:win        # Windows x64 test build
 
 Build on the target OS for the final verification. Current scripts use Electron Packager and ad-hoc macOS signing; public macOS distribution needs an appropriate Developer ID signature and notarization. Windows packaging still needs to be run and tested on Windows before release. Keep test artifacts in the ignored `release/` directory.
 
-The **Build desktop test release** workflow packages Windows x64, Apple Silicon, and Intel Mac builds from the same commit. It runs the test suite and checks that the native overlay helper loads in the packaged Electron runtime. Create a draft prerelease targeting the build's full commit SHA, then run **Attach verified desktop builds to release** with the build run ID and tag. It checks the build provenance, validates the ZIP files, and uploads them with SHA-256 checksums. Review the draft and publish it for testers with repository access.
+The **Build desktop test release** workflow packages the Windows x64 setup EXE and the Apple Silicon and Intel Mac PKGs. It runs the test suite, verifies the native overlay helper, and runs the installer on each runner. Create a draft prerelease targeting the build's full commit SHA, then run **Attach verified desktop builds to release** with the build run ID and tag. It checks the build provenance and uploads the installers with SHA-256 checksums. Review the draft and publish it for testers with repository access.
 
 ## Desktop and dashboard checks
 
@@ -60,6 +60,7 @@ Ranked live features are **off by default**. Enabling one requires an explicit p
 
 - [ ] Launch the packaged app from outside the project directory.
 - [ ] Confirm expected local data auto-refresh works without bundled generated snapshots.
-- [ ] Verify app updates only when `dotaImproviser.updateRepo` is configured to the intended repository.
+- [ ] Verify app updates require a repository-scoped GitHub token and reject downgrades, the wrong architecture, and downloads whose checksum does not match.
+- [ ] Install over the previous version and confirm the linked account, preferences, local history, and saved Puter sign-in remain available.
 - [ ] Record OS version, architecture, Dota build/patch, tested modes, known limitations, and artifact checksum.
 - [ ] Keep the release private until the platform checklist and ranked policy gate are satisfied.

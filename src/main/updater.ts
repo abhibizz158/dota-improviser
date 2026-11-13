@@ -1,4 +1,4 @@
-import { mkdir, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { hostAllowed } from '../shared/guard.js'
 import type { DataStatus } from '../shared/model.js'
@@ -37,9 +37,19 @@ async function get(path_: string, cancel: { stop: boolean }): Promise<unknown> {
   if (!hostAllowed(url)) throw new Error('Blocked by network allowlist.')
   for (let attempt = 0; ; attempt++) {
     if (cancel.stop) throw new Error('Update cancelled.')
-    const res = await fetch(url, { signal: AbortSignal.timeout(20000), redirect: 'error' })
-    if (res.status === 429 && attempt < 6) { await wait(15000); continue }
-    if (!res.ok) throw new Error(path_ + ' returned HTTP ' + res.status)
+    let res: Response
+    try { res = await fetch(url, { signal: AbortSignal.timeout(12000), redirect: 'error' }) }
+    catch {
+      if (attempt < 2) { await wait(1000 * (attempt + 1)); continue }
+      throw new Error('Could not reach OpenDota. Your saved hero data is still available.')
+    }
+    if (res.status === 429) {
+      const retry = Number(res.headers.get('retry-after') ?? 15)
+      if (attempt < 3 && retry <= 60) { await wait(Math.max(3, retry || 15) * 1000); continue }
+      throw new Error('OpenDota is limiting requests. Try again later; saved data and completed progress are kept.')
+    }
+    if (res.status >= 500 && attempt < 2) { await wait(1000 * (attempt + 1)); continue }
+    if (!res.ok) throw new Error('OpenDota returned HTTP ' + res.status + '. Saved data is still available.')
     await wait(1100)
     return res.json()
   }
@@ -56,33 +66,69 @@ async function atomic(file: string, value: unknown) {
   await rename(file + '.tmp', file)
 }
 
-export async function buildData(dir: string, report: (state: Pick<DataStatus, 'done' | 'total'>) => void, cancel: { stop: boolean }) {
-  let total = heroes.length * 2 + 1
+export async function buildData(dir: string, report: (state: Pick<DataStatus, 'done' | 'total'>) => void, cancel: { stop: boolean }, onDataset: () => Promise<void> = async () => {}) {
+  await mkdir(dir, { recursive: true })
+  const resumeFile = path.join(dir, 'refresh-progress.json')
+  const prior = await readFile(resumeFile, 'utf8').then(JSON.parse).catch(() => null) as { at: number; patch: string; values: Record<string, unknown> } | null
+  const values = prior?.patch === catalog.patch && Date.now() - prior.at < 86400000 ? prior.values : {}
+  let total = heroes.length * 4 + 1
   let done = 0
   const tick = () => report({ done: ++done, total })
+  const saved = async (key: string, read: () => Promise<unknown>) => {
+    if (cancel.stop) throw new Error('Update cancelled.')
+    if (!Object.hasOwn(values, key)) {
+      values[key] = await read()
+      await atomic(resumeFile, { at: Date.now(), patch: catalog.patch, values })
+    }
+    tick()
+    return values[key]
+  }
+  const openDota = (key: string) => saved(key, () => get(key, cancel))
+  const complete = async (file: string, value: unknown) => { await atomic(path.join(dir, file), value); await onDataset() }
+  const builtAt = Date.now()
+  report({ done, total })
   const matchups: Record<number, [number, number, number][]> = {}
+  const stats = rows(await openDota('/heroStats'))
+  if (!stats.length) throw new Error('OpenDota returned no hero data. Saved data is still available.')
   for (const hero of heroes) {
     // wins = games hero won against enemy hero_id
-    matchups[hero.id] = rows(await get('/heroes/' + hero.id + '/matchups', cancel))
+    matchups[hero.id] = rows(await openDota('/heroes/' + hero.id + '/matchups'))
       .filter((r) => num(r.games_played) >= 20).map((r) => [num(r.hero_id), num(r.games_played), num(r.wins)])
-    tick()
   }
-  const stats = rows(await get('/heroStats', cancel))
-  tick()
+  if (!Object.values(matchups).some((list) => list.length)) throw new Error('OpenDota returned no matchups. Saved data is still available.')
+  await complete('seed.json', { patch: catalog.patch, builtAt, source: 'opendota', matchups })
   const db: Record<number, unknown> = {}
   for (const s of stats) {
     const id = num(s.id)
     if (!id) continue
-    const bench = ((await get('/benchmarks?hero_id=' + id, cancel)) as { result?: Record<string, { percentile: number; value: number }[]> }).result ?? {}
-    const items = (await get('/heroes/' + id + '/itemPopularity', cancel)) as Json
+    const bench = ((await openDota('/benchmarks?hero_id=' + id)) as { result?: Record<string, { percentile: number; value: number }[]> }).result ?? {}
+    const items = asJson(await openDota('/heroes/' + id + '/itemPopularity'))
     db[id] = {
       pick: [1, 2, 3, 4, 5, 6, 7, 8].map((b) => num(s[b + '_pick'])), win: [1, 2, 3, 4, 5, 6, 7, 8].map((b) => num(s[b + '_win'])),
       pro: [num(s.pro_pick), num(s.pro_win), num(s.pro_ban)], turbo: [num(s.turbo_picks), num(s.turbo_wins)],
       bench: Object.fromEntries(Object.entries(METRICS).map(([key, short]) => [short, PCT.map((p) => bench[key]?.find((r) => Math.abs(r.percentile - p) < 0.001)?.value ?? null)])),
       items: { starting: top(items.start_game_items), early: top(items.early_game_items), mid: top(items.mid_game_items), late: top(items.late_game_items) },
     }
-    tick()
   }
+  await complete('heroes.json', { builtAt, patch: catalog.patch, percentiles: PCT, heroes: db })
+  const kits: Record<number, unknown> = {}
+  for (const hero of heroes) {
+    const key = 'valve:' + hero.id
+    try {
+      const kit = await saved(key, async () => {
+        const url = 'https://www.dota2.com/datafeed/herodata?language=english&hero_id=' + hero.id
+        if (!hostAllowed(url)) throw new Error('Blocked by network allowlist.')
+        const res = await fetch(url, { signal: AbortSignal.timeout(10000), redirect: 'error' })
+        if (!res.ok) throw new Error('Valve hero data returned HTTP ' + res.status)
+        const h = rows(asJson(asJson((await res.json() as Json).result).data).heroes)[0]
+        if (!h || !Array.isArray(h.role_levels)) throw new Error('Valve hero data was incomplete.')
+        await wait(300)
+        return toKit(h)
+      })
+      kits[hero.id] = kit
+    } catch (error) { if (cancel.stop) throw error; tick() }
+  }
+  if (Object.keys(kits).length === heroes.length) await complete('kits.json', { builtAt, heroes: kits })
   // OpenDota item-timing win rates for the power-spike items each hero actually builds (drives coach achievement targets).
   const plan = Object.entries(db).flatMap(([id, h]) => {
     const items = h as { items: { early: [string, number][]; mid: [string, number][] } }
@@ -91,32 +137,13 @@ export async function buildData(dir: string, report: (state: Pick<DataStatus, 'd
   total += plan.length
   const timings: Record<number, Record<string, [number, number, number][]>> = {}
   for (const [id, item] of plan) {
-    const found = rows(await get('/scenarios/itemTimings?hero_id=' + id + '&item=' + item, cancel))
+    const found = rows(await openDota('/scenarios/itemTimings?hero_id=' + id + '&item=' + item))
       .map((r) => [num(r.time), num(r.games), num(r.wins)] as [number, number, number]).filter(([t, g]) => t > 0 && g >= 5).sort((a, b) => a[0] - b[0])
     if (found.length >= 3) (timings[id] ??= {})[item] = found
-    tick()
   }
-  // Valve hero kits: stats, role levels and tagged abilities (what stuns, silences, pierces BKB...). dota2.com is not rate limited like OpenDota.
-  total += heroes.length
-  const kits: Record<number, unknown> = {}
-  for (const hero of heroes) {
-    if (cancel.stop) throw new Error('Update cancelled.')
-    const url = 'https://www.dota2.com/datafeed/herodata?language=english&hero_id=' + hero.id
-    if (!hostAllowed(url)) throw new Error('Blocked by network allowlist.')
-    const res = await fetch(url, { signal: AbortSignal.timeout(20000), redirect: 'error' })
-    if (res.ok) {
-      const h = rows(asJson(asJson((await res.json() as Json).result).data).heroes)[0]
-      if (h && Array.isArray(h.role_levels)) kits[hero.id] = toKit(h)
-    }
-    await wait(450)
-    tick()
-  }
-  const builtAt = Date.now()
-  await mkdir(dir, { recursive: true })
-  await atomic(path.join(dir, 'timings.json'), { builtAt, heroes: timings })
-  await atomic(path.join(dir, 'kits.json'), { builtAt, heroes: kits })
-  await atomic(path.join(dir, 'seed.json'), { patch: catalog.patch, builtAt, source: 'opendota', matchups })
-  await atomic(path.join(dir, 'heroes.json'), { builtAt, patch: catalog.patch, percentiles: PCT, heroes: db })
+  if (Object.keys(timings).length) await complete('timings.json', { builtAt, heroes: timings })
+  if (Object.keys(kits).length !== heroes.length) throw new Error('Valve hero data was incomplete. The previous mechanics data was kept; retry to fill the missing heroes.')
+  await atomic(resumeFile, { at: 0, patch: catalog.patch, values: {} })
   return builtAt
 }
 

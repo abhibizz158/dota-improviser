@@ -12,7 +12,7 @@ export type Hero = { id: number; slug: string; name: string; roles: string[]; ra
 export type MatchSummary = {
   id: string; heroId: number; start: number; duration: number; won: boolean | null; side: 'Radiant' | 'Dire';
   kills: number | null; deaths: number | null; assists: number | null; lastHits: number | null; denies: number | null;
-  gpm: number | null; xpm: number | null; mode: string; patch: string; role: Role | null
+  gpm: number | null; xpm: number | null; mode: string; patch: string; role: Role | null; source?: 'local'
 }
 export type Minute = { time: number; gold: number | null; xp: number | null; lastHits: number | null; deaths: number | null }
 export type ReviewEvent = { time: number | null; label: string; kind: 'item' | 'vision' | 'objective' | 'death'; key?: string }
@@ -24,7 +24,7 @@ export type Timeline = {
   towers: Tower[]; barracks: { team: 'Radiant' | 'Dire'; lane: string; kind: 'Melee' | 'Ranged'; time: number }[]
   roshan: number[]; firstBlood: number | null; goldAdv: number[]; xpAdv: number[]
 }
-export type MatchReview = { id: string; players: MatchPlayer[]; parsed: boolean; start: number; duration: number; patch: string; timeline?: Timeline }
+export type MatchReview = { id: string; players: MatchPlayer[]; parsed: boolean; start: number; duration: number; patch: string; timeline?: Timeline; localOnly?: boolean }
 export type SourceResult<T> = { data: T; updatedAt: number; stale: boolean }
 export type Matchup = { heroId: number; games: number; wins: number }
 export type Matchups = Record<number, Matchup[]>
@@ -61,10 +61,10 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
 }
 export type LiveSettings = {
   display: 'Overlay' | 'Companion'; size: 'Compact' | 'Large'; placement: Placement; monitor: string;
-  role: Role; cues: boolean; coach: boolean; opacity: number; detailed: boolean; features: Features
+  role: Role; cues: boolean; coach: boolean; opacity: number; detailed: boolean; saveOwnMatches: boolean; features: Features
 }
 export const defaultLiveSettings: LiveSettings = {
-  display: 'Overlay', size: 'Compact', placement: 'Auto', monitor: 'auto', role: 'Carry', cues: false, coach: false, opacity: 0.94, detailed: true, features: defaultFeatures,
+  display: 'Overlay', size: 'Compact', placement: 'Auto', monitor: 'auto', role: 'Carry', cues: false, coach: false, opacity: 0.94, detailed: true, saveOwnMatches: false, features: defaultFeatures,
 }
 export type Lane = {
   clock: number; heroSlug: string | null; lastHits: number | null; denies: number | null;
@@ -86,7 +86,7 @@ export const emptyDraft: DraftView = {
 export type LocalStatus = { installFound: boolean; gsiInstalled: boolean; steamFound: boolean; build: number | null; localBuilds: number }
 export type PuterStatus = { connected: boolean; saved: boolean; model: string }
 export type KnowledgeContext = { heroId?: number; enemyIds?: number[]; itemKeys?: string[]; clockSeconds?: number; gpm?: number; gold?: number }
-export type UpdateInfo = { current: string; latest: string | null; url: string | null; configured: boolean }
+export type UpdateInfo = { current: string; latest: string | null; connected: boolean; state: 'idle' | 'checking' | 'downloading' | 'ready' | 'current' | 'error'; message: string }
 export type Frame = {
   clock: number; heroSlug: string; heroId: number | null; level: number | null; alive: boolean; gold: number | null
   gpm: number | null; xpm: number | null; lastHits: number | null; denies: number | null; kills: number | null
@@ -107,6 +107,7 @@ export type LiveState = {
   lane: Lane | null; receivedAt: number | null; open: boolean; armed: boolean;
   pace: Pace[]; checkpoints: Checkpoint[]; settings: LiveSettings; shortcutAvailable: boolean; roshan: RoshanState
   displays?: DisplayChoice[]; overlayDisplay?: { name: string; following: boolean }
+  historyChangedAt?: number
 }
 export type MechRow = { heroId: number; edge: number; parts: { label: FeatureName; points: number }[] }
 export type MechSummary = { r2: number; samples: number; k?: number; importance: { name: FeatureName; weight: number; share: number }[] }
@@ -136,7 +137,7 @@ export interface AppApi {
   toggleOverlay(): Promise<LiveState>;
   saveConfig(): Promise<boolean>;
   exportDiagnostics(): Promise<boolean>;
-  openExternal(target: 'guides' | 'patches' | 'privacy' | 'gsi'): Promise<void>;
+  openExternal(target: 'guides' | 'patches' | 'privacy' | 'gsi' | 'personal' | 'releases' | 'updateToken'): Promise<void>;
   updateData(): Promise<LiveState>;
   heroGuide(id: number): Promise<HeroGuide>;
   itemLearn(heroId: number, sync?: boolean): Promise<import('./items.js').ItemLearning>;
@@ -147,6 +148,8 @@ export interface AppApi {
   defaultBuild(slug: string): Promise<Partial<Record<'starting' | 'early' | 'mid' | 'late', string[]>> | null>;
   detectSteam(): Promise<string | null>;
   openGame(): Promise<void>;
+  importHistory(value: string): Promise<SourceResult<MatchSummary[]>>;
+  cachedHistory(): Promise<SourceResult<MatchSummary[]> | undefined>;
   puterStatus(): Promise<PuterStatus>;
   puterSignIn(): Promise<PuterStatus>;
   puterSignOut(): Promise<PuterStatus>;
@@ -158,5 +161,10 @@ export interface AppApi {
   installConfig(): Promise<string>;
   toggleDraftOverlay(): Promise<LiveState>;
   checkUpdates(): Promise<UpdateInfo>;
+  updateStatus(): Promise<UpdateInfo>;
+  connectUpdates(token: string): Promise<UpdateInfo>;
+  disconnectUpdates(): Promise<UpdateInfo>;
+  installUpdate(): Promise<void>;
+  onUpdate(callback: (status: UpdateInfo) => void): () => void;
   onLive(callback: (state: LiveState) => void): () => void;
 }

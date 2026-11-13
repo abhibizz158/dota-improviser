@@ -30,12 +30,14 @@ import type { KitsDb, MechModel } from '../shared/mechanics.js'
 import { canPlan, emptyItemLearning, learnItems, maxPlanItems } from '../shared/items.js'
 import type { Support } from '../shared/guide.js'
 import type { DataStatus } from '../shared/model.js'
-import { configName, defaultBuilds, discover } from './local.js'
+import { configName, defaultBuilds, discover, steamLauncher } from './local.js'
 import type { LocalInfo } from './local.js'
 import { accountId, asRecord, catalog, itemInfo, matchId, steamId64, validHero } from './data.js'
-import { gsiConfig, parseDraft, parseFrame, parsePick, redactedShape, startGsi, updateCheckpoints } from './gsi.js'
+import { gsiConfig, parseCompletedOwnMatch, parseDraft, parseFrame, parsePick, redactedShape, startGsi, updateCheckpoints } from './gsi.js'
 import { OpenDota } from './opendota.js'
 import { Store } from './store.js'
+import { ReleaseUpdates } from './release-updates.js'
+import { localHistoryKey, mergeHistory, parsePrivateHistory } from './private-history.js'
 import { gameDisplay, overlayBounds } from './overlay-layout.js'
 import type { Rect } from './overlay-layout.js'
 
@@ -61,8 +63,33 @@ const publicLinks = {
   patches: 'https://www.dota2.com/patches/',
   privacy: 'https://blog.opendota.com/2014/08/01/faq/',
   gsi: 'https://support.overwolf.com/support/solutions/articles/9000212745-how-to-enable-game-state-integration-for-dota-2',
+  personal: 'https://steamcommunity.com/my/gcpd/570/',
+  releases: 'https://github.com/abhibizz158/dota-improviser/releases',
+  updateToken: 'https://github.com/settings/personal-access-tokens/new',
 } as const
 let store: Store
+let releaseUpdates: ReleaseUpdates
+let appUpdateTimer: NodeJS.Timeout | undefined
+let gameLaunch: Promise<void> | undefined
+let historyChangedAt = 0
+let latestLocalMatch: { id: string; fields: number } | undefined
+
+async function openSteam() {
+  const launcher = steamLauncher()
+  if (launcher && !(await shell.openPath(launcher))) return true
+  try { await shell.openExternal('steam://open/main'); return true }
+  catch { return false }
+}
+
+async function launchDotaThroughSteam() {
+  const steam = await openSteam()
+  await new Promise((resolve) => setTimeout(resolve, steam ? 1200 : 350))
+  try { await shell.openExternal('steam://rungameid/570') }
+  catch {
+    try { await shell.openExternal('steam://run/570') }
+    catch { throw new Error('Steam could not start Dota 2. Open Steam, sign in, and launch Dota from your Library.') }
+  }
+}
 let provider: OpenDota
 let dashboard: BrowserWindow | null = null
 let overlay: BrowserWindow | null = null
@@ -145,7 +172,7 @@ let lastCoachAt = 0
 let paceMemo: { key: string; pace: LiveState['pace'] } | null = null
 
 function profile() {
-  profileMemo ??= account && settings.features.learning ? learnProfile(provider.cachedHistory(account), store.savedReviews(), account, Date.now(), catalog.patches) : { heroes: {}, pairs: {} }
+  profileMemo ??= account && settings.features.learning ? learnProfile(historySnapshot(account)?.data ?? [], store.savedReviews(), account, Date.now(), catalog.patches) : { heroes: {}, pairs: {} }
   return profileMemo
 }
 
@@ -273,7 +300,7 @@ function state(): LiveState {
     view, interactive, draft: draftView(), pick, coach: coachView, data: dataStatus, support: supportView(), game: gameView(), career,
     toasts: toasts.filter((t) => Date.now() - t.shownAt < TOAST_MS),
     status, lane, receivedAt, settings, armed, shortcutAvailable, checkpoints, roshan,
-    open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay,
+    open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
   }
 }
 
@@ -370,6 +397,17 @@ function approvedBuild(hero: number) {
 function receive(value: unknown) {
   if (!armed) return
   const steamId = account ? steamId64(account) : ''
+  if (settings.saveOwnMatches && asRecord(asRecord(value).map).game_state === 'DOTA_GAMERULES_STATE_POST_GAME') {
+    const completed = parseCompletedOwnMatch(value, steamId)
+    if (completed) {
+      const fields = [completed.kills, completed.deaths, completed.assists, completed.gpm, completed.xpm, completed.lastHits, completed.denies].filter((field) => field != null).length
+      if (latestLocalMatch?.id !== completed.id || fields > latestLocalMatch.fields) {
+        latestLocalMatch = { id: completed.id, fields }
+        saveLocalMatches(account, [completed])
+        broadcastSoon()
+      }
+    }
+  }
   const nextFrame = parseFrame(value, steamId, false)
   const nextPick = nextFrame ? null : parsePick(value, steamId)
   const next: Lane | null = nextFrame && {
@@ -651,9 +689,22 @@ function toggleOverlay() {
 
 function bootstrap(): Bootstrap {
   return {
-    accountId: account, catalog, live: state(), cachedHistory: account ? provider.historySnapshot(account) : undefined, displays: displayList(), desktop: true,
+    accountId: account, catalog, live: state(), cachedHistory: account ? historySnapshot(account) : undefined, displays: displayList(), desktop: true,
     local: { installFound: Boolean(local.installDir), gsiInstalled: local.gsiInstalled, steamFound: Boolean(local.steamAccount), build: local.build, localBuilds: local.localBuilds },
   }
+}
+
+function historySnapshot(id: string, remote = provider.historySnapshot(id)) {
+  const local = store.get<{ data: import('../shared/model.js').MatchSummary[]; updatedAt: number }>(localHistoryKey(id))
+  if (!local) return remote
+  return { data: mergeHistory(remote?.data ?? [], local.data), updatedAt: Math.max(remote?.updatedAt ?? 0, local.updatedAt), stale: remote?.stale ?? false }
+}
+
+function saveLocalMatches(id: string, matches: import('../shared/model.js').MatchSummary[]) {
+  const previous = store.get<{ data: typeof matches }>(localHistoryKey(id))?.data ?? []
+  historyChangedAt = Date.now()
+  store.set(localHistoryKey(id), { updatedAt: historyChangedAt, data: mergeHistory(matches, previous).slice(0, 20) })
+  profileMemo = null; weightsMemo = null
 }
 
 /** Patch watcher: Dota's steam.inf changes on every game update. New build -> drop cached aggregates, flag the seed stale. */
@@ -677,8 +728,8 @@ const readJson = async <T,>(file: string): Promise<T | null> => { try { return J
 /** Newest of bundled vs self-updated data (userData/data) wins. */
 async function loadData() {
   const newest = async <T extends { builtAt: number }>(name: string) => {
-    const [bundled, learned] = await Promise.all([readJson<T>(path.join(app.getAppPath(), 'data', name)), readJson<T>(path.join(app.getPath('userData'), 'data', name))])
-    return learned && (!bundled || learned.builtAt > bundled.builtAt) ? learned : bundled
+    const choices = await Promise.all([readJson<T>(path.join(app.getAppPath(), 'starter-data', name)), readJson<T>(path.join(app.getAppPath(), 'data', name)), readJson<T>(path.join(app.getPath('userData'), 'data', name))])
+    return choices.filter((value) => value !== null).filter((value) => Number.isFinite(value.builtAt)).sort((a, b) => b.builtAt - a.builtAt)[0] ?? null
   }
   const [nextSeed, nextHeroes, nextTimings, nextKits] = await Promise.all([
     newest<Seed & { builtAt: number }>('seed.json'), newest<HeroDb>('heroes.json'),
@@ -722,10 +773,14 @@ function refreshPatchNotes() {
 async function refreshData() {
   if (dataStatus.state === 'updating' || pick || frame) return
   dataCancel = { stop: false }
-  dataStatus = { ...dataStatus, state: 'updating', done: 0, total: 1, message: '' }
+  dataStatus = { ...dataStatus, state: 'updating', done: 0, total: 0, message: '' }
   broadcast()
   try {
-    const builtAt = await buildData(path.join(app.getPath('userData'), 'data'), (p) => { dataStatus = { ...dataStatus, ...p }; broadcastSoon() }, dataCancel)
+    const builtAt = await buildData(path.join(app.getPath('userData'), 'data'), (p) => { dataStatus = { ...dataStatus, ...p }; broadcastSoon() }, dataCancel, async () => {
+      await loadData()
+      dataStatus = { ...dataStatus, updatedAt: Math.max(dataStatus.updatedAt, seed?.builtAt ?? 0) }
+      broadcastSoon()
+    })
     await loadData()
     patchChanged = false
     liveMatchups = {}
@@ -744,16 +799,14 @@ function heroDetail(id: number, full = true): HeroDetail {
 }
 
 
-async function checkUpdates(): Promise<UpdateInfo> {
-  const repo = ((await readFile(path.join(app.getAppPath(), 'package.json'), 'utf8').then(JSON.parse).catch(() => ({}))) as { dotaImproviser?: { updateRepo?: string } }).dotaImproviser?.updateRepo
-  const info: UpdateInfo = { current: app.getVersion(), latest: null, url: null, configured: Boolean(repo) }
-  if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return { ...info, configured: false }
-  try {
-    const release = asRecord(await (await fetch('https://api.github.com/repos/' + repo + '/releases/latest', { signal: AbortSignal.timeout(8000) })).json())
-    const tag = typeof release.tag_name === 'string' ? release.tag_name.replace(/^v/, '') : null
-    if (tag && tag !== info.current) return { ...info, latest: tag, url: typeof release.html_url === 'string' ? release.html_url : null }
-  } catch { /* offline */ }
-  return info
+function scheduleAppUpdates(delay = 6 * 3600000) {
+  clearTimeout(appUpdateTimer)
+  appUpdateTimer = setTimeout(() => {
+    if (quitting) return
+    if (frame || pick) { scheduleAppUpdates(60000); return }
+    void releaseUpdates.check().finally(() => scheduleAppUpdates())
+  }, delay)
+  appUpdateTimer.unref()
 }
 
 function readSettings(value: unknown): LiveSettings {
@@ -766,6 +819,7 @@ function readSettings(value: unknown): LiveSettings {
     placement: placements.includes(input.placement as Placement) ? input.placement as Placement : defaultLiveSettings.placement,
     role: roles.includes(input.role as LiveSettings['role']) ? input.role as LiveSettings['role'] : defaultLiveSettings.role,
     cues: input.cues === true, coach: false,
+    saveOwnMatches: input.saveOwnMatches === true,
     detailed: input.detailed !== false,
     features: Object.fromEntries(featureKeys.map((k) => [k, asRecord(input.features)[k] !== false])) as typeof defaultFeatures,
     opacity: typeof input.opacity === 'number' ? Math.min(1, Math.max(0.5, input.opacity)) : defaultLiveSettings.opacity,
@@ -827,21 +881,20 @@ function getPuterBrowserToken(): Promise<string> {
   })
 }
 
-/**
- * `attemptDecrypt: false` (used by the eager startup status check) never touches the stored token, so it can
- * never trigger a Keychain prompt. `safeStorage.decryptString` is a SYNCHRONOUS native call; if a rebuild's
- * ad-hoc signature differs from the one that encrypted the token, macOS can block on a Keychain authorization
- * dialog instead of throwing — and because the call is synchronous, that would stall the whole main process,
- * not just this handler. Only a deliberate user action (sign in, ask the AI, sign out) may risk that.
- */
+/** Status can report a saved credential without opening a Keychain prompt. Unseal it only on demand. */
 async function getPuterClient(attemptDecrypt = true) {
   if (puterClient) return puterClient
   if (!attemptDecrypt) return null
-  if (!puterTokenMemory && await safeStorage.isAsyncEncryptionAvailable()) {
-    const encrypted = store.get<string>('puter-token')
+  if (!puterTokenMemory) {
+    const encrypted = store.get<string>('puter-token-async') || store.get<string>('puter-token')
+    const operation = puterOperation
     if (encrypted) {
-      try { puterTokenMemory = safeStorage.decryptString(Buffer.from(encrypted, 'base64')) }
-      catch { store.set('puter-token', '') }
+      try {
+        const { result, shouldReEncrypt } = await safeStorage.decryptStringAsync(Buffer.from(encrypted, 'base64'))
+        if (operation !== puterOperation) return null
+        puterTokenMemory = result
+        if (shouldReEncrypt || !store.get('puter-token-async')) await savePuterCredential(result, operation)
+      } catch { throw new Error('Unlock your system credential store or reconnect Puter. Your saved sign-in has been kept.') }
     }
   }
   if (puterTokenMemory) {
@@ -853,8 +906,18 @@ async function getPuterClient(attemptDecrypt = true) {
 
 async function puterStatus(): Promise<PuterStatus> {
   const model = store.get<string>('puter-model') ?? defaultPuterModel
-  const saved = Boolean(store.get<string>('puter-token')) && await safeStorage.isAsyncEncryptionAvailable()
+  const saved = Boolean(store.get('puter-token-async') || store.get('puter-token'))
   return { connected: Boolean(await getPuterClient(false)), saved, model }
+}
+
+let puterOperation = 0
+async function savePuterCredential(value: string, operation: number) {
+  try {
+    const blob = await safeStorage.encryptStringAsync(value)
+    if (operation !== puterOperation) return
+    store.set('puter-token-async', blob.toString('base64'))
+    store.set('puter-token', '')
+  } catch { /* The current session still works; keep any prior encrypted credential. */ }
 }
 
 function checkedKnowledgeContext(value: unknown): KnowledgeContext {
@@ -959,6 +1022,8 @@ async function clearData() {
     receiver = null
   }
   provider.clear()
+  releaseUpdates.disconnect()
+  puterOperation++
   puterClient = null
   puterTokenMemory = ''
   plans.clear()
@@ -1082,7 +1147,14 @@ function handlers() {
   })
   handle('profile:steam', () => local.steamAccount)
   handle('live:draft-overlay', toggleDraftOverlay)
-  handle('app:updates', checkUpdates)
+  handle('app:updates', () => frame || pick ? releaseUpdates.status() : releaseUpdates.check())
+  handle('updates:status', () => releaseUpdates.status())
+  handle('updates:connect', (credential) => releaseUpdates.connect(credential))
+  handle('updates:disconnect', () => releaseUpdates.disconnect())
+  handle('updates:install', () => {
+    if (frame || pick) throw new Error('Finish the current game before installing the update.')
+    return releaseUpdates.install()
+  })
   handle('live:install', async () => {
     if (!local.gsiDir) throw new Error('Dota 2 install not found. Use Save config instead.')
     await mkdir(local.gsiDir, { recursive: true })
@@ -1096,18 +1168,39 @@ function handlers() {
     ++profileOperation
     armed = false
     diagnostics = []
+    latestLocalMatch = undefined
     paceMemo = null; profileMemo = null; weightsMemo = null
     resetSession('Idle')
     broadcast()
     return account
   })
   handle('history:get', async (id, refresh) => {
-    const result = await provider.history(accountId(id), refresh === true)
+    const who = accountId(id)
+    const result = await provider.history(who, refresh === true).then((remote) => historySnapshot(who, remote)).catch((error: unknown) => {
+      const local = historySnapshot(who)
+      if (!local) throw error
+      return { ...local, stale: true }
+    })
     paceMemo = null; profileMemo = null; weightsMemo = null
     if (armed && lane) broadcast()
     return result
   })
+  handle('history:import-local', async (input) => {
+    if (!account) throw new Error('Link your Dota account before importing your own matches.')
+    const who = account, operation = profileOperation
+    const matches = parsePrivateHistory(input)
+    if (operation !== profileOperation) throw new Error('The linked account changed. Please try again.')
+    saveLocalMatches(who, matches)
+    return historySnapshot(who)
+  })
+  handle('history:cached', () => account ? historySnapshot(account) : undefined)
   handle('match:get', async (id, refresh) => {
+    const local = account && store.get<{ data: import('../shared/model.js').MatchSummary[]; updatedAt: number }>(localHistoryKey(account))
+    const row = local ? local.data.find((match) => match.id === id) : undefined
+    if (row && local) {
+      const player = { ...row, slot: row.side === 'Radiant' ? 0 : 128, accountId: account, minutes: [], events: [] }
+      return { data: { id: row.id, start: row.start, duration: row.duration, mode: row.mode, patch: row.patch, parsed: false, localOnly: true, players: [player] }, updatedAt: local.updatedAt, stale: false }
+    }
     const result = await provider.match(matchId(id), refresh === true)
     paceMemo = null; profileMemo = null; weightsMemo = null
     if (armed && lane) broadcast()
@@ -1199,27 +1292,27 @@ function handlers() {
   handle('app:external', (name) => {
     if (typeof name === 'string' && Object.hasOwn(publicLinks, name)) return shell.openExternal(publicLinks[name as keyof typeof publicLinks])
   })
-  handle('app:open-game', async () => {
-    if (!local.installDir) throw new Error('Dota 2 was not found in the Steam libraries on this computer.')
-    await shell.openExternal('steam://run/570')
+  handle('app:open-game', () => {
+    gameLaunch ??= launchDotaThroughSteam().finally(() => { gameLaunch = undefined })
+    return gameLaunch
   })
   handle('puter:status', () => puterStatus())
   handle('puter:sign-in', async () => {
+    const operation = ++puterOperation
     const authToken = await getPuterBrowserToken()
+    if (operation !== puterOperation) throw new Error('The Puter session changed. Try signing in again.')
     if (typeof authToken !== 'string' || authToken.length < 20 || authToken.length > 8192 || /[\r\n\0]/.test(authToken)) throw new Error('Puter sign-in did not return a valid session.')
     puterTokenMemory = authToken
     puterClient = createPuterClient(authToken)
-    if (await safeStorage.isAsyncEncryptionAvailable()) {
-      try { store.set('puter-token', safeStorage.encryptString(authToken).toString('base64')) }
-      catch { store.set('puter-token', '') }
-    }
+    await savePuterCredential(authToken, operation)
     return puterStatus()
   })
   handle('puter:sign-out', async () => {
-    try { await (await getPuterClient())?.auth?.signOut?.() } catch { /* Local credentials are cleared even if Puter is offline. */ }
+    ++puterOperation
     puterClient = null
     puterTokenMemory = ''
     store.set('puter-token', '')
+    store.set('puter-token-async', '')
     return puterStatus()
   })
   handle('puter:model', (value) => {
@@ -1250,6 +1343,10 @@ else {
   })
   void app.whenReady().then(async () => {
     store = new Store(path.join(app.getPath('userData'), 'improviser.sqlite'))
+    releaseUpdates = new ReleaseUpdates(store, (info) => {
+      if (dashboard && !dashboard.isDestroyed()) dashboard.webContents.send('updates:changed', info)
+    })
+    scheduleAppUpdates(30000)
     provider = new OpenDota(store)
     account = store.get<string>('account') ?? ''
     token = store.get<string>('token') ?? randomBytes(32).toString('hex')
@@ -1335,6 +1432,7 @@ else {
     clearTimeout(editFocusTimer)
     clearTimeout(timeout)
     clearTimeout(autoRefreshTimer)
+    clearTimeout(appUpdateTimer)
     receiver?.server.closeAllConnections()
     receiver?.server.close()
   })
