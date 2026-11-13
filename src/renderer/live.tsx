@@ -111,7 +111,11 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
         <label className="field">Card size<select disabled={!!busy} value={settings.size} onChange={(event) => setting('size', event.target.value as LiveSettings['size'])}><option>Compact</option><option>Large</option></select></label>
         <label className="field">Practice role<select disabled={!!busy} value={settings.role} onChange={(event) => setting('role', event.target.value as LiveSettings['role'])}>{roles.map((role) => <option key={role}>{role}</option>)}</select></label>
       </div>
-      {settings.display === 'Overlay' && settings.monitor === 'auto' && <p className="fine-print">{live.overlayDisplay ? (live.overlayDisplay.following ? 'Dota display: ' : 'Fallback display: ') + live.overlayDisplay.name + '. ' : ''}Follow Dota tracks the active game window. If it cannot detect the game, choose a monitor here.</p>}
+      {settings.display === 'Overlay' && settings.monitor === 'auto' && (
+        !live.detectionAvailable
+          ? <p className="fine-print">Automatic window detection isn't available on this build (its native module failed to load). Pick a monitor above instead of "Follow Dota".</p>
+          : <p className="fine-print">{live.overlayDisplay ? (live.overlayDisplay.following ? 'Dota display: ' : 'Fallback display: ') + live.overlayDisplay.name + '. ' : ''}Follow Dota tracks the active game window. If it cannot detect the game, choose a monitor here.</p>
+      )}
       <label className="field">Overlay opacity ({Math.round(settings.opacity * 100)}%)<input type="range" min={50} max={100} step={5} disabled={!!busy} value={Math.round(settings.opacity * 100)} onChange={(event) => setting('opacity', Number(event.target.value) / 100)} /></label>
       <label className="check-field"><input type="checkbox" checked={settings.cues} disabled={!!busy} onChange={(event) => setting('cues', event.target.checked)} />
         <span>Show practice timing cues <small>Approximate clock-based stack and pull windows. Camp and side timings vary.</small></span></label>

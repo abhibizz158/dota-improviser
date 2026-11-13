@@ -87,7 +87,7 @@ export const initialLive: LiveState = {
   view: 'lane', interactive: false, draft: emptyDraft, pick: null, coach: null, data: { state: 'idle', done: 0, total: 0, updatedAt: 0, message: '' }, support: null, game: null, toasts: [], career: {},
   status: 'Idle', lane: null, receivedAt: null, open: false, armed: false, pace: [], checkpoints: [], settings: defaultLiveSettings, shortcutAvailable: true, roshan: emptyRoshan,
   recovery: null, awards: {}, assistantShortcutAvailable: false,
-  needsSessionInfo: false, sessionInfo: { gameType: null, lane: null },
+  needsSessionInfo: false, sessionInfo: { gameType: null, lane: null }, detectionAvailable: true,
 }
 let sampleLive = initialLive
 const listeners = new Set<(state: LiveState) => void>()

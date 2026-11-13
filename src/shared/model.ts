@@ -126,6 +126,8 @@ export type LiveState = {
   lane: Lane | null; receivedAt: number | null; open: boolean; armed: boolean;
   pace: Pace[]; checkpoints: Checkpoint[]; settings: LiveSettings; shortcutAvailable: boolean; roshan: RoshanState
   displays?: DisplayChoice[]; overlayDisplay?: { name: string; following: boolean }
+  /** False when the OS-level window-detection module failed to load (e.g. not built for this platform/arch) — "Follow Dota" can't work and the UI should say so. */
+  detectionAvailable: boolean
   historyChangedAt?: number
   /** True once a game is live but you haven't said this session's lane/role and game type yet — the overlay should prompt. */
   needsSessionInfo: boolean; sessionInfo: { gameType: GameType | null; lane: Role | null }
