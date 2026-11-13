@@ -398,6 +398,7 @@ function state(): LiveState {
     status, lane, receivedAt, settings, armed, shortcutAvailable, checkpoints, roshan,
     open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
     needsSessionInfo: Boolean(frame) && !sessionGameType, sessionInfo: { gameType: sessionGameType, lane: sessionLane },
+    detectionAvailable: windowProbe !== null,
   }
 }
 
@@ -655,10 +656,6 @@ function displayList() {
 }
 
 function detectDotaBounds() {
-  if (windowProbe === undefined) {
-    try { windowProbe = require(path.join(dir, 'overlay-window.node')) as NonNullable<typeof windowProbe> }
-    catch { windowProbe = null }
-  }
   try {
     const rect = windowProbe?.foregroundBounds()
     if (!rect || ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) || rect.width <= 0 || rect.height <= 0) return null
@@ -691,7 +688,7 @@ function trackOverlay() {
       placeOverlay(overlay)
     }
     if (!overlay.isVisible()) { overlay.showInactive(); broadcast() }
-  } else if (gameBounds && ++foregroundMisses >= 2 && overlay.isVisible()) {
+  } else if (gameBounds && ++foregroundMisses >= 3 && overlay.isVisible()) {
     overlay.hide()
   }
   if (previous?.name !== overlayDisplay?.name || previous?.following !== overlayDisplay?.following) broadcastSoon()
@@ -1553,6 +1550,8 @@ else {
     dashboard?.focus()
   })
   void app.whenReady().then(async () => {
+    try { windowProbe = require(path.join(dir, 'overlay-window.node')) as NonNullable<typeof windowProbe> }
+    catch { windowProbe = null }
     store = new Store(path.join(app.getPath('userData'), 'improviser.sqlite'))
     releaseUpdates = new ReleaseUpdates(store, (info) => {
       if (dashboard && !dashboard.isDestroyed()) dashboard.webContents.send('updates:changed', info)
