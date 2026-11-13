@@ -1,0 +1,59 @@
+name: Attach verified desktop builds to release
+
+on:
+  workflow_dispatch:
+    inputs:
+      build-run:
+        description: Successful desktop build workflow run ID
+        required: true
+        type: string
+      tag:
+        description: Tag of the existing draft prerelease
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      BUILD_RUN: ${{ inputs.build-run }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Check build provenance and release target
+        shell: bash
+        run: |
+          [[ "$BUILD_RUN" =~ ^[0-9]+$ ]]
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          run=$(gh api "repos/$GH_REPO/actions/runs/$BUILD_RUN")
+          jq -e --arg repo "$GH_REPO" '.conclusion == "success" and .path == ".github/workflows/test-release.yml" and .head_branch == "main" and .head_repository.full_name == $repo' <<< "$run"
+          commit=$(jq -r .head_sha <<< "$run")
+          gh release view "$RELEASE_TAG" --json isDraft,isPrerelease,targetCommitish |
+            jq -e --arg commit "$commit" '.isDraft and .isPrerelease and .targetCommitish == $commit'
+      - name: Verify and attach packages
+        shell: bash
+        run: |
+          mkdir packages
+          gh run download "$BUILD_RUN" --name windows-x64 --name macos-arm64 --name macos-x64 --dir packages
+          cd packages
+          prefix="Dota-Improviser-${RELEASE_TAG#v}"
+          windows="windows-x64/$prefix-windows-x64.zip"
+          apple="macos-arm64/$prefix-macos-arm64.zip"
+          intel="macos-x64/$prefix-macos-x64.zip"
+          for zip in "$windows" "$apple" "$intel"; do
+            unzip -tq "$zip"
+          done
+          unzip -Z -1 "$windows" | awk '/\/Dota Improviser\.exe$/ {found=1} END {exit !found}'
+          for zip in "$apple" "$intel"; do
+            unzip -Z -1 "$zip" | awk '/^Dota Improviser\.app\/Contents\/MacOS\/Dota Improviser$/ {found=1} END {exit !found}'
+          done
+          for zip in "$windows" "$apple" "$intel"; do
+            (cd "$(dirname "$zip")" && sha256sum "$(basename "$zip")")
+          done > SHA256SUMS.txt
+          gh release upload "$RELEASE_TAG" "$windows" "$apple" "$intel" SHA256SUMS.txt

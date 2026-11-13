@@ -23,7 +23,7 @@ npm run package:win        # Windows x64 test build
 
 Build on the target OS for the final verification. Current scripts use Electron Packager and ad-hoc macOS signing; public macOS distribution needs an appropriate Developer ID signature and notarization. Windows packaging still needs to be run and tested on Windows before release. Keep test artifacts in the ignored `release/` directory.
 
-The **Build desktop test release** workflow can package Windows x64, Apple Silicon, and Intel Mac builds from the same commit on GitHub Actions. It runs the test suite and checks that the native overlay helper loads in the packaged Electron runtime. Download the ZIP files, verify their SHA-256 checksums, and attach them to a GitHub prerelease for testers with repository access.
+The **Build desktop test release** workflow packages Windows x64, Apple Silicon, and Intel Mac builds from the same commit. It runs the test suite and checks that the native overlay helper loads in the packaged Electron runtime. Create a draft prerelease targeting the build's full commit SHA, then run **Attach verified desktop builds to release** with the build run ID and tag. It checks the build provenance, validates the ZIP files, and uploads them with SHA-256 checksums. Review the draft and publish it for testers with repository access.
 
 ## Desktop and dashboard checks
 
