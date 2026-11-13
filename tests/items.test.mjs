@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
 import { itemInfo } from '../dist/main/main/data.js'
 import { buildCurve, gearAt, learnItems } from '../dist/main/shared/items.js'
 
-const { heroes } = JSON.parse(readFileSync('data/kits.json', 'utf8'))
-const axe = heroes[2]
-const pa = heroes[44]
+// Fixed hero stats exercise the formulas without a local or patch-dependent download.
+const axe = { s: { str: 25, strg: 2.8, agi: 20, agig: 1.7, int: 18, intg: 1.6, attr: 0,
+  hp: 670, hpr: 2.5, mana: 291, manar: 1, dmin: 52, dmax: 56, bat: 1.7, armor: 3, mr: 25, ms: 315 } }
+const pa = { s: { ...axe.s, attr: 1, str: 19, strg: 2, agi: 21, agig: 3.2, hp: 538, ms: 305 } }
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 0.001, actual + ' versus ' + expected)
 
 test('hero-specific item stats include attribute conversions and selected Power Treads mode', () => {
