@@ -12,5 +12,20 @@ export default defineConfig({
       load(id) { return id === '\0virtual:dota-catalog' ? 'export default ' + JSON.stringify(catalog) : id === '\0virtual:dota-items' ? 'export default ' + JSON.stringify(itemInfo) : undefined },
     },
   ],
-  build: { outDir: 'dist/ui' },
+  build: {
+    outDir: 'dist/ui',
+    rollupOptions: {
+      output: {
+        // Vendor code (React, icons) changes far less often than app code, so splitting it into its own chunk
+        // lets the browser/Electron cache reuse it across app updates instead of re-fetching everything together.
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react')) return 'vendor-react'
+            if (id.includes('lucide-react')) return 'vendor-icons'
+            return 'vendor'
+          }
+        },
+      },
+    },
+  },
 })

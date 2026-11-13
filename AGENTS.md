@@ -72,6 +72,11 @@ Considered, not used: STRATZ GraphQL (needs a token and sits behind Cloudflare),
 ## Guardrails
 `src/shared/guard.ts` (host + GSI-section allowlists) and `tests/guard.test.mjs` (build fails on capture/injection/memory APIs or unlisted hosts).
 
+## Performance
+- React/icons are split into their own `vendor-*` chunks (`vite.config.ts` `manualChunks`) so an app update's own code can be refetched without re-downloading libraries that didn't change; this dropped the main bundle below Vite's 500 kB chunk-size warning.
+- The renderer never computes anything expensive twice: `getCorpus()`, hero detail, draft rankings and the matchup/profile models are all memoized against their real inputs and only rebuilt when a dependency actually changes.
+- Backgrounded correctly instead of "optimized" with invented knobs: Electron's `backgroundThrottling: true` lets the OS throttle windows that aren't visible; the patch watcher runs every 10 minutes and the self-update check every 6 hours, not on a tight loop; the overlay is a small (360x186) non-shadowed panel, not a full-screen transparent surface. There's no lever here called "GPU utilization" or "garbage collection" to add — V8 already manages memory, and Electron's own throttling already covers idle windows; inventing toggles for these would be decoration, not optimization.
+
 ## Flow
 1. First run: detect Dota install + Steam user -> offer "Use my Steam account" -> history loads.
 2. Install GSI cfg (one click into `game/dota/cfg/gamestate_integration`), add `-gamestateintegration` launch option.

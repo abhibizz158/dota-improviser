@@ -75,7 +75,7 @@ export function Heroes({ api, catalog, live, onDraft }: { api: AppApi; catalog: 
           })}</div><p className="fine-print">{fmt(totalPick)} picks in window · pro: {fmt(d.pro[0])} picks, {d.pro[0] ? fmt(100 * d.pro[1] / d.pro[0], 1) : '—'}% wins, {fmt(d.pro[2])} bans · turbo: {d.turbo[0] ? fmt(100 * d.turbo[1] / d.turbo[0], 1) + '%' : '—'} over {fmt(d.turbo[0])}</p></div>
           <div><h3>Benchmarks (percentile of all players on this hero)</h3><table className="bench-table"><thead><tr><th>Metric</th>{pcts.map((p) => <th key={p}>{p}</th>)}</tr></thead>
             <tbody>{metrics.map(([k, label]) => <tr key={k}><td>{label}</td>{d.bench[k].map((v, i) => <td key={i}>{v == null ? '—' : fmt(v, k === 'gpm' || k === 'xpm' || k === 'dpm' ? 0 : 2)}</td>)}</tr>)}</tbody></table></div>
-          <div><h3>Items by phase (purchase counts)</h3>{(['starting', 'early', 'mid', 'late'] as const).map((s) => <p key={s} className="item-chips"><b style={{ width: 64, color: 'var(--muted)' }}>{s}</b>{d.items[s].map(([k]) => <span key={k}>{catalog.items[k] ?? k}</span>)}</p>)}</div>
+          <div><h3>Items by phase (purchase counts)</h3>{(['starting', 'early', 'mid', 'late'] as const).map((s) => <p key={s} className="item-chips"><b style={{ color: 'var(--muted)' }}>{s}</b>{d.items[s].map(([k]) => <span key={k}>{catalog.items[k] ?? k}</span>)}</p>)}</div>
         </>}
         <div className="counter-cols">
           <div><h3>Strong against</h3><div className="counter-list">{detail?.strongAgainst.map((r) => <div key={r.heroId}><Portrait hero={catalog.heroes.find((h) => h.id === r.heroId)} />{name(r.heroId)}<b className="positive">{fmt(r.rate, 1)}%</b></div>)}</div></div>
