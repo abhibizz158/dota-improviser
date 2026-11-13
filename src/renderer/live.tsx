@@ -97,7 +97,7 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
           void act('draftOverlay', async () => { onState(await api.toggleDraftOverlay()) })}><Layers3 size={16} />Edit draft overlay · Ctrl/⌘ + Shift + F9</button>
         <p className="fine-print">The overlay passes mouse input through during play. Edit draft picks with the button or shortcut; Done, Escape, or leaving the editor returns it to click-through. Use Borderless or Companion if fullscreen covers the overlay.</p>
         <p className="fine-print">{live.shortcutAvailable ? 'Hide shortcut · Ctrl/⌘ + Shift + F10' : 'The hide shortcut is unavailable. Use this window to hide the overlay.'}</p>
-        {settings.features.overlayAssistant && <p className="fine-print">{live.assistantShortcutAvailable ? 'Ask the AI assistant · Ctrl/⌘ + Shift + F7' : 'The assistant shortcut is unavailable on this device.'}</p>}
+        {settings.features.overlayAssistant && <p className="fine-print">{live.assistantShortcutAvailable ? 'Ask the AI assistant · Ctrl/⌘ + Shift + F7 or Shift + Tab' : 'The assistant shortcut is unavailable on this device.'}</p>}
       </section>
     </div>
     <section className="panel form-panel">
