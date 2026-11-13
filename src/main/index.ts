@@ -278,8 +278,13 @@ function draftView(): DraftView {
     const ranked = canRank ? draftRanks(input, 8, 3) : { suggestions: [], avoid: [] }
     const enemy = teamProfile(picks.enemy, kitsDb)
     const ally = teamProfile(team, kitsDb)
+    const ownDetail = picks.ownHero != null ? heroDetail(picks.ownHero, false) : null
     draftMemo = { inputs, result: {
       ...picks, lockedHero: draft.lockedHero, pool: draft.pool, role: choice.role, roleChoice: choice, bans: draft.banned, patched: changed,
+      ownMatchups: ownDetail ? {
+        strongAgainst: ownDetail.strongAgainst.slice(0, 4).map((r) => ({ heroId: r.heroId, rate: r.rate })),
+        weakAgainst: ownDetail.weakAgainst.slice(0, 4).map((r) => ({ heroId: r.heroId, rate: r.rate })),
+      } : null,
       model: { samples: fitted.samples, comfortWeight: Math.round(fitted.comfort * 100) / 100 },
       teamWin: picks.enemy.length && team.length ? teamWinProb(team, picks.enemy, seedIndex(seed), baseWr, model?.k) : null,
       stale, seedPatch: seed?.patch ?? '', build: local.build, patchChanged,

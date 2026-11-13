@@ -161,7 +161,14 @@ export function DraftCard({ live, heroes, send, done }: { live: LiveState; heroe
       {detailed && !compact && <em className="why">{reason(item)}</em>}
       <i className="bar" style={{ width: Math.min(100, Math.max(4, ((item.winRate ?? 50) - 44) * 6)) + '%' }} /></li>)}</ol>
     {detailed && draft.model.samples > 0 && <small className="draft-note">Learning from {draft.model.samples} of your matches · comfort weight {draft.model.comfortWeight}</small>}
-    {!draft.suggestions.length && <small className="draft-note">{draft.enemy.length ? 'Computing…' : 'Waiting for enemy picks.'}</small>}
+    {!draft.suggestions.length && !draft.ownMatchups && <small className="draft-note">{draft.enemy.length ? 'Computing…' : 'Waiting for enemy picks.'}</small>}
+    {draft.ownMatchups && (draft.ownMatchups.strongAgainst.length > 0 || draft.ownMatchups.weakAgainst.length > 0) && <div>
+      <small className="draft-note">Dota doesn't reveal enemy/ally picks to this app — {byId(draft.ownHero ?? -1)?.name ?? 'your hero'}'s own matchups instead:</small>
+      <div className="counter-cols">
+        <div><h3>Good matchups</h3><div className="counter-list">{draft.ownMatchups.strongAgainst.map((r) => <div key={r.heroId}><Portrait hero={byId(r.heroId)} />{byId(r.heroId)?.name}<b className="positive">{fmt(r.rate, 1)}%</b></div>)}</div></div>
+        <div><h3>Watch out for</h3><div className="counter-list">{draft.ownMatchups.weakAgainst.map((r) => <div key={r.heroId}><Portrait hero={byId(r.heroId)} />{byId(r.heroId)?.name}<b className="negative">{fmt(r.rate, 1)}%</b></div>)}</div></div>
+      </div>
+    </div>}
     {(draft.stale || draft.patchChanged || draft.loading) && <small className="draft-note">{draft.patchChanged ? 'New patch: data refreshing' : draft.stale ? 'Seed predates this build' : 'Refreshing live data…'}</small>}
     {f.hints && <Foot><kbd>{mod}F9</kbd> type picks · <kbd>{mod}F8</kbd> detail · <kbd>{mod}F10</kbd> hide</Foot>}
   </article>

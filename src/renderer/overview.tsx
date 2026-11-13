@@ -128,7 +128,7 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, l
           <div className="actions"><button className="button secondary slim" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</button><button className="button secondary slim" disabled={currentPage >= lastPage} onClick={() => setPage(currentPage + 1)}>Next</button></div></div>
       </> : matches.length ? <Empty title="No matches fit these filters">Try a different hero, role, mode, or patch.</Empty> : <div className="history-empty">
         <Empty title={loading ? 'Loading your match history' : 'No match history returned'}>
-          {account ? 'If public sharing is off, import your own completed match scoreboards to fill the overview.' : 'Link your Steam account, or open a completed match by ID.'}
+          {account ? 'If you just turned on "Expose Public Match Data," OpenDota only backfills matches from then on and can take a few minutes to notice — try Refresh again shortly. If sharing is off, import your own completed match scoreboards instead.' : 'Link your Steam account, or open a completed match by ID.'}
         </Empty>
         <div className="actions"><button className="button secondary slim" onClick={onImport}>Open match by ID</button>{local.installFound && <button className="button secondary slim" onClick={onOpenGame}><Gamepad2 size={14} /> Open Dota 2</button>}</div>
       </div>}

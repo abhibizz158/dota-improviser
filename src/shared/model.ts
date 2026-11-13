@@ -95,10 +95,12 @@ export type DraftView = {
   bans: number[]; timeLeft: number | null; activeTeam: 'Radiant' | 'Dire' | null; teamWin: number | null
   model: { samples: number; comfortWeight: number }; patched: number[]; avoid: Suggestion[]; analysis: Analysis
   stale: boolean; seedPatch: string; build: number | null; patchChanged: boolean; loading: boolean; personal: number
+  /** Your own locked hero's matchups, so there's still something useful on screen once enemy/ally picks can't be read. */
+  ownMatchups: { strongAgainst: { heroId: number; rate: number }[]; weakAgainst: { heroId: number; rate: number }[] } | null
 }
 export const emptyDraft: DraftView = {
   enemy: [], allied: [], pool: [], role: 'Carry', bans: [], timeLeft: null, activeTeam: null, teamWin: null, model: { samples: 0, comfortWeight: 0.5 }, patched: [], avoid: [], analysis: { enemy: null, ally: null, fixes: [], model: null }, suggestions: [], stale: true, seedPatch: '', build: null,
-  patchChanged: false, loading: false, personal: 0,
+  patchChanged: false, loading: false, personal: 0, ownMatchups: null,
   ownHero: null, lockedHero: null, revealedEnemy: [], revealedAllied: [], roleChoice: { role: 'Carry', source: 'Default', override: null },
 }
 export type LocalStatus = { installFound: boolean; gsiInstalled: boolean; steamFound: boolean; build: number | null; localBuilds: number }

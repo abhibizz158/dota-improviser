@@ -70,6 +70,9 @@ export class OpenDota {
   }
 
   async history(id: string, refresh = false) {
+    // OpenDota only re-polls Steam for a player on request; without this, newly-public matches (or a player it has
+    // never seen) can sit unindexed indefinitely even with "Expose Public Match Data" on.
+    if (refresh) await this.request('/players/' + id + '/refresh', 'POST').catch(() => {})
     const result = await this.load('/players/' + id + '/matches?' + historyQuery, hour / 2, normalizeHistory, refresh)
     return { ...result, data: result.data.map((row) => {
       const review = this.cachedMatch(row.id)?.players.find((player) => player.accountId === id)
