@@ -1,0 +1,38 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ui-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "4173"
+      ],
+      "port": 4173
+    },
+    {
+      "name": "ui-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5174"
+      ],
+      "port": 5174
+    },
+    {
+      "name": "logo-render",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "/private/tmp/claude-501/-Users-abhishek--claude-spares-spare-b5SvjN/9d253855-5686-4974-b051-9c0482eefa5b/scratchpad/logo-server.mjs"
+      ],
+      "port": 4180
+    }
+  ]
+}

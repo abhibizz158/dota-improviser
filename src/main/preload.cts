@@ -1,0 +1,58 @@
+import { contextBridge, ipcRenderer } from 'electron'
+import type { AppApi, LiveState } from '../shared/model.js'
+
+const onLive = (callback: (value: LiveState) => void) => {
+  const listener = (_event: unknown, value: LiveState) => callback(value)
+  ipcRenderer.on('live:update', listener)
+  return () => ipcRenderer.removeListener('live:update', listener)
+}
+
+if (location.hash === '#overlay') {
+  contextBridge.exposeInMainWorld('overlayApi', {
+    state: () => ipcRenderer.invoke('live:snapshot'),
+    height: (value: number) => ipcRenderer.send('overlay:height', value),
+    draft: (input: unknown) => ipcRenderer.invoke('overlay:draft', input),
+    onLive,
+  })
+} else {
+  const api: AppApi = {
+    bootstrap: () => ipcRenderer.invoke('app:bootstrap'),
+    saveAccount: (id) => ipcRenderer.invoke('profile:save', id),
+    history: (id, refresh) => ipcRenderer.invoke('history:get', id, refresh),
+    match: (id, refresh) => ipcRenderer.invoke('match:get', id, refresh),
+    requestParse: (id) => ipcRenderer.invoke('parse:request', id),
+    parseStatus: (id) => ipcRenderer.invoke('parse:status', id),
+    matchups: (ids) => ipcRenderer.invoke('draft:matchups', ids),
+    build: (id) => ipcRenderer.invoke('draft:build', id),
+    clearData: () => ipcRenderer.invoke('app:clear'),
+    liveSettings: (settings) => ipcRenderer.invoke('live:settings', settings),
+    practice: (enabled) => ipcRenderer.invoke('live:practice', enabled),
+    toggleOverlay: () => ipcRenderer.invoke('live:toggle'),
+    saveConfig: () => ipcRenderer.invoke('live:config'),
+    exportDiagnostics: () => ipcRenderer.invoke('live:export'),
+    itemLearn: (id, sync) => ipcRenderer.invoke('items:learn', id, sync),
+    buildPlan: (id, order) => ipcRenderer.invoke('items:plan', id, order),
+    heroGuide: (id) => ipcRenderer.invoke('heroes:guide', id),
+    updateData: () => ipcRenderer.invoke('data:update'),
+    heroDetail: (id, full) => ipcRenderer.invoke('heroes:detail', id, full),
+    draft: (input) => ipcRenderer.invoke('draft:set', input),
+    nudge: (mine, enemy, delta) => ipcRenderer.invoke('draft:nudge', mine, enemy, delta),
+    defaultBuild: (slug) => ipcRenderer.invoke('draft:default-build', slug),
+    detectSteam: () => ipcRenderer.invoke('profile:steam'),
+    openGame: () => ipcRenderer.invoke('app:open-game'),
+    puterStatus: () => ipcRenderer.invoke('puter:status'),
+    puterSignIn: () => ipcRenderer.invoke('puter:sign-in'),
+    puterSignOut: () => ipcRenderer.invoke('puter:sign-out'),
+    puterSetModel: (model) => ipcRenderer.invoke('puter:model', model),
+    puterAsk: (question, context) => ipcRenderer.invoke('puter:ask', question, context),
+    searchKnowledge: (query) => ipcRenderer.invoke('knowledge:search', query),
+    roshanStart: (which) => ipcRenderer.invoke('roshan:start', which),
+    roshanClear: (which) => ipcRenderer.invoke('roshan:clear', which),
+    installConfig: () => ipcRenderer.invoke('live:install'),
+    toggleDraftOverlay: () => ipcRenderer.invoke('live:draft-overlay'),
+    checkUpdates: () => ipcRenderer.invoke('app:updates'),
+    openExternal: (target) => ipcRenderer.invoke('app:external', target),
+    onLive,
+  }
+  contextBridge.exposeInMainWorld('dota', api)
+}
