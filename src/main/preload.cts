@@ -14,6 +14,7 @@ if (location.hash === '#overlay') {
     draft: (input: unknown) => ipcRenderer.invoke('overlay:draft', input),
     done: () => ipcRenderer.invoke('overlay:done'),
     ask: (question: string) => ipcRenderer.invoke('overlay:ask', question),
+    sessionInfo: (gameType: string, lane: string) => ipcRenderer.invoke('overlay:session-info', gameType, lane),
     onAchievementSound: (callback: () => void) => {
       const listener = () => callback()
       ipcRenderer.on('achievement:sound', listener)
@@ -49,6 +50,7 @@ if (location.hash === '#overlay') {
     openGame: () => ipcRenderer.invoke('app:open-game'),
     importHistory: (value) => ipcRenderer.invoke('history:import-local', value),
     cachedHistory: () => ipcRenderer.invoke('history:cached'),
+    sessionHistory: () => ipcRenderer.invoke('history:sessions'),
     puterStatus: () => ipcRenderer.invoke('puter:status'),
     puterSignIn: () => ipcRenderer.invoke('puter:sign-in'),
     puterSignOut: () => ipcRenderer.invoke('puter:sign-out'),

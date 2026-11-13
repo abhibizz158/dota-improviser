@@ -6,8 +6,8 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Display, IpcMainInvokeEvent } from 'electron'
-import type { Bootstrap, Checkpoint, Pick, DraftView, KnowledgeContext, Lane, LiveSettings, LiveState, Matchups, OverlayView, Placement, PuterStatus, Role, UpdateInfo } from '../shared/model.js'
-import { defaultFeatures, defaultLiveSettings, featureKeys, placements, roleLabels, roles } from '../shared/model.js'
+import type { Bootstrap, Checkpoint, Pick, DraftView, GameType, KnowledgeContext, Lane, LiveSettings, LiveState, Matchups, OverlayView, Placement, PuterStatus, Role, SessionRecord, UpdateInfo } from '../shared/model.js'
+import { defaultFeatures, defaultLiveSettings, featureKeys, gameTypes, placements, roleLabels, roles } from '../shared/model.js'
 import { draftLineup, mergePicks } from '../shared/draft-picks.js'
 import { chooseRole, observeAchievement, recoveryAdvice } from '../shared/live-coach.js'
 import type { AwardRecord } from '../shared/live-coach.js'
@@ -88,6 +88,10 @@ let appUpdateTimer: NodeJS.Timeout | undefined
 let gameLaunch: Promise<void> | undefined
 let historyChangedAt = 0
 let latestLocalMatch: { id: string; fields: number } | undefined
+let sessionGameType: GameType | null = null
+let sessionLane: Role | null = null
+let sessionCompleted = false
+let lowPaceAlerted: 'gpm' | 'xpm' | null = null
 
 async function openSteam() {
   const launcher = steamLauncher()
@@ -126,6 +130,8 @@ let overlayDisplay: LiveState['overlayDisplay']
 let returnToLane = false
 let assistantReturn: { view: 'lane' | 'draft'; open: boolean } | null = null
 let overlayAskPending = false
+/** True while the overlay was opened only to show the session-info prompt, so answering it can close the overlay again. */
+let promptOpenedOverlay = false
 let plans = new Map<string, string[]>()
 let receiver: Awaited<ReturnType<typeof startGsi>> | null = null
 let receiverTask: Promise<void> | null = null
@@ -346,6 +352,14 @@ function emit(events: GameEvent[], award: { id: string; heroId: number; label: s
   }
 }
 
+/** A performance-dip toast: same pop-up as an achievement, but skips the career/award counters — a dip isn't a trophy. */
+function emitAlert(event: GameEvent) {
+  if (!settings.features.toasts) return
+  toasts = [...toasts, { ...event, shownAt: Date.now() }].slice(-6)
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => broadcast(), TOAST_MS + 300)
+}
+
 function gameView(): GameView | null {
   if (!frame) return null
   return {
@@ -355,11 +369,19 @@ function gameView(): GameView | null {
 }
 
 /** Persist a short summary of each finished game: feeds your career stats and future personal baselines. */
+/** Records the session that's ending: 'completed' if the game's own POST_GAME packet confirmed a win/loss,
+ * 'abandoned' if the app or the game closed, or the player left, before that (also called from before-quit). */
 function finishGame() {
   if (!frame || frame.clock < 300) return
-  const sessions = store.get<unknown[]>('sessions') ?? []
-  sessions.push({ at: Date.now(), hero: frame.heroSlug, clock: frame.clock, kills: frame.kills, deaths: frame.deaths, assists: frame.assists, lastHits: frame.lastHits, gpm: frame.gpm, xpm: frame.xpm, best: track.best, firstBlood: track.firstBlood })
+  const sessions = store.get<SessionRecord[]>('sessions') ?? []
+  const record: SessionRecord = {
+    at: Date.now(), hero: frame.heroSlug, heroId: frame.heroId, clock: frame.clock, kills: frame.kills, deaths: frame.deaths,
+    assists: frame.assists, lastHits: frame.lastHits, gpm: frame.gpm, xpm: frame.xpm, best: track.best, firstBlood: track.firstBlood,
+    status: sessionCompleted ? 'completed' : 'abandoned', gameType: sessionGameType, lane: sessionLane,
+  }
+  sessions.push(record)
   store.set('sessions', sessions.slice(-60))
+  historyChangedAt = Date.now()
 }
 
 function state(): LiveState {
@@ -375,6 +397,7 @@ function state(): LiveState {
     toasts: toasts.filter((t) => Date.now() - t.shownAt < TOAST_MS),
     status, lane, receivedAt, settings, armed, shortcutAvailable, checkpoints, roshan,
     open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
+    needsSessionInfo: Boolean(frame) && !sessionGameType, sessionInfo: { gameType: sessionGameType, lane: sessionLane },
   }
 }
 
@@ -423,6 +446,10 @@ function resetSession(next: LiveState['status']) {
   checkpoints = []
   receivedAt = null
   status = next
+  sessionGameType = null
+  sessionLane = null
+  sessionCompleted = false
+  lowPaceAlerted = null
 }
 
 /** Advance the draft from own-player GSI, keeping the locked hero separate from teammates. */
@@ -493,6 +520,7 @@ function receive(value: unknown) {
   if (settings.saveOwnMatches && asRecord(asRecord(value).map).game_state === 'DOTA_GAMERULES_STATE_POST_GAME') {
     const completed = parseCompletedOwnMatch(value, steamId)
     if (completed) {
+      sessionCompleted = true
       const fields = [completed.kills, completed.deaths, completed.assists, completed.gpm, completed.xpm, completed.lastHits, completed.denies].filter((field) => field != null).length
       if (latestLocalMatch?.id !== completed.id || fields > latestLocalMatch.fields) {
         latestLocalMatch = { id: completed.id, fields }
@@ -558,6 +586,14 @@ function receive(value: unknown) {
         events.push({ id: hit.id, kind: 'item', label: goal.label, sub: goal.elite ? 'Elite timing' : 'Goal reached', epic: goal.elite, at: hit.at })
       }
     }
+    // Both your own recent average on this hero and the general-player benchmark agree the pace is low: a stronger
+    // signal than either alone, so it's worth a pop-up — once per dip, not every tick while it stays low.
+    if (result?.lowPace && result.lowPace !== lowPaceAlerted && nextFrame) {
+      lowPaceAlerted = result.lowPace
+      emitAlert({ id: 'low-pace-' + result.lowPace + '-' + nextFrame.clock, kind: 'alert',
+        label: (result.lowPace === 'gpm' ? 'GPM' : 'XPM') + ' pace is dropping',
+        sub: 'Below your own average on this hero and most players at this point', at: nextFrame.clock })
+    } else if (!result?.lowPace) lowPaceAlerted = null
   }
   emit(events, award)
   const statusChanged = status !== nextStatus
@@ -566,6 +602,11 @@ function receive(value: unknown) {
     view = 'lane'
     returnToLane = false
     setInteractive(false)
+  } else if (nextFrame && !frameBefore && !sessionGameType && settings.display === 'Overlay') {
+    // Prompt once per game for lane + game type (GSI never reliably reports either); big and interactive, like the draft editor.
+    promptOpenedOverlay = !overlayRequested
+    view = 'lane'
+    requestOverlay(true)
   }
   if (!!nextFrame !== !!frameBefore && overlay?.isVisible()) placeOverlay(overlay)
   if (statusChanged || nextPick?.heroId !== pickBefore?.heroId || !!nextPick !== !!pickBefore || !!nextFrame !== !!frameBefore || !!next !== !!laneBefore) broadcast()
@@ -710,7 +751,7 @@ function makeOverlay() {
   window.on('closed', () => {
     overlay = null; overlayHeight = null; interactive = false; overlayRequested = false
     overlayDisplay = undefined; gameBounds = null; returnToLane = false
-    assistantReturn = null
+    assistantReturn = null; promptOpenedOverlay = false
     clearTimeout(editFocusTimer)
     updateOverlayTracking()
   })
@@ -918,7 +959,11 @@ function scheduleAppUpdates(delay = 6 * 3600000) {
   appUpdateTimer = setTimeout(() => {
     if (quitting) return
     if (frame || pick) { scheduleAppUpdates(60000); return }
-    void releaseUpdates.check().finally(() => scheduleAppUpdates())
+    void releaseUpdates.check().then((info) => {
+      // Only once the download is verified (state 'ready'), and only if you're still not mid-game: the check
+      // above can take a while, and a match may have started since.
+      if (info.state === 'ready' && settings.features.autoInstallApp && !frame && !pick && !quitting) void releaseUpdates.install().catch(() => {})
+    }).finally(() => scheduleAppUpdates())
   }, delay)
   appUpdateTimer.unref()
 }
@@ -1228,6 +1273,19 @@ function handlers() {
     }
     return askLiveCoach(question)
   })
+  ipcMain.handle('overlay:session-info', (event: IpcMainInvokeEvent, gameType: unknown, lane: unknown) => {
+    if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame) {
+      throw new Error('This action is only available in the overlay.')
+    }
+    if (!(gameTypes as readonly string[]).includes(gameType as string) || !(roles as readonly string[]).includes(lane as string)) {
+      throw new Error('Pick a lane and game type from the list.')
+    }
+    sessionGameType = gameType as GameType
+    sessionLane = lane as Role
+    if (promptOpenedOverlay) { promptOpenedOverlay = false; hideOverlay() }
+    else { setInteractive(false); if (overlay) placeOverlay(overlay) }
+    return broadcast()
+  })
   handle('app:bootstrap', async () => { await initialDiscovery; return bootstrap() })
   handle('draft:set', setDraft)
   handle('data:update', () => {
@@ -1350,6 +1408,7 @@ function handlers() {
     return historySnapshot(who)
   })
   handle('history:cached', () => account ? historySnapshot(account) : undefined)
+  handle('history:sessions', () => store.get<SessionRecord[]>('sessions') ?? [])
   handle('match:get', async (id, refresh) => {
     const local = account && store.get<{ data: import('../shared/model.js').MatchSummary[]; updatedAt: number }>(localHistoryKey(account))
     const row = local ? local.data.find((match) => match.id === id) : undefined
@@ -1583,6 +1642,8 @@ else {
   app.on('window-all-closed', () => app.quit())
   app.on('before-quit', () => {
     quitting = true
+    // The game is still live if the app closes here, so this records as 'abandoned' (sessionCompleted stays false).
+    finishGame()
     dataCancel.stop = true
     globalShortcut.unregisterAll()
     clearInterval(overlayTimer)

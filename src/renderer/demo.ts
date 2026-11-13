@@ -87,6 +87,7 @@ export const initialLive: LiveState = {
   view: 'lane', interactive: false, draft: emptyDraft, pick: null, coach: null, data: { state: 'idle', done: 0, total: 0, updatedAt: 0, message: '' }, support: null, game: null, toasts: [], career: {},
   status: 'Idle', lane: null, receivedAt: null, open: false, armed: false, pace: [], checkpoints: [], settings: defaultLiveSettings, shortcutAvailable: true, roshan: emptyRoshan,
   recovery: null, awards: {}, assistantShortcutAvailable: false,
+  needsSessionInfo: false, sessionInfo: { gameType: null, lane: null },
 }
 let sampleLive = initialLive
 const listeners = new Set<(state: LiveState) => void>()
@@ -147,6 +148,7 @@ export const browserApi: AppApi = {
   async openGame() { throw new Error('Open the desktop app to launch Dota 2.') },
   async importHistory() { throw new Error('Open the desktop app to import matches.') },
   async cachedHistory() { return undefined },
+  async sessionHistory() { return [] },
   async puterStatus() { return { connected: false, saved: false, model: 'gpt-5.4-nano' } },
   async puterSignIn() { throw new Error('Open the desktop app to connect Puter AI.') },
   async puterSignOut() { return { connected: false, saved: false, model: 'gpt-5.4-nano' } },

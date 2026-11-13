@@ -87,4 +87,4 @@ Considered, not used: STRATZ GraphQL (needs a token and sits behind Cloudflare),
 
 ## Updating
 - Game patches: automatic detection (above). Optional: re-run `npm run seed`.
-- App updates: set `dotaImproviser.updateRepo` (`owner/repo`) in `package.json`; Settings -> Check for app updates reads that repo's latest GitHub release.
+- App updates: a connected GitHub token (Settings) lets `ReleaseUpdates` (`src/main/release-updates.ts`) poll the repo's releases every 6h plus shortly after launch, and download + sha256-verify a matching installer automatically once one exists, all in the background. With the "Launch verified updates automatically" feature on, it then launches that verified installer itself as soon as you're not mid-game, instead of waiting for a click in Settings. It still can't make that launch invisible: this app's own fair-play guardrail (`tests/guard.test.mjs`) blanket-forbids spawning other processes anywhere in the source tree, and macOS separately requires your password for anything outside your own account — both are deliberate, not gaps to route around.

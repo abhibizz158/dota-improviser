@@ -15,6 +15,16 @@ export type MatchSummary = {
   id: string; heroId: number; start: number; duration: number; won: boolean | null; side: 'Radiant' | 'Dire';
   kills: number | null; deaths: number | null; assists: number | null; lastHits: number | null; denies: number | null;
   gpm: number | null; xpm: number | null; mode: string; patch: string; role: Role | null; source?: 'local'
+  /** Only set by local (own-feed) recording: 'completed' once a team's ancient fell, 'abandoned' if the game or app ended first. Absent for remote (OpenDota) rows, which are always completed matches. */
+  status?: 'completed' | 'abandoned'
+}
+export const gameTypes = ['Ranked', 'Normal', 'Turbo', 'Ability Draft', 'Other'] as const
+export type GameType = typeof gameTypes[number]
+/** One own-feed game, recorded locally when it ends. 'abandoned' means the app or the game closed, or you left, before a team's ancient fell. */
+export type SessionRecord = {
+  at: number; hero: string; heroId: number | null; clock: number; kills: number | null; deaths: number | null; assists: number | null
+  lastHits: number | null; gpm: number | null; xpm: number | null; best: string | null; firstBlood: GameTrack['firstBlood']
+  status: 'completed' | 'abandoned'; gameType: GameType | null; lane: Role | null
 }
 export type Minute = { time: number; gold: number | null; xp: number | null; lastHits: number | null; deaths: number | null }
 export type ReviewEvent = { time: number | null; label: string; kind: 'item' | 'vision' | 'objective' | 'death'; key?: string }
@@ -37,7 +47,7 @@ export type DataStatus = { state: 'idle' | 'updating' | 'ready' | 'error'; done:
 export const placements = ['Auto', 'Top left', 'Top right', 'Bottom left', 'Bottom right'] as const
 export type Placement = typeof placements[number]
 export type DisplayChoice = { id: string; name: string }
-export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'coachTips', 'achievements', 'personal', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'learning', 'patchAware'] as const
+export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'coachTips', 'achievements', 'personal', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware'] as const
 export type FeatureKey = typeof featureKeys[number]
 export type Features = Record<FeatureKey, boolean>
 export const defaultFeatures = Object.fromEntries(featureKeys.map((k) => [k, k !== 'achievementSound'])) as Features
@@ -61,6 +71,7 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   styleProfile: { group: 'Intelligence', label: 'Playstyle profile', help: 'Classify your style (carry, dynamic support, endurance...) from your matches.' },
   autoOpen: { group: 'Automation', label: 'Open draft overlay at pick phase', help: 'Show the draft card when hero selection starts.' },
   autoUpdate: { group: 'Automation', label: 'Update data after patches', help: 'Refetch public hero data in the background after a Dota update.' },
+  autoInstallApp: { group: 'Automation', label: 'Launch verified updates automatically', help: 'Once a GitHub release is downloaded and verified, launch its installer as soon as you are not mid-game, instead of waiting for you to click Install in Settings. You still click through the installer itself (and enter your password on macOS) — this app never launches other programs silently or in the background; that is a deliberate fair-play guardrail, not a missing feature.' },
   learning: { group: 'Intelligence', label: 'Learn from my matches', help: 'Use your history to adjust suggestions. Off = public data only.' },
   patchAware: { group: 'Intelligence', label: 'Patch awareness', help: 'Trust old data less for heroes changed in recent patches.' },
 }
@@ -116,6 +127,8 @@ export type LiveState = {
   pace: Pace[]; checkpoints: Checkpoint[]; settings: LiveSettings; shortcutAvailable: boolean; roshan: RoshanState
   displays?: DisplayChoice[]; overlayDisplay?: { name: string; following: boolean }
   historyChangedAt?: number
+  /** True once a game is live but you haven't said this session's lane/role and game type yet — the overlay should prompt. */
+  needsSessionInfo: boolean; sessionInfo: { gameType: GameType | null; lane: Role | null }
 }
 export type MechRow = { heroId: number; edge: number; parts: { label: FeatureName; points: number }[] }
 export type MechSummary = { r2: number; samples: number; k?: number; importance: { name: FeatureName; weight: number; share: number }[] }
@@ -158,6 +171,7 @@ export interface AppApi {
   openGame(): Promise<void>;
   importHistory(value: string): Promise<SourceResult<MatchSummary[]>>;
   cachedHistory(): Promise<SourceResult<MatchSummary[]> | undefined>;
+  sessionHistory(): Promise<SessionRecord[]>;
   puterStatus(): Promise<PuterStatus>;
   puterSignIn(): Promise<PuterStatus>;
   puterSignOut(): Promise<PuterStatus>;
