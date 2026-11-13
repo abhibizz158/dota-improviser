@@ -13,6 +13,12 @@ if (location.hash === '#overlay') {
     height: (value: number) => ipcRenderer.send('overlay:height', value),
     draft: (input: unknown) => ipcRenderer.invoke('overlay:draft', input),
     done: () => ipcRenderer.invoke('overlay:done'),
+    ask: (question: string) => ipcRenderer.invoke('overlay:ask', question),
+    onAchievementSound: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('achievement:sound', listener)
+      return () => ipcRenderer.removeListener('achievement:sound', listener)
+    },
     onLive,
   })
 } else {
@@ -64,6 +70,13 @@ if (location.hash === '#overlay') {
       return () => ipcRenderer.removeListener('updates:changed', listener)
     },
     openExternal: (target) => ipcRenderer.invoke('app:external', target),
+    toggleAssistant: () => ipcRenderer.invoke('live:assistant'),
+    askLiveCoach: (question) => ipcRenderer.invoke('live:ask', question),
+    onAchievementSound: (callback) => {
+      const listener = () => callback()
+      ipcRenderer.on('achievement:sound', listener)
+      return () => ipcRenderer.removeListener('achievement:sound', listener)
+    },
     onLive,
   }
   contextBridge.exposeInMainWorld('dota', api)

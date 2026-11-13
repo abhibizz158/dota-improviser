@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight, BookOpen, ChevronDown, ChevronUp, Crosshair, RefreshCw, Search, ShieldCheck, Swords, X } from 'lucide-react'
 import type { AppApi, Build, Catalog, Hero, LiveState, Role, SourceResult } from '../shared/model'
-import { roles } from '../shared/model'
+import { roleLabels, roles } from '../shared/model'
 import { demoBuild } from './demo'
 import { counterTips } from '../shared/guide'
 import { FEATURE_LABELS } from '../shared/mechanics'
@@ -104,12 +104,26 @@ export function Draft({ api, catalog, sample, live, account, onMatch }: DraftPro
     {tab === 'draft' ? <div className="detail-grid draft-grid">
       <section className="panel form-panel">
         <header className="panel-heading"><div><h2>Draft inputs</h2><p>Enter picks as they reveal. Overlay hotkey: Ctrl/⌘ + Shift + F9.</p></div><Crosshair size={19} className="quiet-icon" /></header>
-        <label className="field">Preferred role<select value={draft.role} onChange={(event) => set({ role: event.target.value as Role })}>{roles.map((role) => <option key={role}>{role}</option>)}</select></label>
-        <Picker label="Enemy picks" chosen={draft.enemy} heroes={catalog.heroes} excluded={draft.allied} limit={5} onChange={(enemy) => set({ enemy })} />
-        <Picker label="Ally picks" chosen={draft.allied} heroes={catalog.heroes} excluded={draft.enemy} limit={5} onChange={(allied) => set({ allied })} />
+        <label className="field">Your hero <small>optional — locks automatically once Dota reveals it</small>
+          <select value={draft.ownHero ?? ''} onChange={(event) => set({ ownHero: event.target.value ? Number(event.target.value) : null })}>
+            <option value="">Not picked yet</option>
+            {catalog.heroes.filter((hero) => !draft.enemy.includes(hero.id) && !draft.allied.includes(hero.id)).map((hero) => <option value={hero.id} key={hero.id}>{hero.name}</option>)}
+          </select></label>
+        <label className="field">Your role
+          <span className="role-select-row">
+            <select value={draft.roleChoice.source === 'Manual' ? draft.role : ''} onChange={(event) => set({ role: event.target.value ? event.target.value as Role : null })}>
+              <option value="">Automatic ({roleLabels[draft.role]} · {draft.roleChoice.source.toLowerCase()})</option>
+              {roles.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}
+            </select>
+            {draft.ownHero != null && <button type="button" className="button secondary slim" onClick={() => void api.liveSettings({ ...live.settings, heroRoles: { ...live.settings.heroRoles, [draft.ownHero!]: draft.role } }).catch(() => {})}>
+              Remember as my {catalog.heroes.find((h) => h.id === draft.ownHero)?.name ?? 'hero'} role</button>}
+          </span>
+        </label>
+        <Picker label="Enemy picks" chosen={draft.enemy} heroes={catalog.heroes} excluded={[...draft.allied, ...(draft.ownHero != null ? [draft.ownHero] : [])]} limit={5} onChange={(enemy) => set({ enemy })} />
+        <Picker label="Teammates" chosen={draft.allied} heroes={catalog.heroes} excluded={[...draft.enemy, ...(draft.ownHero != null ? [draft.ownHero] : [])]} limit={4} onChange={(allied) => set({ allied })} />
         <Picker label="Your hero pool" chosen={draft.pool} heroes={catalog.heroes} excluded={[]} limit={24} onChange={(pool) => set({ pool })} />
         <p className="fine-print">Empty pool = every hero. {draft.personal > 0 ? 'Learning from ' + fmt(draft.personal) + ' weighted games of yours.' : 'Add your account and open matches to start personal learning.'}</p>
-        {(draft.enemy.length + draft.allied.length + draft.pool.length) > 0 && <button className="button secondary" onClick={() => set({ enemy: [], allied: [], pool: [] })}>Clear picks</button>}
+        {(draft.enemy.length + draft.allied.length + draft.pool.length) > 0 && <button className="button secondary" onClick={() => set({ enemy: [], allied: [], pool: [], ownHero: null })}>Clear picks</button>}
       </section>
       <section className="panel recommendations">
         <header className="panel-heading"><div><h2>Hero suggestions</h2><p>Seed + live + you{draft.loading ? ' · refreshing…' : ''}</p></div><ShieldCheck size={19} className="quiet-icon" /></header>
