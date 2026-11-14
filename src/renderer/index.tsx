@@ -392,7 +392,7 @@ function App() {
               {context.local.steamFound && <button className="text-button" type="button" disabled={formBusy} onClick={() => void linkAccount()}>Use my Steam account</button>}
             </div>
           </form>
-          <p className="fine-print">Match history needs Dota's own "Expose Public Match Data" setting on (Dota Settings → General). OpenDota can take a few minutes to notice after you turn it on.</p>
+          <p className="fine-print">Match history needs two Valve settings on: Dota's own "Expose Public Match Data" (Dota Settings → General) and your Steam profile's Game Details privacy (Public or Friends Only — Private blocks OpenDota entirely). OpenDota can also take a few minutes to notice after you turn Expose Public Match Data on.</p>
         </>}
         {welcomeStep === 1 && <>
           <p>The live overlay, draft card and achievements need Dota's Game State Integration (GSI) — a local config file, opt-in and read-only. Skip this if you only want match history and draft planning.</p>
@@ -465,7 +465,7 @@ function App() {
         <p className="fine-print">AI requests send your question and the selected hero/picks/items plus optional own-player practice clock, GPM and unspent gold. Steam ID and match history are not sent. Sign out clears the encrypted local token.</p>
         <Feedback message={formError} error />
       </div> : <form onSubmit={(event) => void submit(event)} className="modal-form">
-        <p>{modal === 'account' ? 'Use your Dota friend ID or SteamID64. Public match coverage depends on Dota’s Expose Public Match Data setting.' : 'Enter the numeric ID of a completed Dota 2 match.'}</p>
+        <p>{modal === 'account' ? 'Use your Dota friend ID or SteamID64. Public match coverage needs both Dota’s Expose Public Match Data setting and your Steam profile’s Game Details privacy set to Public or Friends Only — Steam blocks OpenDota entirely if that profile setting is Private.' : 'Enter the numeric ID of a completed Dota 2 match.'}</p>
         <label className="field">{modal === 'account' ? 'Dota account ID or SteamID64' : 'Match ID'}
           <input autoFocus inputMode="numeric" autoComplete="off" maxLength={17} value={input} onChange={(event) => setInput(event.target.value)}
             placeholder={modal === 'account' ? 'e.g. 86745912' : 'e.g. 9087439951'} /></label>
