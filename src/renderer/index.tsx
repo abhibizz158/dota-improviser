@@ -369,7 +369,7 @@ function App() {
     {modal && <Dialog title={modal === 'account' ? 'Dota account' : modal === 'import' ? 'Open match by ID' : modal === 'fair' ? 'Fair-play guardrails' : modal === 'puter' ? 'Puter AI connection' : modal === 'updates' ? 'App updates' : modal === 'privateHistory' ? 'Import your own matches' : modal === 'welcome' ? 'Set up Dota Improviser' : 'Workspace settings'}
       onClose={() => { if (!formBusy) { markOnboarded(); setModal(null) } }}>
       {modal === 'welcome' ? <div className="settings-dialog welcome-dialog">
-        <div className="wizard-steps"><span className={welcomeStep === 0 ? 'active' : ''}>1. Account</span><span className={welcomeStep === 1 ? 'active' : ''}>2. Live feed</span><span className={welcomeStep === 2 ? 'active' : ''}>3. Features</span></div>
+        <div className="wizard-steps"><span className={welcomeStep === 0 ? 'active' : ''}>1. Account</span><span className={welcomeStep === 1 ? 'active' : ''}>2. Live feed</span><span className={welcomeStep === 2 ? 'active' : ''}>3. AI coach</span><span className={welcomeStep === 3 ? 'active' : ''}>4. Features</span></div>
         {welcomeStep === 0 && <>
           <p>This app is local-first: everything stays on this device except public OpenDota/Valve lookups and whatever your own Dota account already shares publicly. Link your account now to load match history, or skip and add it later from Settings.</p>
           <form onSubmit={(event) => void submit(event)}>
@@ -391,9 +391,17 @@ function App() {
             <li><div><strong>Add the launch option</strong><p>In Steam, right-click Dota 2 → Properties → Launch Options, add <code>-gamestateintegration</code>, then restart Dota.</p></div></li>
           </ol>
           <Feedback {...gsiMessage} />
-          <p className="fine-print">{/Mac/.test(navigator.platform) ? 'macOS only asks for Screen Recording permission if you turn on Draft vision on the next step — the overlay and GSI feed need no OS permission at all.' : 'Windows needs no special permission for the overlay or GSI feed; some antivirus tools flag a new local listener on first run, which is safe to allow.'}</p>
+          <p className="fine-print">{/Mac/.test(navigator.platform) ? 'macOS only asks for Screen Recording permission if you turn on Draft vision later in this setup — the overlay and GSI feed need no OS permission at all.' : 'Windows needs no special permission for the overlay or GSI feed; some antivirus tools flag a new local listener on first run, which is safe to allow.'}</p>
         </>}
         {welcomeStep === 2 && <>
+          <p>Optional: sign in with Puter to ask an AI coach about your draft or practice game. Puter opens its own browser sign-in; the AI only ever receives your question, the selected hero/picks/items, and derived facts this app already computed — never your Steam ID or match history.</p>
+          <div className="puter-connection"><i className={puter.connected || puter.saved ? 'ready' : ''} /><span><strong>{puter.connected ? 'Connected' : puter.saved ? 'Saved sign-in' : 'Not connected'}</strong><small>{puter.saved ? 'Encrypted on this device. The system may ask to unlock it after an update.' : puter.connected ? 'Session only' : 'No Puter session stored'}</small></span></div>
+          <div className="actions"><button className="button primary" disabled={formBusy} onClick={() => void connectPuter()}>{formBusy ? 'Waiting for browser…' : puter.connected ? 'Switch Puter account' : 'Sign in with Puter'}</button>
+            {(puter.connected || puter.saved) && <button className="button" disabled={formBusy} onClick={() => void disconnectPuter()}>Disconnect</button>}</div>
+          <Feedback message={formError} error />
+          <p className="fine-print">Skip this if you don't want AI coaching — everything else in the app works without it, and you can connect it later from Settings → Puter AI.</p>
+        </>}
+        {welcomeStep === 3 && <>
           <p>Everything below is off until you choose it. Draft vision is the only feature that ever reads your screen, and only the pick-bar strip during hero selection — never once a match is live.</p>
           <label className="check-field"><input type="checkbox" checked={live.settings.features.draftVision} onChange={(event) => void toggleFeature('draftVision', event.target.checked)} /><span>{featureInfo.draftVision.label}<small>{featureInfo.draftVision.help}</small></span></label>
           <label className="check-field"><input type="checkbox" checked={live.settings.features.toasts} onChange={(event) => void toggleFeature('toasts', event.target.checked)} /><span>{featureInfo.toasts.label}<small>{featureInfo.toasts.help}</small></span></label>
@@ -401,8 +409,8 @@ function App() {
         </>}
         <div className="actions">
           {welcomeStep > 0 && <button className="button secondary" onClick={() => setWelcomeStep((step) => step - 1)}>Back</button>}
-          {welcomeStep < 2 && <button className="button secondary" onClick={() => setWelcomeStep((step) => step + 1)}>Next</button>}
-          {welcomeStep === 2 && <button className="button primary" onClick={() => { markOnboarded(); setModal(null) }}>Finish</button>}
+          {welcomeStep < 3 && <button className="button secondary" onClick={() => setWelcomeStep((step) => step + 1)}>Next</button>}
+          {welcomeStep === 3 && <button className="button primary" onClick={() => { markOnboarded(); setModal(null) }}>Finish</button>}
           <button className="text-button" onClick={() => { markOnboarded(); setModal(null) }}>Skip setup</button>
         </div>
       </div> : modal === 'fair' ? <div className="settings-dialog"><ul className="fair-list">{fairPlay.map((rule) => <li key={rule}>{rule}</li>)}</ul>
