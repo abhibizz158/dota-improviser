@@ -1,7 +1,7 @@
 import type { Bracket, CoachingContext } from './contextual-coach.js'
 import type { PersonalPerformance } from './personal-performance.js'
 import type { MatchOutlook, OutlookPoint } from './match-outlook.js'
-import type { Suggestion, SimilarMatchup } from './brain.js'
+import type { Suggestion, SimilarMatchup, PersonalBuild } from './brain.js'
 import type { CoachView, HeroData } from './coach.js'
 import type { HeroGuide, Support } from './guide.js'
 import type { GameEvent, GameTrack } from './game.js'
@@ -182,6 +182,7 @@ export interface AppApi {
   parseStatus(id: string): Promise<ParseProgress>;
   matchups(heroIds: number[]): Promise<SourceResult<Matchups>>;
   build(heroId: number): Promise<SourceResult<Build>>;
+  personalBuild(heroId: number): Promise<PersonalBuild | null>;
   clearData(): Promise<Bootstrap>;
   liveSettings(settings: LiveSettings): Promise<LiveState>;
   practice(enabled: boolean): Promise<LiveState>;

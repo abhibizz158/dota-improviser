@@ -55,7 +55,10 @@ let referenceLoad: Promise<void> | null = null
 
 async function referenceFeatures(heroSlug: string) {
   const base = 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/'
-  for (const path of ['heroes/' + heroSlug + '_sb.png', 'dota_react/heroes/' + heroSlug + '.png']) {
+  // Three paths, same fallback order as the dashboard's own hero portraits (heroPortrait in ui.tsx) - a hero
+  // missing from the first one or two (a very recently released hero not yet mirrored everywhere) still gets
+  // a reference instead of being permanently unrecognizable in the pick bar.
+  for (const path of ['heroes/' + heroSlug + '_sb.png', 'dota_react/heroes/' + heroSlug + '.png', 'heroes/' + heroSlug + '_lg.png']) {
     try {
       const response = await fetch(base + path, { signal: AbortSignal.timeout(6000) })
       if (!response.ok) continue

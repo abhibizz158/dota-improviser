@@ -39,6 +39,7 @@ if (location.hash === '#achievements') {
     parseStatus: (id) => ipcRenderer.invoke('parse:status', id),
     matchups: (ids) => ipcRenderer.invoke('draft:matchups', ids),
     build: (id) => ipcRenderer.invoke('draft:build', id),
+    personalBuild: (id) => ipcRenderer.invoke('draft:personal-build', id),
     clearData: () => ipcRenderer.invoke('app:clear'),
     liveSettings: (settings) => ipcRenderer.invoke('live:settings', settings),
     practice: (enabled) => ipcRenderer.invoke('live:practice', enabled),

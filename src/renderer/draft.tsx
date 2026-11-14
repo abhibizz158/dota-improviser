@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight, BookOpen, ChevronDown, ChevronUp, Crosshair, RefreshCw, Search, ShieldCheck, Swords, X } from 'lucide-react'
 import type { AppApi, Build, Catalog, Hero, LiveState, Role, SourceResult } from '../shared/model'
+import type { PersonalBuild } from '../shared/brain'
 import { roleLabels, roles } from '../shared/model'
 import { counterTips } from '../shared/guide'
 import { FEATURE_LABELS } from '../shared/mechanics'
@@ -62,6 +63,7 @@ export function Draft({ api, catalog, live, account, onMatch }: DraftProps) {
   const chooseHero = (id: number) => { setItem(''); setHeroId(id) }
   const [build, setBuild] = useState<SourceResult<Build> | null>(null)
   const [valve, setValve] = useState<Partial<Record<keyof Build, string[]>> | null>(null)
+  const [personalBuild, setPersonalBuild] = useState<PersonalBuild | null>(null)
   const [error, setError] = useState('')
   const [buildLoading, setBuildLoading] = useState(false)
   const [buildError, setBuildError] = useState('')
@@ -73,9 +75,10 @@ export function Draft({ api, catalog, live, account, onMatch }: DraftProps) {
   useEffect(() => {
     if (tab !== 'build') return
     let current = true
-    setBuildLoading(true); setBuild(null); setBuildError(''); setValve(null)
+    setBuildLoading(true); setBuild(null); setBuildError(''); setValve(null); setPersonalBuild(null)
     const slug = catalog.heroes.find((hero) => hero.id === heroId)?.slug ?? ''
     void api.defaultBuild(slug).then((value) => { if (current) setValve(value) }).catch(() => {})
+    void api.personalBuild(heroId).then((value) => { if (current) setPersonalBuild(value) }).catch(() => {})
     void api.build(heroId).catch((reason: Error) => {
       throw reason
     }).then((value) => { if (current) setBuild(value) })
@@ -175,6 +178,12 @@ export function Draft({ api, catalog, live, account, onMatch }: DraftProps) {
       {valve && <section className="panel situational-panel"><header className="panel-heading"><div><h2>Valve default build</h2><p>Read from your installed game files</p></div><RefreshCw size={16} className="quiet-icon" /></header>
         <div className="situational-grid">{(Object.keys(stageLabels) as (keyof Build)[]).map((stage) => <article key={stage}><h3>{stageLabels[stage]}</h3>
           <p>{(valve[stage] ?? []).map((item) => catalog.items[item] ?? item).join(' · ') || '—'}</p></article>)}</div></section>}
+      {personalBuild && <section className="panel situational-panel"><header className="panel-heading">
+        <div><h2>What you actually buy</h2><p>From your own {personalBuild.games} saved game{personalBuild.games === 1 ? '' : 's'} on this hero — not the guide, your pattern</p></div></header>
+        <div className="personal-build-grid">{personalBuild.items.map((item) => <div key={item.key} className="personal-build-row">
+          <button type="button" className="text-button" onClick={() => setItem(item.key)}>{catalog.items[item.key] ?? item.key}</button>
+          <span>{item.pct}% of games{item.winRate != null ? ` · ${item.winRate}% won with it` : ''}</span>
+        </div>)}</div></section>}
       <section className="panel situational-panel"><header className="panel-heading"><div><h2>Situational choices</h2><p>General item decisions for different matchups</p></div></header>
         <div className="situational-grid">{situational.map(({ item, reason }) => <article key={item}><h3><button type="button" className="text-button" onClick={() => setItem(item)}>{catalog.items[item] ?? item}</button></h3><p>{reason}</p></article>)}</div>
       </section>

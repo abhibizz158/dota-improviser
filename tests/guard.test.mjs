@@ -43,6 +43,14 @@ test('the death snapshot capture is gated on justDied the same way, and never an
   assert.doesNotMatch(body.slice(0, body.indexOf('\n}')), /readPickBar|matchSlot|portraitDistance/, 'captureDeathSnapshot must not run portrait/map analysis on the frame')
 })
 
+test('no screen capture (death snapshot, draft vision samples) is ever written to persisted storage', () => {
+  const main = readFileSync(path.join('src', 'main', 'index.ts'), 'utf8')
+  // These only ever live in memory for the current session (module-level variables, broadcast to the UI) and
+  // are discarded on the next death/session - store.set (SQLite-backed, src/main/store.ts) is this app's only
+  // persistence path, so keeping screenshots and portrait-match samples off it is what "never stored" means.
+  assert.doesNotMatch(main, /store\.(set|get)\([^)]*([Ss]napshot|visionSamples|visionLastRead)/, 'a screen-capture value must never reach persisted storage')
+})
+
 test('macOS picker verifies the Dota window before capture and tears down outside the draft', () => {
   const native = readFileSync(pickerFile, 'utf8')
   assert.match(native, /allowedPickerModes = SCContentSharingPickerModeSingleWindow/)

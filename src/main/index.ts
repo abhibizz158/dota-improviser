@@ -21,7 +21,7 @@ import { coach, coachPhase } from '../shared/coach.js'
 import type { CoachView, HeroData, HeroDb, TimingsDb } from '../shared/coach.js'
 import { hostAllowed } from '../shared/guard.js'
 import type { DraftReveal, Frame, HeroDetail } from '../shared/model.js'
-import { buildSamples, defaultWeights, fitWeights, learnProfile, pairKey, seedIndex, seedStale, draftRanks, similarMatchupRecord, teamWinProb } from '../shared/brain.js'
+import { buildSamples, defaultWeights, fitWeights, learnProfile, pairKey, personalBuildPattern, seedIndex, seedStale, draftRanks, similarMatchupRecord, teamWinProb } from '../shared/brain.js'
 import type { Overrides, Profile, Seed, Weights } from '../shared/brain.js'
 import { buildData, fetchPatchChanges } from './updater.js'
 import type { PatchChange } from './updater.js'
@@ -2164,6 +2164,7 @@ function handlers() {
     return provider.matchups([...new Set(ids.map(validHero))])
   })
   handle('draft:build', (id) => provider.build(validHero(id)))
+  handle('draft:personal-build', (id) => account && settings.features.learning ? personalBuildPattern(store.savedReviews(), account, validHero(id)) : null)
   handle('draft:vision-permission', requestDraftScreenRecording)
   handle('draft:vision-window', chooseDraftWindow)
   handle('draft:learn-portrait', (slot, value) => {

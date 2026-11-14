@@ -276,6 +276,37 @@ export function similarMatchupRecord(reviews: MatchReview[], account: string, en
   return { matches: scored.length, wins: scored.filter((s) => s.won).length, shared: [...new Set(scored.flatMap((s) => s.shared))].filter((id) => enemySet.has(id)) }
 }
 
+export type PersonalBuildItem = { key: string; games: number; pct: number; winRate: number | null }
+export type PersonalBuild = { games: number; items: PersonalBuildItem[] }
+
+/** What you actually buy on this hero, from your own saved match reviews' purchase events — not what the guide
+ * recommends. The point isn't to replace the community build (OpenDota's itemPopularity, already shown
+ * alongside this), it's to let you see your own pattern against it: an item you buy in 90% of games that isn't
+ * in the plan, or a planned item you almost never actually get around to. Needs 3+ of your own games on the
+ * hero with purchase events recorded before it reports anything, same comfort threshold as fitWeights/learnProfile. */
+export function personalBuildPattern(reviews: MatchReview[], account: string, heroId: number, min = 3): PersonalBuild | null {
+  const games = reviews.flatMap((review) => {
+    const me = review.players.find((p) => p.accountId === account && p.heroId === heroId)
+    if (!me || !me.events.some((e) => e.kind === 'item')) return []
+    const bought = new Set(me.events.filter((e) => e.kind === 'item' && e.key && !e.key.startsWith('recipe_')).map((e) => e.key!))
+    return [{ bought, won: me.won }]
+  })
+  if (games.length < min) return null
+  const counts = new Map<string, { games: number; wins: number }>()
+  for (const { bought, won } of games) {
+    for (const key of bought) {
+      const entry = counts.get(key) ?? { games: 0, wins: 0 }
+      entry.games++
+      if (won) entry.wins++
+      counts.set(key, entry)
+    }
+  }
+  const items = [...counts.entries()].map(([key, { games: g, wins }]) => ({
+    key, games: g, pct: Math.round(100 * g / games.length), winRate: g >= 3 ? Math.round(100 * wins / g) : null,
+  })).sort((a, b) => b.pct - a.pct || b.games - a.games).slice(0, 10)
+  return { games: games.length, items }
+}
+
 /**
  * Fit a 2-feature logistic regression (counter edge, comfort) on your own outcomes, L2-pulled toward the defaults,
  * then express comfort relative to counter. Needs 25+ samples; otherwise stays on defaults. Bounded to [0.1, 1.5].

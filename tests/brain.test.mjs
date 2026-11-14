@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { defaultWeights, fitWeights, learnProfile, pairKey, seedStale, similarMatchupRecord, suggest } from '../dist/main/shared/brain.js'
+import { defaultWeights, fitWeights, learnProfile, pairKey, personalBuildPattern, seedStale, similarMatchupRecord, suggest } from '../dist/main/shared/brain.js'
 import { parseLoginUsers, parseSteamInf } from '../dist/main/main/local.js'
 
 const heroes = [1, 2, 3].map((id) => ({ id, slug: 'h' + id, name: 'H' + id, roles: ['Carry'] }))
@@ -90,6 +90,22 @@ test('similarMatchupRecord looks up your own real games against overlapping enem
   assert.equal(result.wins, 2)
   assert.deepEqual(result.shared.sort(), [10, 11])
   assert.equal(similarMatchupRecord(withEnough, '5', [10], 8), null) // fewer than 2 enemy heroes known: nothing to match on
+})
+
+test('personalBuildPattern reads what you actually bought, not the guide, and needs 3+ games to report', () => {
+  const game = (won, items) => ({ players: [{ accountId: '5', heroId: 1, won, events: items.map((key) => ({ kind: 'item', key })) }] })
+  const games = [game(true, ['power_treads', 'bfury', 'recipe_bfury']), game(false, ['power_treads', 'manta']), game(true, ['power_treads', 'bfury'])]
+  assert.equal(personalBuildPattern(games.slice(0, 2), '5', 1), null) // only 2 games: below the 3-game threshold
+  const result = personalBuildPattern(games, '5', 1)
+  assert.equal(result.games, 3)
+  assert.equal(result.items.find((i) => i.key === 'recipe_bfury'), undefined) // recipes excluded, same as the item catalogue
+  const treads = result.items.find((i) => i.key === 'power_treads')
+  assert.equal(treads.pct, 100)
+  assert.equal(treads.winRate, Math.round((2 / 3) * 100))
+  const manta = result.items.find((i) => i.key === 'manta')
+  assert.equal(manta.pct, 33)
+  assert.equal(manta.winRate, null) // only 1 game with it: too few to report a rate
+  assert.equal(personalBuildPattern(games, '5', 2), null) // wrong hero id: no matches
 })
 
 test('recently patched heroes have their old seed pair data trusted less', () => {

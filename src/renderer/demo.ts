@@ -31,6 +31,7 @@ export const browserApi: AppApi = {
   async parseStatus() { return { jobId: '', pending: false } },
   async matchups() { throw new Error('Open the desktop app to fetch current matchup data.') },
   async build() { throw new Error('Open the desktop app to fetch item usage data.') },
+  async personalBuild() { return null },
   async clearData() { sampleLive = initialLive; return this.bootstrap() },
   async liveSettings(settings) { sampleLive = { ...sampleLive, settings }; return sampleLive },
   async practice() { throw new Error('Open the desktop app to connect Game State Integration.') },
