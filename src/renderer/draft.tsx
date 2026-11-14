@@ -129,6 +129,9 @@ export function Draft({ api, catalog, live, account, onMatch }: DraftProps) {
         {!draft.enemy.length && !draft.allied.length ? <Empty title="Add the picks you can see">Enemy heroes drive counter picks. Ally heroes drive team balance.</Empty> :
           <>
             <WinMeter allied={draft.teamWin} />
+            {draft.similarMatchups && <p className="fine-print similar-matchups">
+              Vs. your most similar past lineups ({draft.similarMatchups.shared.map((id) => catalog.heroes.find((h) => h.id === id)?.name ?? id).join(', ')}): you won {draft.similarMatchups.wins}/{draft.similarMatchups.matches}.
+            </p>}
             <LineupAnalysis analysis={draft.analysis} catalog={catalog} />
             {advice.length > 0 && <div className="advice"><h3>Lineup advice (items and lane)</h3>{advice.map((t) => <div key={t.text} className={'tip ' + t.level}><p>{t.text}</p>
               {t.items && <div className="item-chips">{t.items.map((k) => <span key={k}>{catalog.items[k] ?? k}</span>)}</div>}</div>)}</div>}

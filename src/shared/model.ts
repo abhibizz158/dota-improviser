@@ -1,7 +1,7 @@
 import type { Bracket, CoachingContext } from './contextual-coach.js'
 import type { PersonalPerformance } from './personal-performance.js'
 import type { MatchOutlook, OutlookPoint } from './match-outlook.js'
-import type { Suggestion } from './brain.js'
+import type { Suggestion, SimilarMatchup } from './brain.js'
 import type { CoachView, HeroData } from './coach.js'
 import type { HeroGuide, Support } from './guide.js'
 import type { GameEvent, GameTrack } from './game.js'
@@ -109,10 +109,11 @@ export type DraftView = {
   bans: number[]; timeLeft: number | null; activeTeam: 'Radiant' | 'Dire' | null; teamWin: number | null
   model: { samples: number; comfortWeight: number }; patched: number[]; avoid: Suggestion[]; analysis: Analysis
   stale: boolean; seedPatch: string; build: number | null; patchChanged: boolean; loading: boolean; personal: number
+  similarMatchups: SimilarMatchup | null
 }
 export const emptyDraft: DraftView = {
   enemy: [], allied: [], pool: [], role: 'Carry', bans: [], timeLeft: null, activeTeam: null, teamWin: null, model: { samples: 0, comfortWeight: 0.5 }, patched: [], avoid: [], analysis: { enemy: null, ally: null, fixes: [], model: null }, suggestions: [], stale: true, seedPatch: '', build: null,
-  patchChanged: false, loading: false, personal: 0,
+  patchChanged: false, loading: false, personal: 0, similarMatchups: null,
   ownHero: null, lockedHero: null, revealedEnemy: [], revealedAllied: [], roleChoice: { role: 'Carry', source: 'Default', override: null },
 }
 export type LocalStatus = { installFound: boolean; gsiInstalled: boolean; steamFound: boolean; build: number | null; localBuilds: number }

@@ -254,6 +254,28 @@ export function buildSamples(reviews: MatchReview[], account: string, index: Ret
   })
 }
 
+export type SimilarMatchup = { matches: number; wins: number; shared: number[] }
+
+/** A k-nearest-neighbors read over your own saved matches' actual enemy lineups (Jaccard overlap), not just a
+ * scalar counter-edge average: a global 2-feature fit (see fitWeights, below) structurally can't see "you do
+ * unusually well specifically against lineups like this one" — only a direct lookup over real past lineups can.
+ * Needs at least 2 shared heroes to count as a neighbor, and at least 3 neighbors to report anything at all. */
+export function similarMatchupRecord(reviews: MatchReview[], account: string, enemy: number[], k = 8): SimilarMatchup | null {
+  if (enemy.length < 2) return null
+  const enemySet = new Set(enemy)
+  const scored = reviews.flatMap((review) => {
+    const me = review.players.find((p) => p.accountId === account)
+    if (!me || me.won == null) return []
+    const theirs = review.players.filter((p) => p.side !== me.side).map((p) => p.heroId)
+    const shared = theirs.filter((id) => enemySet.has(id))
+    if (shared.length < 2) return []
+    const union = new Set([...theirs, ...enemy]).size
+    return [{ similarity: shared.length / union, won: me.won, shared }]
+  }).sort((a, b) => b.similarity - a.similarity).slice(0, k)
+  if (scored.length < 3) return null
+  return { matches: scored.length, wins: scored.filter((s) => s.won).length, shared: [...new Set(scored.flatMap((s) => s.shared))].filter((id) => enemySet.has(id)) }
+}
+
 /**
  * Fit a 2-feature logistic regression (counter edge, comfort) on your own outcomes, L2-pulled toward the defaults,
  * then express comfort relative to counter. Needs 25+ samples; otherwise stays on defaults. Bounded to [0.1, 1.5].

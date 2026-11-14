@@ -21,7 +21,7 @@ import { coach, coachPhase } from '../shared/coach.js'
 import type { CoachView, HeroData, HeroDb, TimingsDb } from '../shared/coach.js'
 import { hostAllowed } from '../shared/guard.js'
 import type { DraftReveal, Frame, HeroDetail } from '../shared/model.js'
-import { buildSamples, defaultWeights, fitWeights, learnProfile, pairKey, seedIndex, seedStale, draftRanks, teamWinProb } from '../shared/brain.js'
+import { buildSamples, defaultWeights, fitWeights, learnProfile, pairKey, seedIndex, seedStale, draftRanks, similarMatchupRecord, teamWinProb } from '../shared/brain.js'
 import type { Overrides, Profile, Seed, Weights } from '../shared/brain.js'
 import { buildData, fetchPatchChanges } from './updater.js'
 import type { PatchChange } from './updater.js'
@@ -341,6 +341,7 @@ function draftView(): DraftView {
       suggestions: ranked.suggestions.map((suggestion) => ({ ...suggestion, build: buildFor(heroDb?.heroes[suggestion.heroId]) })),
       avoid: ranked.avoid,
       analysis: { enemy, ally, fixes: rectify(enemy, ally), model: model ? { r2: model.r2, samples: model.samples, importance: model.importance } : null },
+      similarMatchups: account && settings.features.learning && picks.enemy.length >= 2 ? similarMatchupRecord(store.savedReviews(), account, picks.enemy) : null,
     } }
   }
   return { ...draftMemo.result, ...revealMeta, loading: picks.enemy.some((id) => pendingMatchups.has(id)) }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { defaultWeights, fitWeights, learnProfile, pairKey, seedStale, suggest } from '../dist/main/shared/brain.js'
+import { defaultWeights, fitWeights, learnProfile, pairKey, seedStale, similarMatchupRecord, suggest } from '../dist/main/shared/brain.js'
 import { parseLoginUsers, parseSteamInf } from '../dist/main/main/local.js'
 
 const heroes = [1, 2, 3].map((id) => ({ id, slug: 'h' + id, name: 'H' + id, roles: ['Carry'] }))
@@ -72,6 +72,24 @@ test('fitWeights keeps defaults on little data and learns which signal predicts 
   assert.ok(comfortDriven.comfort > counterDriven.comfort)
   assert.ok(counterDriven.comfort < defaultWeights.comfort)
   assert.ok(comfortDriven.comfort <= 1.5 && counterDriven.comfort >= 0.1)
+})
+
+test('similarMatchupRecord looks up your own real games against overlapping enemy lineups, not a global average', () => {
+  const review = (id, won, enemies) => ({ id, players: [
+    { accountId: '5', side: 'Radiant', heroId: 1, won },
+    ...enemies.map((heroId) => ({ accountId: null, side: 'Dire', heroId })),
+  ] })
+  const reviews = [
+    review('a', true, [10, 11, 12, 13, 14]), review('b', true, [10, 11, 20, 21, 22]),
+    review('c', false, [10, 30, 31, 32, 33]), review('d', true, [40, 41, 42, 43, 44]), // only 1 shared hero: not a neighbor
+  ]
+  assert.equal(similarMatchupRecord(reviews, '5', [10, 11, 99], 8), null) // only 2 qualifying neighbors (needs 3+)
+  const withEnough = [...reviews, review('e', false, [10, 11, 50, 51, 52])]
+  const result = similarMatchupRecord(withEnough, '5', [10, 11, 99], 8)
+  assert.equal(result.matches, 3)
+  assert.equal(result.wins, 2)
+  assert.deepEqual(result.shared.sort(), [10, 11])
+  assert.equal(similarMatchupRecord(withEnough, '5', [10], 8), null) // fewer than 2 enemy heroes known: nothing to match on
 })
 
 test('recently patched heroes have their old seed pair data trusted less', () => {
