@@ -386,7 +386,7 @@ function refreshDraftMatchups() {
   }
 }
 
-const TOAST_MS = 2600
+const TOAST_MS = 7000
 const SUMMARY_TOAST_MS = 7000
 
 /** Record an achievement/event: toast for the overlay, career counter for the trophy case, and — for a per-hero
