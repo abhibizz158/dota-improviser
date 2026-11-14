@@ -163,7 +163,7 @@ export function DraftCard({ live, heroes, send, done }: { live: LiveState; heroe
     {detailed && draft.model.samples > 0 && <small className="draft-note">Learning from {draft.model.samples} of your matches · comfort weight {draft.model.comfortWeight}</small>}
     {!draft.suggestions.length && !draft.ownMatchups && <small className="draft-note">{draft.enemy.length ? 'Computing…' : 'Waiting for enemy picks.'}</small>}
     {draft.ownMatchups && (draft.ownMatchups.strongAgainst.length > 0 || draft.ownMatchups.weakAgainst.length > 0) && <div>
-      <small className="draft-note">Dota doesn't reveal enemy/ally picks to this app — {byId(draft.ownHero ?? -1)?.name ?? 'your hero'}'s own matchups instead:</small>
+      <small className="draft-note">{f.draftVision ? 'Still reading the pick screen — ' : "Dota doesn't reveal enemy/ally picks to this app — turn on Draft Vision (Live & Coach → Features) to read them from the pick screen, or use "}{byId(draft.ownHero ?? -1)?.name ?? 'your hero'}'s own matchups meanwhile:</small>
       <div className="counter-cols">
         <div><h3>Good matchups</h3><div className="counter-list">{draft.ownMatchups.strongAgainst.map((r) => <div key={r.heroId}><Portrait hero={byId(r.heroId)} />{byId(r.heroId)?.name}<b className="positive">{fmt(r.rate, 1)}%</b></div>)}</div></div>
         <div><h3>Watch out for</h3><div className="counter-list">{draft.ownMatchups.weakAgainst.map((r) => <div key={r.heroId}><Portrait hero={byId(r.heroId)} />{byId(r.heroId)?.name}<b className="negative">{fmt(r.rate, 1)}%</b></div>)}</div></div>
