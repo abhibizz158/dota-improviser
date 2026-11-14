@@ -4,8 +4,8 @@
     "defines": ["NAPI_VERSION=8"],
     "conditions": [
       ["OS=='mac'", {
-        "sources": ["window.mm"],
-        "libraries": ["-framework AppKit", "-framework CoreGraphics"],
+        "sources": ["window.mm", "draft-window.mm"],
+        "libraries": ["-framework AppKit", "-framework CoreGraphics", "-framework CoreImage", "-framework CoreMedia", "-framework CoreVideo", "-framework ScreenCaptureKit"],
         "xcode_settings": {"CLANG_ENABLE_OBJC_ARC": "YES", "MACOSX_DEPLOYMENT_TARGET": "12.0"}
       }],
       ["OS=='win'", {

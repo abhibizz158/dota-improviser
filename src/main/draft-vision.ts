@@ -2,84 +2,136 @@ import { desktopCapturer, nativeImage } from 'electron'
 import type { NativeImage } from 'electron'
 import type { Hero } from '../shared/model.js'
 
-/**
- * STRICT GATE: this is the ONLY screen-reading code in the entire app, and every entry point into it takes an
- * explicit `inPickPhase` boolean that the caller must derive from Dota's own GSI game_state (hero selection,
- * or strategy time) — never from guesswork, and never once a match is live. It reads a
- * single cropped strip at the top of the Dota window (the pick-bar portraits) and compares it against Valve's own
- * public hero art fetched from Steam's CDN; it never performs text OCR, never reads chat, the minimap, buildings,
- * or anything outside that one strip, and never runs once `inPickPhase` is false. See AGENTS.md's "Draft vision"
- * section for the full scope, the resolution/UI-scale limitation this shares with every portrait-matching overlay
- * in this space, and why this one narrow exception exists against the app's own no-screen-capture default.
- */
-export type VisionReveal = { radiant: number[]; dire: number[] }
-export type VisionTarget = { windowID?: number | null; width: number; height: number; active: () => boolean }
-export type VisionDebug = { barWidth: number; barHeight: number; barPng: string; radiant: (number | null)[]; dire: (number | null)[] }
+/** Draft Vision compares only the pick-bar strip from the player's Dota window. Both capture entry points
+ * require a verified Hero Selection or Strategy Time packet and discard frames when the phase changes. */
+type Slots = (number | null)[]
+export type VisionReveal = { radiant: Slots; dire: Slots }
+export type VisionTarget = {
+  windowID?: number | null; width: number; height: number; ownHero?: number | null; ownTeam?: 'Radiant' | 'Dire';
+  active: () => boolean; readSharedBar?: () => Buffer | null
+}
+export type VisionDebug = VisionReveal & { barWidth: number; barHeight: number; barPng: string; references: number }
 
-// Strategy screen portraits sit in groups anchored to either side of the central clock.
-const BAR_HEIGHT_FRACTION = 0.075
-function slotRects(barWidth: number, barHeight: number) {
-  const width = Math.max(1, Math.round(barWidth * 0.059))
-  const height = Math.max(1, Math.round(barHeight * 0.74))
-  const y = Math.round(barHeight * 0.11)
-  const centers = [0.068, 0.142, 0.216, 0.29, 0.366]
-  const rect = (x: number) => ({ x: Math.max(0, Math.round(x * barWidth - width / 2)), y, width, height })
-  return { radiant: centers.map(rect), dire: centers.map((center) => rect(1 - center)).reverse() }
+export const BAR_HEIGHT_FRACTION = 0.075
+const leftCenters = [0.066, 0.141, 0.215, 0.290, 0.365]
+const rightCenters = [0.634, 0.710, 0.785, 0.859, 0.934]
+const referenceWindows = [
+  [0, 1, 0, 1], [0.08, 0.92, 0.04, 0.96], [0.18, 0.82, 0.04, 0.96], [0.13, 0.87, 0.14, 0.86],
+  [0.10, 0.80, 0.08, 0.93], [0.20, 0.90, 0.08, 0.93], [0.08, 0.92, 0.04, 0.80],
+] as const
+const THUMB = 16
+
+function feature(crop: NativeImage) {
+  if (crop.isEmpty()) return null
+  const pixels = crop.resize({ width: THUMB, height: THUMB }).toBitmap()
+  if (pixels.length !== THUMB * THUMB * 4) return null
+  const means = [0, 0, 0]
+  for (let i = 0; i < pixels.length; i += 4) {
+    means[0] += pixels[i]
+    means[1] += pixels[i + 1]
+    means[2] += pixels[i + 2]
+  }
+  return { pixels, mean: means.map((channel) => channel / (THUMB * THUMB)) }
 }
 
-const referenceCache = new Map<number, Buffer>()
+function imageCrop(image: NativeImage, left: number, right: number, top: number, bottom: number) {
+  const { width, height } = image.getSize()
+  const x = Math.round(left * width)
+  const y = Math.round(top * height)
+  return image.crop({ x, y, width: Math.round(right * width) - x, height: Math.round(bottom * height) - y })
+}
+
+type Feature = NonNullable<ReturnType<typeof feature>>
+const referenceCache = new Map<number, Feature[]>()
 let referenceLoad: Promise<void> | null = null
-const THUMB = 20 // tiny compare size: cheap, and tolerant of a few pixels of crop drift
 
-async function referenceBitmap(heroSlug: string): Promise<Buffer | null> {
-  try {
-    const response = await fetch('https://cdn.cloudflare.steamstatic.com/apps/dota2/images/heroes/' + heroSlug + '_sb.png', { signal: AbortSignal.timeout(8000) })
-    if (!response.ok) return null
-    const buffer = Buffer.from(await response.arrayBuffer())
-    return nativeImage.createFromBuffer(buffer).resize({ width: THUMB, height: THUMB }).toBitmap()
-  } catch { return null }
+async function referenceFeatures(heroSlug: string) {
+  const base = 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/'
+  for (const path of ['heroes/' + heroSlug + '_sb.png', 'dota_react/heroes/' + heroSlug + '.png']) {
+    try {
+      const response = await fetch(base + path, { signal: AbortSignal.timeout(6000) })
+      if (!response.ok) continue
+      const image = nativeImage.createFromBuffer(Buffer.from(await response.arrayBuffer()))
+      if (image.isEmpty()) continue
+      const variants = referenceWindows.flatMap(([l, r, t, b]) => feature(imageCrop(image, l, r, t, b)) ?? [])
+      if (variants.length) return variants
+    } catch { /* Try the other Valve asset. */ }
+  }
+  return []
 }
 
-/** Fetches and caches Valve's own small hero icons once (same art already used for the app's own portrait grid) —
- * call this ahead of time (e.g. once the hero catalog loads), not per capture. Never gated on pick phase itself:
- * it's a one-time asset download, not a screen read. */
-export async function loadReferencePortraits(heroes: Hero[]) {
+/** Only public Valve artwork is downloaded. Cache the normalized portraits for the app session. */
+export function loadReferencePortraits(heroes: Hero[]) {
   referenceLoad ??= (async () => {
     const remaining = heroes.filter((hero) => !referenceCache.has(hero.id))[Symbol.iterator]()
-    await Promise.all(Array.from({ length: 8 }, async () => {
+    await Promise.all(Array.from({ length: 16 }, async () => {
       for (const hero of remaining) {
-        const bitmap = await referenceBitmap(hero.slug)
-        if (bitmap?.length === THUMB * THUMB * 4) referenceCache.set(hero.id, bitmap)
+        const variants = await referenceFeatures(hero.slug)
+        if (variants.length) referenceCache.set(hero.id, variants)
       }
     }))
   })().finally(() => { referenceLoad = null })
   return referenceLoad
 }
 
-function pixelDiff(a: Buffer, b: Buffer) {
+function portraitDistance(a: Feature, b: Feature) {
   let total = 0
-  const n = Math.min(a.length, b.length)
-  for (let i = 0; i + 2 < n; i += 4) total += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2])
-  return total / Math.max(1, n / 4)
+  const d0 = a.mean[0] - b.mean[0], d1 = a.mean[1] - b.mean[1], d2 = a.mean[2] - b.mean[2]
+  for (let i = 0; i < a.pixels.length; i += 4) {
+    const p0 = a.pixels[i] - b.pixels[i], p1 = a.pixels[i + 1] - b.pixels[i + 1], p2 = a.pixels[i + 2] - b.pixels[i + 2]
+    total += Math.abs(p0) + Math.abs(p1) + Math.abs(p2) + Math.abs(p0 - d0) + Math.abs(p1 - d1) + Math.abs(p2 - d2)
+  }
+  return total / (6 * THUMB * THUMB)
 }
 
-/** Loose threshold: an empty pick slot (still grey/blank art) and a real hero portrait differ by a wide margin,
- * so this comfortably tells "nothing picked yet" from "a hero is picked" without needing a tighter, more
- * resolution-sensitive cutoff. */
-const MATCH_THRESHOLD = 42
-
-function matchSlot(crop: NativeImage): number | null {
-  if (!referenceCache.size) return null
-  if (crop.isEmpty()) return null
-  const bitmap = crop.resize({ width: THUMB, height: THUMB }).toBitmap()
-  if (bitmap.length !== THUMB * THUMB * 4) return null
-  let best: number | null = null, bestScore = Infinity, secondScore = Infinity
-  for (const [heroId, reference] of referenceCache) {
-    const score = pixelDiff(bitmap, reference)
-    if (score < bestScore) { secondScore = bestScore; bestScore = score; best = heroId }
-    else if (score < secondScore) secondScore = score
+function matchSlot(bar: NativeImage, center: number, layoutScale: number) {
+  const candidates: Feature[] = []
+  for (const slide of [-0.003, 0, 0.003]) {
+    for (const width of [0.038, 0.046, 0.052]) {
+      for (const [top, bottom] of [[0.072, 0.857], [0.09, 0.75], [0.144, 0.647]]) {
+        const x = center + slide * layoutScale
+        const half = width * layoutScale / 2
+        if (x - half < 0 || x + half > 1) continue
+        const sample = feature(imageCrop(bar, x - half, x + half, top, bottom))
+        if (sample) candidates.push(sample)
+      }
+    }
   }
-  return bestScore < MATCH_THRESHOLD && secondScore - bestScore >= 2 ? best : null
+  let id: number | null = null, best = Infinity, runnerUp = Infinity
+  for (const [hero, variants] of referenceCache) {
+    let score = Infinity
+    for (const portrait of variants) for (const candidate of candidates) score = Math.min(score, portraitDistance(candidate, portrait))
+    if (score < best) { runnerUp = best; best = score; id = hero }
+    else if (score < runnerUp) runnerUp = score
+  }
+  // Compare against the next distinct hero. A fit typical of a blank or obscured slot stays empty.
+  return { id: best < 24 && runnerUp - best >= 5 ? id : null, score: best }
+}
+
+function readPickBar(bar: NativeImage, target: VisionTarget): VisionReveal {
+  const { width, height } = bar.getSize()
+  const nominal = 16 / 9 * (height / BAR_HEIGHT_FRACTION) / width
+  const scale = Math.max(0.68, Math.min(1, nominal))
+  const layouts = scale < 0.96 ? [1, scale] : [1]
+  const results = layouts.map((factor) => {
+    const entries = [...leftCenters, ...rightCenters].map((center) => matchSlot(bar, 0.5 + (center - 0.5) * factor, factor))
+    const radiant = entries.slice(0, 5).map(({ id }) => id)
+    const dire = entries.slice(5).map(({ id }) => id)
+    const own = target.ownTeam === 'Radiant' ? radiant : dire
+    const quality = entries.reduce((sum, entry) => sum + (entry.id == null ? 0 : 30 - entry.score), 0)
+      + (target.ownHero != null && own.includes(target.ownHero) ? 35 : 0)
+    return { radiant, dire, quality }
+  })
+  const { radiant, dire } = results.reduce((best, current) => current.quality > best.quality ? current : best)
+  return { radiant, dire }
+}
+
+export function confirmDraftPicks(previous: VisionReveal, current: VisionReveal) {
+  const confirmed = (before: Slots, after: Slots) =>
+    [...new Set(after.filter((id, index): id is number => id != null && id === before[index]))]
+  const radiant = confirmed(previous.radiant, current.radiant)
+  const dire = confirmed(previous.dire, current.dire)
+  return { radiant: radiant.filter((id) => !dire.includes(id)), dire: dire.filter((id) => !radiant.includes(id)) }
 }
 
 export class DraftCaptureError extends Error {
@@ -88,7 +140,20 @@ export class DraftCaptureError extends Error {
 
 let pendingSources: ReturnType<typeof desktopCapturer.getSources> | null = null
 
+function checkedBar(strip: NativeImage) {
+  const { width, height } = strip.getSize()
+  if (strip.isEmpty() || width < 2 || height < 2) throw new DraftCaptureError('thumbnail')
+  const bitmap = strip.resize({ width: 16, height: 4 }).toBitmap()
+  if (!bitmap.some((channel, index) => index % 4 !== 3 && channel > 8)) throw new DraftCaptureError('thumbnail')
+  return strip
+}
+
 async function captureBar(target: VisionTarget) {
+  if (target.readSharedBar) {
+    const buffer = target.readSharedBar()
+    if (!buffer) throw new DraftCaptureError('thumbnail')
+    return checkedBar(nativeImage.createFromBuffer(buffer))
+  }
   const scale = Math.min(1, 1600 / target.width, 1000 / target.height)
   if (pendingSources) throw new DraftCaptureError('timeout')
   const operation = desktopCapturer.getSources({
@@ -110,10 +175,7 @@ async function captureBar(target: VisionTarget) {
     const full = source.thumbnail
     const { width, height } = full.getSize()
     if (full.isEmpty() || width < 2 || height < 2) throw new DraftCaptureError('thumbnail')
-    const strip = full.crop({ x: 0, y: 0, width, height: Math.max(1, Math.round(height * BAR_HEIGHT_FRACTION)) })
-    const bitmap = strip.resize({ width: 16, height: 4 }).toBitmap()
-    if (!bitmap.some((channel, index) => index % 4 !== 3 && channel > 8)) throw new DraftCaptureError('thumbnail')
-    return strip
+    return checkedBar(full.crop({ x: 0, y: 0, width, height: Math.max(1, Math.round(height * BAR_HEIGHT_FRACTION)) }))
   } finally { clearTimeout(timeout) }
 }
 
@@ -122,25 +184,15 @@ export async function captureDraftPicks(inPickPhase: boolean, target: VisionTarg
   if (!target.active()) return null
   const bar = await captureBar(target)
   if (!bar) return null
-  const { width, height } = bar.getSize()
-  const { radiant, dire } = slotRects(width, height)
-  const read = (rects: ReturnType<typeof slotRects>['radiant']) => rects.map((rect) => matchSlot(bar.crop(rect))).filter((id): id is number => id != null)
-  return { radiant: read(radiant), dire: read(dire) }
+  return target.active() ? readPickBar(bar, target) : null
 }
 
-/** For the Settings "Test draft vision" button: same capture/match as above, but returns the cropped strip itself
- * (as a PNG data URL) plus every slot's match-or-null, so a person can see exactly what the app saw and whether
- * the slot positions need retuning for their resolution — the live-calibration path this feature needs instead
- * of a fixed per-resolution lookup table. */
+/** The dashboard previews exactly the same portrait strip and matches the live overlay uses. */
 export async function debugCaptureDraftPicks(inPickPhase: boolean, target: VisionTarget): Promise<VisionDebug | null> {
   if (!inPickPhase) return null
   if (!target.active()) return null
   const bar = await captureBar(target)
-  if (!bar) return null
+  if (!bar || !target.active()) return null
   const { width, height } = bar.getSize()
-  const { radiant, dire } = slotRects(width, height)
-  return {
-    barWidth: width, barHeight: height, barPng: bar.toDataURL(),
-    radiant: radiant.map((rect) => matchSlot(bar.crop(rect))), dire: dire.map((rect) => matchSlot(bar.crop(rect))),
-  }
+  return { ...readPickBar(bar, target), references: referenceCache.size, barWidth: width, barHeight: height, barPng: bar.toDataURL() }
 }

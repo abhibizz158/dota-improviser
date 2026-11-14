@@ -130,6 +130,7 @@ export type GameView = {
 }
 export type Toast = GameEvent & { shownAt: number }
 export type OverlayView = 'lane' | 'draft' | 'assistant' | 'setup'
+export type DraftWindowShare = 'unsupported' | 'idle' | 'choosing' | 'starting' | 'sharing' | 'cancelled' | 'wrong-window' | 'unavailable' | 'stopped'
 export type LiveState = {
   view: OverlayView; interactive: boolean; draft: DraftView; pick: Pick | null; coach: CoachView | null; data: DataStatus; support: Support | null; game: GameView | null; toasts: Toast[]; career: Record<string, number>;
   status: 'Idle' | 'Waiting for Dota' | 'Pick phase' | 'Live' | 'Paused' | 'Feed stale' | 'Unsupported session' | 'Connection error';
@@ -141,7 +142,7 @@ export type LiveState = {
   detectionAvailable: boolean
   historyChangedAt?: number
   /** True once a game is live but you haven't said this session's lane/role and game type yet — the overlay should prompt. */
-  performance?: PersonalPerformance; coaching?: CoachingContext; draftVisionActive?: boolean;
+  performance?: PersonalPerformance; coaching?: CoachingContext; draftVisionActive?: boolean; draftWindowShare?: DraftWindowShare;
   needsSessionInfo: boolean; sessionInfo: { gameType: GameType | null; lane: Role | null }
 }
 export type MechRow = { heroId: number; edge: number; parts: { label: FeatureName; points: number }[] }
@@ -183,7 +184,8 @@ export interface AppApi {
   nudge(mine: number, enemy: number, delta: number): Promise<LiveState>;
   defaultBuild(slug: string): Promise<Partial<Record<'starting' | 'early' | 'mid' | 'late', string[]>> | null>;
   requestDraftScreenRecording(): Promise<boolean>;
-  visionDebug(): Promise<{ barWidth: number; barHeight: number; barPng: string; radiant: (number | null)[]; dire: (number | null)[]; radiantNames: (string | null)[]; direNames: (string | null)[] }>;
+  chooseDraftWindow(): Promise<LiveState>;
+  visionDebug(): Promise<{ barWidth: number; barHeight: number; barPng: string; references: number; radiant: (number | null)[]; dire: (number | null)[]; radiantNames: (string | null)[]; direNames: (string | null)[] }>;
   detectSteam(): Promise<string | null>;
   openGame(): Promise<void>;
   importHistory(value: string): Promise<SourceResult<MatchSummary[]>>;

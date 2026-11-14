@@ -11,28 +11,40 @@ const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((entry) 
 })
 const files = [...walk('src'), ...walk('native')]
 
-// One deliberate, narrow exception: src/main/draft-vision.ts may use desktopCapturer, and only that API, only
-// there, and only strictly gated to Dota's own pick/strategy-time game_state (see AGENTS.md "Draft vision" and
-// the file's own doc comment for the full scope). Every other forbidden API, and desktopCapturer everywhere
-// else in the tree, stays an absolute ban — this does not open the door to screen/memory/input/packet capture
-// in general, just this one calibrated, phase-gated, portrait-matching feature.
+// Draft Vision has two capture paths. The macOS picker grants temporary access to one verified Dota window.
 const visionFile = path.join('src', 'main', 'draft-vision.ts')
-test('source tree contains no memory/screen/input/packet-capture APIs outside the gated draft-vision module', () => {
-  const forbidden = /child_process|desktopCapturer|robotjs|nut-tree|uiohook|iohook|node-pcap|\bpcap\b|node:dgram|ffi-napi|koffi|ReadProcessMemory|PROCESS_VM_READ|task_for_pid|vm_read|process_vm_readv|sendInput|CGEventPost|SendKeys|\bscreencapture\b|CGWindowListCreateImage|\bBitBlt\b|\bPrintWindow\b|SetWindowsHookEx|CGEventTapCreate/i
-  for (const file of files.filter((f) => f !== visionFile)) assert.equal(forbidden.test(readFileSync(file, 'utf8')), false, file + ' uses a forbidden API')
+const pickerFile = path.join('native', 'overlay', 'draft-window.mm')
+const otherForbidden = /child_process|robotjs|nut-tree|uiohook|iohook|node-pcap|\bpcap\b|node:dgram|ffi-napi|koffi|ReadProcessMemory|PROCESS_VM_READ|task_for_pid|vm_read|process_vm_readv|sendInput|CGEventPost|SendKeys|\bscreencapture\b|CGWindowListCreateImage|\bBitBlt\b|\bPrintWindow\b|SetWindowsHookEx|CGEventTapCreate/i
+
+test('screen capture is confined to the Draft Vision implementation', () => {
+  for (const file of files) {
+    const source = readFileSync(file, 'utf8').replace('tccutil reset ScreenCapture com.dotaimproviser.app', '')
+    assert.equal(otherForbidden.test(source), false, file + ' uses a forbidden API')
+    if (file !== visionFile) assert.doesNotMatch(source, /desktopCapturer/, file)
+    if (file !== pickerFile) assert.doesNotMatch(source, /SCContentSharingPicker|SCStreamOutputTypeScreen|SCScreenshotManager/, file)
+  }
 })
 
-test('draft-vision module uses only desktopCapturer (no other forbidden API) and gates every entry point on inPickPhase', () => {
+test('draft vision gates every capture entry point on inPickPhase', () => {
   const source = readFileSync(visionFile, 'utf8')
-  const otherForbidden = /child_process|robotjs|nut-tree|uiohook|iohook|node-pcap|\bpcap\b|node:dgram|ffi-napi|koffi|ReadProcessMemory|PROCESS_VM_READ|task_for_pid|vm_read|process_vm_readv|sendInput|CGEventPost|SendKeys|\bscreencapture\b|CGWindowListCreateImage|\bBitBlt\b|\bPrintWindow\b|SetWindowsHookEx|CGEventTapCreate/i
-  assert.equal(otherForbidden.test(source), false, visionFile + ' uses a forbidden API beyond its one allowed exception')
-  assert.match(source, /desktopCapturer/, visionFile + ' should use desktopCapturer; if it no longer does, drop this exception entirely')
   // Both capture entry points take inPickPhase as their first parameter and bail out immediately when it's false.
   for (const fn of ['captureDraftPicks', 'debugCaptureDraftPicks']) {
     const body = source.slice(source.indexOf('export async function ' + fn))
     assert.match(body, /\(inPickPhase: boolean,/, fn + ' must take inPickPhase as its first parameter')
     assert.match(body.slice(0, 200), /if \(!inPickPhase\) return null/, fn + ' must bail out immediately when inPickPhase is false')
   }
+})
+
+test('macOS picker verifies the Dota window before capture and tears down outside the draft', () => {
+  const native = readFileSync(pickerFile, 'utf8')
+  assert.match(native, /allowedPickerModes = SCContentSharingPickerModeSingleWindow/)
+  assert.match(native, /window.windowID != self.windowID/)
+  assert.match(native, /owningApplication.bundleIdentifier isEqualToString:@"com.valvesoftware.dota2"/)
+  assert.match(native, /imageByCroppingToRect:crop/)
+  assert.doesNotMatch(native, /SCStreamOutputTypeAudio/)
+  const main = readFileSync(path.join('src', 'main', 'index.ts'), 'utf8')
+  assert.match(main, /function chooseDraftWindow\(\) {\s+if \(!canReadDraft\(\)\)/)
+  assert.match(main, /function updateDraftVision\(\) {\s+if \(!canReadDraft\(\)\) {[^}]*stopDraftWindowShare/)
 })
 
 test('package.json carries no capture/injection dependencies', () => {

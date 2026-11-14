@@ -52,6 +52,8 @@ static napi_value RequestScreenRecording(napi_env env, napi_callback_info) {
   return value;
 }
 
+void RegisterDraftWindowShare(napi_env env, napi_value exports);
+
 NAPI_MODULE_INIT() {
   napi_value fn;
   napi_create_function(env, nullptr, 0, ForegroundBounds, nullptr, &fn);
@@ -60,5 +62,6 @@ NAPI_MODULE_INIT() {
   napi_set_named_property(env, exports, "dotaWindowID", fn);
   napi_create_function(env, nullptr, 0, RequestScreenRecording, nullptr, &fn);
   napi_set_named_property(env, exports, "requestScreenRecording", fn);
+  RegisterDraftWindowShare(env, exports);
   return exports;
 }

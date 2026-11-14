@@ -6,7 +6,7 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Display, IpcMainInvokeEvent } from 'electron'
-import type { Bootstrap, Checkpoint, Pick, DraftView, GameType, KnowledgeContext, Lane, LiveSettings, LiveState, Matchups, OverlayView, Placement, PuterStatus, Role, SessionRecord, UpdateInfo } from '../shared/model.js'
+import type { Bootstrap, Checkpoint, Pick, DraftView, DraftWindowShare, GameType, KnowledgeContext, Lane, LiveSettings, LiveState, Matchups, OverlayView, Placement, PuterStatus, Role, SessionRecord, UpdateInfo } from '../shared/model.js'
 import { defaultFeatures, defaultLiveSettings, featureKeys, gameTypes, placements, roleLabels, roles } from '../shared/model.js'
 import { draftLineup, mergePicks } from '../shared/draft-picks.js'
 import { chooseRole, observeAchievement, recoveryAdvice } from '../shared/live-coach.js'
@@ -37,7 +37,8 @@ import { configName, defaultBuilds, discover, steamLauncher } from './local.js'
 import type { LocalInfo } from './local.js'
 import { accountId, asRecord, catalog, itemInfo, matchId, steamId64, validHero } from './data.js'
 import { draftVisionPhase, gsiConfig, loadingDraft, parseCompletedOwnMatch, parseDraft, parseFrame, parsePick, parseResultFrame, redactedShape, startGsi, updateCheckpoints } from './gsi.js'
-import { captureDraftPicks, debugCaptureDraftPicks, DraftCaptureError, loadReferencePortraits } from './draft-vision.js'
+import { BAR_HEIGHT_FRACTION, captureDraftPicks, confirmDraftPicks, debugCaptureDraftPicks, DraftCaptureError, loadReferencePortraits } from './draft-vision.js'
+import type { VisionReveal } from './draft-vision.js'
 import { brackets, contextualCoach } from '../shared/contextual-coach.js'
 import type { Bracket } from '../shared/contextual-coach.js'
 import { checkpointAt, comparePerformance } from '../shared/personal-performance.js'
@@ -134,11 +135,19 @@ let hoverTimer: NodeJS.Timeout | undefined
 let visionTimer: NodeJS.Timeout | undefined
 let draftVisionActive = false
 let visionInFlight = false
-let visionLastRead: { radiant: number[]; dire: number[] } | null = null
+let visionLastRead: VisionReveal | null = null
 let achievementWindow: BrowserWindow | null = null
 let achievementHeight: number | null = null
 let editFocusTimer: NodeJS.Timeout | undefined
-let windowProbe: { foregroundBounds: () => Rect | null; dotaWindowID?: () => number | null; requestScreenRecording?: () => boolean } | null | undefined
+let windowProbe: {
+  foregroundBounds: () => Rect | null
+  dotaWindowID?: () => number | null
+  requestScreenRecording?: () => boolean
+  startDraftWindowPicker?: (windowID: number, stripFraction: number) => boolean | null
+  draftWindowShareState?: () => DraftWindowShare
+  readSharedDraftBar?: () => Buffer | null
+  stopDraftWindowShare?: () => void
+} | null | undefined
 let gameBounds: Rect | null = null
 let foregroundMisses = 0
 let fallbackDisplayId: number | undefined
@@ -461,7 +470,7 @@ function state(): LiveState {
     status, lane, receivedAt, settings, armed, shortcutAvailable, checkpoints, roshan,
     open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
     needsSessionInfo: view === 'setup' && Boolean(frame), sessionInfo: { gameType: sessionGameType, lane: sessionLane },
-    detectionAvailable: windowProbe !== null, performance: performanceView(), coaching, draftVisionActive,
+    detectionAvailable: windowProbe !== null, performance: performanceView(), coaching, draftVisionActive, draftWindowShare: windowProbe?.draftWindowShareState?.(),
   }
 }
 
@@ -548,12 +557,18 @@ function onPick(next: Pick | null) {
 
 function draftVisionTarget(active: () => boolean) {
   const bounds = detectDotaBounds() ?? gameBounds
-  return { windowID: windowProbe?.dotaWindowID?.(), width: bounds?.width ?? 1440, height: bounds?.height ?? 900, active }
+  return { windowID: windowProbe?.dotaWindowID?.(), ownHero: pick?.heroId, ownTeam: pick?.team,
+    readSharedBar: windowProbe?.draftWindowShareState?.() === 'sharing' ? windowProbe.readSharedDraftBar : undefined, width: bounds?.width ?? 1440, height: bounds?.height ?? 900, active }
+}
+
+function canReadDraft() {
+  return draftVisionActive && Boolean(pick) && !frame && settings.features.draftVision && !quitting
 }
 
 function updateDraftVision() {
-  if (!draftVisionActive || !pick || !settings.features.draftVision || quitting) {
+  if (!canReadDraft()) {
     screenPrompt?.abort()
+    windowProbe?.stopDraftWindowShare?.()
     clearInterval(visionTimer)
     visionTimer = undefined
     visionLastRead = null
@@ -562,18 +577,24 @@ function updateDraftVision() {
   if (visionTimer) return
   if (dashboard) void maybePromptScreenRecording(dashboard).catch(() => {})
   void loadReferencePortraits(catalog.heroes).catch(() => {})
-  const same = (a: number[], b: number[]) => a.length === b.length && a.every((id, i) => id === b[i])
+  let lastShareState = windowProbe?.draftWindowShareState?.()
   const timer = setInterval(() => {
-    if (visionInFlight || screenPrompt || screenAccessStatus() !== 'granted') return
+    const share = windowProbe?.draftWindowShareState?.()
+    if (share !== lastShareState) {
+      lastShareState = share
+      broadcastSoon()
+    }
+    if (visionInFlight || screenPrompt || share === 'choosing' || share === 'starting' ||
+        (share !== 'sharing' && screenAccessStatus() !== 'granted')) return
     visionInFlight = true
-    const active = () => visionTimer === timer && draftVisionActive && Boolean(pick) && !frame && settings.features.draftVision && !quitting
+    const active = () => visionTimer === timer && canReadDraft()
     void captureDraftPicks(active(), draftVisionTarget(active)).then((result) => {
       if (!active()) return
       if (!result) { visionLastRead = null; return }
-      const confirmed = visionLastRead && same(visionLastRead.radiant, result.radiant) && same(visionLastRead.dire, result.dire)
+      const confirmed = visionLastRead && confirmDraftPicks(visionLastRead, result)
       visionLastRead = result
-      if (!confirmed) return
-      applyReveal({ radiant: { picks: result.radiant, bans: [] }, dire: { picks: result.dire, bans: [] }, activeTeam: revealMeta.activeTeam, timeLeft: revealMeta.timeLeft })
+      if (!confirmed || (!confirmed.radiant.length && !confirmed.dire.length)) return
+      applyReveal({ radiant: { picks: confirmed.radiant, bans: [] }, dire: { picks: confirmed.dire, bans: [] }, activeTeam: revealMeta.activeTeam, timeLeft: revealMeta.timeLeft })
       broadcastSoon()
     }).catch(() => {
       if (!active()) return
@@ -838,30 +859,46 @@ async function openScreenRecordingSettings() {
 
 async function requestDraftScreenRecording() {
   if (process.platform !== 'darwin') return false
-  if (!draftVisionActive || !pick || frame || !settings.features.draftVision || quitting) {
-    throw new Error('Request Screen Recording during Dota’s hero selection or strategy time.')
-  }
+  if (!canReadDraft()) throw new Error('Request Screen Recording during Dota’s hero selection or strategy time.')
+  if (screenPrompt) throw new Error('Close the permission prompt before requesting access again.')
   if (screenAccessStatus() === 'granted' || windowProbe?.requestScreenRecording?.()) return true
   await openScreenRecordingSettings()
   return false
 }
 
+function chooseDraftWindow() {
+  if (!canReadDraft()) throw new Error('Select the Dota window during hero selection or strategy time.')
+  if (screenPrompt) throw new Error('Close the permission prompt before choosing the Dota window.')
+  const windowID = windowProbe?.dotaWindowID?.()
+  if (!windowID) throw new Error('Dota’s window is unavailable. Keep Dota open and unminimized during the draft.')
+  if (!windowProbe?.startDraftWindowPicker?.(windowID, BAR_HEIGHT_FRACTION)) {
+    throw new Error('The macOS window picker is unavailable or already open.')
+  }
+  return broadcast()
+}
+
 async function maybePromptScreenRecording(window: BrowserWindow) {
-  if (process.platform !== 'darwin' || !app.isPackaged || !settings.features.draftVision || !draftVisionActive || !pick || frame || screenPrompt) return
+  if (process.platform !== 'darwin' || !app.isPackaged || !canReadDraft() || screenPrompt) return
   const version = app.getVersion()
   if (screenAccessStatus() === 'granted' || store.get<string>('screen-recording-prompt-version') === version) return
+  const windowPickerAvailable = windowProbe?.draftWindowShareState?.() === 'idle'
   const prompt = new AbortController()
   screenPrompt = prompt
   try {
     const { response } = await dialog.showMessageBox(window, {
-      signal: prompt.signal, type: 'info', title: 'Allow Screen Recording for Draft Vision',
-      message: 'Allow Screen Recording for this draft?',
-      detail: 'macOS may require a fresh grant after an update. Draft Vision only uses access during hero selection and strategy time.',
-      buttons: ['Request access', 'Later'], defaultId: 0, cancelId: 1, noLink: true,
+      signal: prompt.signal, type: 'info', title: 'Screen Recording for Draft Vision',
+      message: 'Allow Draft Vision to read Dota’s pick bar?',
+      detail: windowPickerAvailable
+        ? 'Choose Dota 2 in the macOS window picker to allow access for this draft.'
+        : 'macOS may require a fresh grant after an update. Draft Vision only uses access during hero selection and strategy time.',
+      buttons: [windowPickerAvailable ? 'Choose Dota window' : 'Request access', 'Later'], defaultId: 0, cancelId: 1, noLink: true,
     })
     if (prompt.signal.aborted) return
     store.set('screen-recording-prompt-version', version)
-    if (response === 0 && draftVisionActive && pick && !frame && !quitting) await requestDraftScreenRecording()
+    screenPrompt = undefined
+    if (response !== 0 || !canReadDraft()) return
+    if (windowPickerAvailable && windowProbe?.dotaWindowID?.()) chooseDraftWindow()
+    else await requestDraftScreenRecording()
   } finally { if (screenPrompt === prompt) screenPrompt = undefined }
 }
 
@@ -1793,28 +1830,34 @@ function handlers() {
   })
   handle('draft:build', (id) => provider.build(validHero(id)))
   handle('draft:vision-permission', requestDraftScreenRecording)
+  handle('draft:vision-window', chooseDraftWindow)
   handle('draft:vision-debug', async () => {
     const timer = visionTimer
-    const active = () => Boolean(timer && visionTimer === timer && draftVisionActive && pick && !frame && settings.features.draftVision && !quitting)
+    const active = () => Boolean(timer && visionTimer === timer && canReadDraft())
     if (!active()) throw new Error('Capture now is available during hero selection or strategy time, with the Dota feed connected.')
-    if (visionInFlight || screenPrompt) throw new Error('Finish the current draft scan or permission prompt and try again.')
+    const share = windowProbe?.draftWindowShareState?.()
+    if (visionInFlight || screenPrompt || share === 'choosing' || share === 'starting') {
+      throw new Error('Finish the current draft scan or window selection and try again.')
+    }
+    if (share !== 'sharing' && screenAccessStatus() !== 'granted') {
+      throw new Error(share && share !== 'unsupported'
+        ? 'macOS has no active grant for this build. Choose Share Dota window, then select Dota 2.'
+        : 'macOS has no active grant for this build. Use Reset instructions below, then request access during the next draft.')
+    }
     visionInFlight = true
     let result
     try {
-      if (screenAccessStatus() !== 'granted' && !await requestDraftScreenRecording()) {
-        throw new Error('Screen Recording permission is unavailable.')
-      }
       if (!active()) throw new Error('Dota left the draft before the capture finished.')
-      void loadReferencePortraits(catalog.heroes).catch(() => {})
       result = await debugCaptureDraftPicks(active(), draftVisionTarget(active))
       if (!result) throw new Error('Dota left the draft before the capture finished.')
       } catch (error) {
       if (!active()) throw new Error('Dota left the draft before the capture finished.')
       const access = screenAccessStatus()
       const reason = error instanceof DraftCaptureError ? error.reason : 'unavailable'
-      if (access !== 'granted') {
-        throw new Error('macOS has not granted Screen Recording to this running app. In System Settings, remove and re-add the Dota Improviser app you are launching, allow access, then quit and reopen it. A new test build can require a fresh grant.')
+      if (share === 'sharing' && reason === 'thumbnail') {
+        throw new Error('No frame arrived from the shared Dota window. Keep Dota visible and try again.')
       }
+      if (access !== 'granted') throw new Error('macOS has no active Screen Recording grant. Choose Share Dota window or follow Reset instructions.')
       if (reason === 'window') throw new Error('Dota’s window is unavailable. Keep Dota open and unminimized on the current desktop during the draft.')
       if (process.platform === 'win32' && reason === 'thumbnail') throw new Error('Dota returned an empty window image. Change Display Mode to Borderless Windowed or Windowed in Dota’s Video settings.')
       throw new Error(reason === 'timeout' ? 'Dota’s window capture timed out. Return to the draft and try again.' :
@@ -1966,6 +2009,7 @@ else {
     token = store.get<string>('token') ?? randomBytes(32).toString('hex')
     store.set('token', token)
     settings = readSettings(store.get('live'))
+    if (settings.features.draftVision) void loadReferencePortraits(catalog.heroes).catch(() => {})
     overrides = store.get<Overrides>('overrides') ?? {}
     career = store.get<Record<string, number>>('career') ?? {}
     awards = store.get<Record<string, AwardRecord>>('item-awards') ?? {}

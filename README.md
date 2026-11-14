@@ -10,7 +10,9 @@ Dota Improviser combines public match aggregates, read-only local Steam/Dota dis
 
 **[⬇ Download the latest release](https://github.com/abhibizz158/dota-improviser/releases/latest)** — macOS (Apple Silicon or Intel `.pkg`) and Windows (x64 `.exe`).
 
-On macOS, open the PKG for your chip. It installs or upgrades **Dota Improviser.app** in **Applications**. On Windows, run the x64 setup EXE. Quit Dota Improviser before upgrading. The installers leave your linked Dota account, settings, cached data, and saved Puter sign-in in the existing local profile. An older ad hoc signed macOS build may prompt you to approve Keychain access again.
+On macOS, open the PKG for your chip. It installs or upgrades **Dota Improviser.app** in **Applications**. On Windows, run the x64 setup EXE. Quit Dota Improviser before upgrading. The installers leave your linked Dota account, settings, cached data, and saved Puter sign-in in the existing local profile. An ad hoc signed macOS update may require fresh Keychain or Screen Recording access.
+
+On macOS 15.2 and later, open **Live & Coach → Test draft vision → Share Dota window** during Hero Selection or Strategy Time. Select Dota 2 in the macOS picker. That grant expires when the draft ends. If you prefer the persistent grant and the switch stays on after an update but capture fails, follow **Reset instructions** in the same panel.
 
 The app checks for updates shortly after startup and every six hours with no setup needed, downloads a verified matching installer in the background, then offers **Install** in **Settings → App updates**. Connecting a GitHub token there is optional — only useful if you hit GitHub's unauthenticated rate limit (60 requests/hour).
 

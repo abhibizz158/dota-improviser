@@ -48,12 +48,22 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
   const [visionResult, setVisionResult] = useState<Awaited<ReturnType<AppApi['visionDebug']>> | null>(null)
   const [visionError, setVisionError] = useState('')
   useEffect(() => {
-    if (!live.draftVisionActive) setVisionResult(null)
+    if (!live.draftVisionActive) { setVisionResult(null); setVisionError('') }
   }, [live.draftVisionActive])
   const hero = context.catalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
   const actual = live.armed || live.settings.display === 'Companion'
   const settings = live.settings
   const latestScore = live.performance?.points.findLast((point) => point.score != null)
+  const mac = context.desktop && /Mac/.test(navigator.platform)
+  const share = live.draftWindowShare
+  const pickerBusy = share === 'choosing' || share === 'starting'
+  const canShare = mac && share && share !== 'unsupported'
+  const shareMessage = live.draftVisionActive && (share === 'choosing' ? 'Choose the Dota 2 window in the macOS picker.'
+    : share === 'starting' ? 'Connecting to the selected Dota window…'
+    : share === 'sharing' ? 'Dota window shared for this draft.'
+    : share === 'wrong-window' ? 'Choose the main Dota 2 window to read the draft.'
+    : share === 'unavailable' ? 'macOS could not share the Dota window. Keep Dota visible and try again.'
+    : share === 'stopped' ? 'Window sharing stopped. Choose the Dota window again to resume.' : '')
   const active = live.status === 'Live' || live.status === 'Paused'
   useEffect(() => { if (!active) setEditingSession(false) }, [active])
 
@@ -164,19 +174,37 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
     </section>
     {settings.features.draftVision && <section className="panel form-panel reveal">
       <header className="panel-heading"><div><h2>Test draft vision</h2><p>Check the portrait strip and recognized heroes during hero selection or strategy time.</p></div></header>
+      {!live.draftVisionActive && <p className="fine-print">Capture and window sharing become available during Hero Selection and Strategy Time.</p>}
       <div className="actions">
-        <button className="button secondary" disabled={visionBusy || !context.desktop || !live.draftVisionActive} onClick={() => {
+        {canShare && <button className="button primary" type="button"
+          disabled={!!busy || visionBusy || pickerBusy || share === 'sharing' || !live.draftVisionActive}
+          onClick={() => {
+            setVisionError('')
+            void act('vision', async () => { onState(await api.chooseDraftWindow()) })
+          }}>Share Dota window</button>}
+        <button className="button secondary" disabled={visionBusy || pickerBusy || !context.desktop || !live.draftVisionActive} onClick={() => {
           setVisionBusy(true); setVisionError(''); setVisionResult(null)
           void api.visionDebug().then(setVisionResult).catch((error: Error) => setVisionError(error.message.replace(/^Error invoking remote method '[^']+': Error: /, ''))).finally(() => setVisionBusy(false))
         }}>{visionBusy ? 'Capturing…' : 'Capture now'}</button>
-        {/Mac/.test(navigator.platform) && <>
-          <button className="button secondary" type="button" disabled={!!busy || !live.draftVisionActive || !context.desktop} onClick={() => void act('vision', async () =>
-            await api.requestDraftScreenRecording() ? 'Screen Recording access is available.' : 'Allow access in System Settings and reopen Dota Improviser if macOS asks.')}>Request Screen Recording</button>
+        {mac && <>
+          <button className="button secondary" type="button" disabled={!!busy || pickerBusy || share === 'sharing' || !live.draftVisionActive} onClick={() => {
+            setVisionError('')
+            void act('vision', async () => await api.requestDraftScreenRecording() ? 'Screen Recording access is available.'
+              : 'If macOS still shows access enabled, follow Reset instructions or share the Dota window.')
+          }}>Request Screen Recording</button>
           <button className="text-button" type="button" onClick={() => void act('vision', () => api.openExternal('screenRecording'))}>Open Screen Recording settings <ArrowUpRight size={14} /></button>
         </>}
       </div>
+      {shareMessage && <Feedback message={shareMessage} error={share === 'wrong-window' || share === 'unavailable'} />}
       <Feedback message={visionError} error />
+      {mac && <details className="fine-print">
+        <summary>Reset instructions for an outdated permission</summary>
+        <p>After an update, macOS can show an enabled switch for an older signature. Quit Dota Improviser, then run this in Terminal to reset only this app’s Screen Recording permission.</p>
+        <p><code>tccutil reset ScreenCapture com.dotaimproviser.app</code></p>
+        <p>Reopen Dota Improviser from Applications and request access during the next draft. If macOS asks, allow access and choose Quit &amp; Reopen.</p>
+      </details>}
       {live.draftVisionActive && visionResult && <div className="vision-debug">
+        <p className="fine-print">{visionResult.radiant.filter(Boolean).length + visionResult.dire.filter(Boolean).length} of 10 slots recognized · {visionResult.references} hero portraits loaded · {visionResult.barWidth} × {visionResult.barHeight}</p>
         <img src={visionResult.barPng} alt="Captured pick-bar strip" />
         <div className="vision-rows"><p><strong>Radiant:</strong> {visionResult.radiantNames.map((n) => n ?? '—').join(', ') || 'none matched'}</p>
           <p><strong>Dire:</strong> {visionResult.direNames.map((n) => n ?? '—').join(', ') || 'none matched'}</p></div>

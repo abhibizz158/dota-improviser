@@ -4,6 +4,14 @@ const path = require('node:path')
 assert.ok(process.versions.electron, 'Run this check with the packaged Electron executable')
 const overlay = require(path.resolve(process.argv[2]))
 assert.equal(typeof overlay.foregroundBounds, 'function')
+if (process.platform === 'darwin') {
+  for (const method of ['dotaWindowID', 'requestScreenRecording', 'startDraftWindowPicker', 'draftWindowShareState', 'readSharedDraftBar', 'stopDraftWindowShare']) {
+    assert.equal(typeof overlay[method], 'function', method)
+  }
+  assert.ok(['idle', 'unsupported'].includes(overlay.draftWindowShareState()))
+  assert.equal(overlay.startDraftWindowPicker(0, 0.075), null)
+  assert.equal(overlay.readSharedDraftBar(), null)
+}
 const bounds = overlay.foregroundBounds()
 if (bounds !== null) {
   assert.ok([bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite))

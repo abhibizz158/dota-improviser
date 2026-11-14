@@ -147,6 +147,7 @@ export const browserApi: AppApi = {
   async heroDetail(id: number, full = true) { const { seed, db, kits, base, mech } = await webData(); return heroDetailFrom(id, seedIndex(seed), db, base, kits, full ? mech : null) },
   async defaultBuild() { return null },
   async requestDraftScreenRecording() { return false },
+  async chooseDraftWindow() { return initialLive },
   async visionDebug() { throw new Error('Open the desktop app to test draft vision.') },
   async detectSteam() { return null },
   async openGame() { throw new Error('Open the desktop app to launch Dota 2.') },

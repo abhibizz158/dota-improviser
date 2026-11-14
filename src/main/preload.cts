@@ -55,6 +55,7 @@ if (location.hash === '#achievements') {
     nudge: (mine, enemy, delta) => ipcRenderer.invoke('draft:nudge', mine, enemy, delta),
     defaultBuild: (slug) => ipcRenderer.invoke('draft:default-build', slug),
     requestDraftScreenRecording: () => ipcRenderer.invoke('draft:vision-permission'),
+    chooseDraftWindow: () => ipcRenderer.invoke('draft:vision-window'),
     visionDebug: () => ipcRenderer.invoke('draft:vision-debug'),
     detectSteam: () => ipcRenderer.invoke('profile:steam'),
     openGame: () => ipcRenderer.invoke('app:open-game'),
