@@ -51,24 +51,24 @@ jobs:
         run: |
           app="release/$PACKAGE_DIR/Dota Improviser.app"
           helper="$app/Contents/Resources/app.asar.unpacked/dist/main/main/overlay-window.node"
-          codesign --verify --deep --strict "$app"
-          ELECTRON_RUN_AS_NODE=1 "$app/Contents/MacOS/Dota Improviser" scripts/smoke-overlay-module.cjs "$helper"
+          driver="$PWD/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+          ELECTRON_RUN_AS_NODE=1 "$driver" scripts/smoke-overlay-module.cjs "$helper"
           mkdir -p artifacts
           version=$(node -p 'require("./package.json").version')
           installer="artifacts/Dota-Improviser-${version}-$PLATFORM.pkg"
           bash scripts/build-macos-pkg.sh "$app" "$installer" "$version"
           sudo /usr/sbin/installer -pkg "$installer" -target /
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' '/Applications/Dota Improviser.app/Contents/Info.plist')" = "$version"
-          codesign --verify --deep --strict '/Applications/Dota Improviser.app'
+          node scripts/package-app.mjs darwin "${PLATFORM#macos-}" /Applications
       - name: Verify and archive Windows application
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $package = "release/$env:PACKAGE_DIR"
-          $exe = Join-Path $package 'Dota Improviser.exe'
           $helper = Join-Path $package 'resources/app.asar.unpacked/dist/main/main/overlay-window.node'
+          $driver = node -p 'require("electron")'
           $env:ELECTRON_RUN_AS_NODE = '1'
-          & $exe scripts/smoke-overlay-module.cjs $helper | Out-Host
+          & $driver scripts/smoke-overlay-module.cjs $helper | Out-Host
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Remove-Item Env:ELECTRON_RUN_AS_NODE
           New-Item -ItemType Directory -Force artifacts | Out-Null
@@ -85,8 +85,7 @@ jobs:
           $installation = Start-Process -FilePath $output -ArgumentList '/S' -Wait -PassThru
           if ($installation.ExitCode -ne 0) { exit $installation.ExitCode }
           $installed = "$env:LOCALAPPDATA/Programs/Dota Improviser"
-          $env:ELECTRON_RUN_AS_NODE = '1'
-          & "$installed/Dota Improviser.exe" scripts/smoke-overlay-module.cjs "$installed/resources/app.asar.unpacked/dist/main/main/overlay-window.node" | Out-Host
+          node scripts/package-app.mjs win32 x64 $installed
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

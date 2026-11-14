@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const path = require('node:path')
 
-assert.ok(process.versions.electron, 'Run this check with the packaged Electron executable')
+assert.ok(process.versions.electron, 'Run this check with Electron')
 const overlay = require(path.resolve(process.argv[2]))
 assert.equal(typeof overlay.foregroundBounds, 'function')
 if (process.platform === 'darwin') {

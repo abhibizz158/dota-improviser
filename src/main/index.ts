@@ -888,7 +888,7 @@ function windowGuard(window: BrowserWindow) {
 
 // backgroundThrottling (default true, stated explicitly so a future edit can't silently drop it): Chromium pauses
 // timers/rAF in this window once it's hidden or unfocused, so the dashboard costs ~nothing while you're in a match.
-const webPreferences = { preload: path.join(dir, 'preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: true,
+const webPreferences = { preload: path.join(dir, 'preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false, devTools: !app.isPackaged, backgroundThrottling: true,
   autoplayPolicy: 'no-user-gesture-required' as const }
 
 function makeDashboard() {

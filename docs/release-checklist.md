@@ -21,7 +21,9 @@ npm run package:mac-intel  # Intel macOS test build
 npm run package:win        # Windows x64 test build
 ```
 
-Build on the target OS for the final verification. Current scripts use Electron Packager and ad-hoc macOS signing; public macOS distribution needs an appropriate Developer ID signature and notarization. Windows packaging still needs to be run and tested on Windows before release. Keep test artifacts in the ignored `release/` directory.
+Build on the target OS for final verification. The packaging script checks the Electron fuses, validates that the archive contains the license and release provenance, and excludes source maps and the development source tree. Release installers are published with SHA-256 checksums.
+
+Keep publisher attribution in the package manifest. The package script includes it in the executable metadata and `.release-provenance.json` inside the archive. Attribution identifies the publisher and does not establish a signing identity. macOS test packages use an ad-hoc signature. For a production trust chain, use Developer ID signing and notarization on macOS and Authenticode on Windows. Electron integrity checks help detect modified packages. The publicly visible GitHub source can still be viewed and forked under GitHub's terms.
 
 The **Build desktop test release** workflow packages the Windows x64 setup EXE and the Apple Silicon and Intel Mac PKGs. It runs the test suite, verifies the native overlay helper, and runs the installer on each runner. Create a draft prerelease targeting the build's full commit SHA, then run **Attach verified desktop builds to release** with the build run ID and tag. It checks the build provenance and uploads the installers with SHA-256 checksums. Review the draft and publish it for testers with repository access.
 

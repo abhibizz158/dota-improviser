@@ -117,6 +117,8 @@ Packaging scripts create **private test builds**. Build and verify on each targe
 - [Valve's Dota Plus lane and build suggestions](https://www.dota2.com/plus/?l=english)
 - [Dota Watch](https://github.com/c00kie17/dota-watch), a reference for a separate match-discovery/watch feature
 
-## License and assets
+## License and publisher
 
-This repository includes the MIT-licensed `dotaconstants` package as a dependency. Dota 2 names, artwork, and game data are Valve's property; included artwork is used as game-related reference material. OpenDota and Puter are external services with their own terms and availability. Review their current terms before redistributing this app.
+Copyright © 2026 abhibizz158. Dota Improviser’s original code and official installers are available for personal use under the [Dota Improviser Personal Use License](LICENSE). Share the official release link. Redistributing, mirroring, repackaging, or selling the app requires written permission except where permitted by applicable law or the GitHub Terms of Service.
+
+The installers carry publisher information in their packaged metadata and validate the bundled application archive. Apple and Windows signing are separate from this attribution. See the [build and release checklist](docs/release-checklist.md) and [third-party notices](licenses/README.md).
