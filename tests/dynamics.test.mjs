@@ -54,6 +54,14 @@ test('milestones fire once and the momentum series follows the kill lead', () =>
   assert.deepEqual(t.lead.map(([, v]) => v), [3, -1])
 })
 
+test('higher last-hit tiers fire once each as they are crossed, not again for a lower one already hit', () => {
+  const t = newTrack()
+  assert.deepEqual(trackFrame(t, F({ clock: 605, lastHits: 60 })).map((x) => x.id).sort(), ['cs-60', 'no-death-10'])
+  assert.deepEqual(trackFrame(t, F({ clock: 606, lastHits: 85 })).map((x) => x.id), ['cs-80'])
+  assert.deepEqual(trackFrame(t, F({ clock: 607, lastHits: 100 })).map((x) => x.id), ['cs-100'])
+  assert.deepEqual(trackFrame(t, F({ clock: 608, lastHits: 110 })), [])
+})
+
 const M = (o) => ({ id: String(Math.random()), start: 1, duration: 1800, won: true, kills: 5, deaths: 4, assists: 8, lastHits: 200, denies: 10, gpm: 600, xpm: 600, role: 'Carry', heroId: 1, ...o })
 const H = (tags) => [{ id: 1, slug: 'a', name: 'A', roles: tags }]
 test('playstyle: carry, dynamic support and utility support are told apart; too little data returns null', () => {

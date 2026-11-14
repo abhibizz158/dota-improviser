@@ -60,7 +60,10 @@ export function trackFrame(t: GameTrack, f: Frame): GameEvent[] {
 
   const once = (key: string, cond: boolean, e: Omit<GameEvent, 'at'>) => { if (cond && !t.flags[key]) { t.flags[key] = true; push(e) } }
   once('no-death-10', f.clock >= 600 && f.deaths === 0, { id: 'no-death-10', kind: 'milestone', label: 'Untouched: no deaths by 10:00' })
-  once('cs-60', f.clock >= 600 && (f.lastHits ?? 0) >= 60, { id: 'cs-60', kind: 'milestone', label: 'Strong lane: 60 last hits by 10:00' })
+  // Graded lane-CS tiers instead of one fixed bar: 60 is a solid safelane pace, 100 is an excellent one.
+  for (const n of [60, 80, 100] as const) {
+    once('cs-' + n, f.clock >= 600 && (f.lastHits ?? 0) >= n, { id: 'cs-' + n, kind: 'milestone', label: n + ' last hits by 10:00' })
+  }
   return events
 }
 

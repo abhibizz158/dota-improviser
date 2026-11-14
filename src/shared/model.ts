@@ -32,6 +32,10 @@ export type SessionRecord = {
 }
 export type Minute = { time: number; gold: number | null; xp: number | null; lastHits: number | null; deaths: number | null }
 export type ReviewEvent = { time: number | null; label: string; kind: 'item' | 'vision' | 'objective' | 'death'; key?: string }
+/** Lifetime observer/sentry ward placements, from OpenDota's parsed replay (obs_log/sen_log) the first time
+ * each match is opened — never live (GSI's own-player feed carries no ward data at all), and counted once
+ * per match id so re-opening the same Match Review doesn't double-count it. */
+export type VisionStats = { observer: number; sentry: number; matches: number }
 export type MatchPlayer = MatchSummary & {
   slot: number; accountId: string | null; minutes: Minute[]; events: ReviewEvent[]; purchasesAvailable?: boolean
 }
@@ -138,7 +142,7 @@ export type DraftWindowShare = 'unsupported' | 'idle' | 'choosing' | 'starting' 
 export type LiveState = {
   view: OverlayView; interactive: boolean; draft: DraftView; pick: TeamPick | null; coach: CoachView | null; data: DataStatus; support: Support | null; game: GameView | null; toasts: Toast[]; career: Record<string, number>;
   status: 'Idle' | 'Waiting for Dota' | 'Pick phase' | 'Live' | 'Paused' | 'Feed stale' | 'Unsupported session' | 'Connection error';
-  recovery: Recovery | null; awards: Record<string, AwardRecord>; assistantShortcutAvailable: boolean;
+  recovery: Recovery | null; awards: Record<string, AwardRecord>; assistantShortcutAvailable: boolean; vision: VisionStats;
   lane: Lane | null; receivedAt: number | null; open: boolean; armed: boolean;
   pace: Pace[]; checkpoints: Checkpoint[]; settings: LiveSettings; shortcutAvailable: boolean; roshan: RoshanState
   displays?: DisplayChoice[]; overlayDisplay?: { name: string; following: boolean }

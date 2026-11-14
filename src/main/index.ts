@@ -6,7 +6,7 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Display, IpcMainInvokeEvent } from 'electron'
-import type { Bootstrap, Checkpoint, TeamPick, DraftView, DraftWindowShare, GameType, KnowledgeContext, Lane, LiveSettings, LiveState, Matchups, OverlayView, Placement, PuterStatus, Role, SessionRecord, UpdateInfo } from '../shared/model.js'
+import type { Bootstrap, Checkpoint, TeamPick, DraftView, DraftWindowShare, GameType, KnowledgeContext, Lane, LiveSettings, LiveState, Matchups, OverlayView, Placement, PuterStatus, Role, SessionRecord, UpdateInfo, VisionStats } from '../shared/model.js'
 import { defaultFeatures, defaultLiveSettings, featureKeys, gameTypes, placements, roleLabels, roles } from '../shared/model.js'
 import { draftLineup, mergeDraftSlots, mergePicks } from '../shared/draft-picks.js'
 import { chooseRole, observeAchievement, recoveryAdvice } from '../shared/live-coach.js'
@@ -16,7 +16,7 @@ import { emptyRoshan } from '../shared/roshan.js'
 import type { RoshanState } from '../shared/roshan.js'
 import { dueMapTimers } from '../shared/map-timers.js'
 import type { GameEvent, GameTrack } from '../shared/game.js'
-import type { GameView, Toast } from '../shared/model.js'
+import type { GameView, MatchReview, Toast } from '../shared/model.js'
 import { coach, coachPhase } from '../shared/coach.js'
 import type { CoachView, HeroData, HeroDb, TimingsDb } from '../shared/coach.js'
 import { hostAllowed } from '../shared/guard.js'
@@ -214,6 +214,7 @@ let track: GameTrack = newTrack()
 let toasts: Toast[] = []
 let career: Record<string, number> = {}
 let awards: Record<string, AwardRecord> = {}
+let visionStats: VisionStats = { observer: 0, sentry: 0, matches: 0 }
 let awarded = new Set<string>()
 let toastTimer: NodeJS.Timeout | undefined
 let coachView: CoachView | null = null
@@ -463,6 +464,27 @@ function performanceView(): LiveState['performance'] {
   return performanceMemo.value
 }
 
+const VISION_THRESHOLDS = [10, 25, 50, 100, 250]
+
+/** Lifetime observer/sentry wards, counted once per match the first time its parsed replay is opened (never
+ * live — GSI's own-player feed carries no ward data at all, same ceiling documented for lane management). */
+function recordVision(review: MatchReview) {
+  if (!account || !review.parsed) return
+  const player = review.players.find((p) => p.accountId === account)
+  if (!player) return
+  const key = profileKey('vision-match:' + review.id)
+  if (store.get<boolean>(key)) return
+  store.set(key, true)
+  const observer = player.events.filter((e) => e.kind === 'vision' && e.label === 'Observer ward placed').length
+  const sentry = player.events.filter((e) => e.kind === 'vision' && e.label === 'Sentry ward placed').length
+  const before = visionStats.observer + visionStats.sentry
+  visionStats = { observer: visionStats.observer + observer, sentry: visionStats.sentry + sentry, matches: visionStats.matches + 1 }
+  store.set(profileKey('vision'), visionStats)
+  const after = before + observer + sentry
+  const crossed = VISION_THRESHOLDS.filter((t) => before < t && after >= t)
+  if (crossed.length) emit(crossed.map((t) => ({ id: 'vision-' + t, kind: 'milestone', label: t + ' wards placed', sub: 'Lifetime observer + sentry wards', at: 0 })), [])
+}
+
 /** Persist a short summary of each finished game: feeds your career stats and future personal baselines. */
 /** Records the session that's ending: 'completed' if the game's own POST_GAME packet confirmed a win/loss,
  * 'abandoned' if the app or the game closed, or the player left, before that (also called from before-quit). */
@@ -544,7 +566,7 @@ function state(): LiveState {
     priorCases: settings.features.learning ? deathCase?.repeats : undefined,
   }) : null
   return {
-    view, interactive, draft: draftView(), pick, coach: coachView, data: dataStatus, support: supportView(), game: gameView(), career, recovery, awards, assistantShortcutAvailable,
+    view, interactive, draft: draftView(), pick, coach: coachView, data: dataStatus, support: supportView(), game: gameView(), career, recovery, awards, vision: visionStats, assistantShortcutAvailable,
     toasts: toasts.filter((t) => Date.now() - t.shownAt < (t.kind === 'summary' ? SUMMARY_TOAST_MS : TOAST_MS)),
     status, lane, receivedAt, settings, armed, shortcutAvailable, checkpoints, roshan,
     open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
@@ -1420,6 +1442,7 @@ function loadProfileData(migrateLegacy = false) {
   }
   career = load<Record<string, number>>('career', {})
   awards = load<Record<string, AwardRecord>>('item-awards', {})
+  visionStats = load<VisionStats>('vision', { observer: 0, sentry: 0, matches: 0 })
   overrides = load<Overrides>('overrides', {})
   load<SessionRecord[]>('sessions', [])
 }
@@ -2096,6 +2119,7 @@ function handlers() {
     const result = await provider.match(matchId(id), refresh === true)
     paceMemo = null; profileMemo = null; weightsMemo = null
     performanceHistory = null
+    recordVision(result.data)
     if (armed && lane) broadcast()
     return result
   })

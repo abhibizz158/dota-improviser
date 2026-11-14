@@ -9,16 +9,45 @@ import { CoachCard, Dialog, Feedback, LaneCard, RecoveryCard, RoshanTimer, Sessi
 
 type Props = { api: AppApi; context: Bootstrap; live: LiveState; onState: (live: LiveState) => void; onAccount: () => void }
 
-const trophyName = (id: string) => id === 'first-blood' ? 'First Blood' : id.startsWith('multi-') ? id.slice(6) : id.startsWith('streak-') ? ({ '3': 'Killing Spree', '4': 'Dominating', '5': 'Mega Kill', '6': 'Unstoppable', '7': 'Wicked Sick', '8': 'Monster Kill', '9': 'Godlike', '10': 'Beyond Godlike' } as Record<string, string>)[id.slice(7)] ?? id
-  : id === 'comeback' ? 'Against the odds' : id === 'no-death-10' ? 'Untouched at 10:00' : id === 'cs-60' ? '60 last hits by 10:00' : id.startsWith('goal-') ? 'Goal: ' + id.slice(5).replaceAll('_', ' ') : id
+const STREAK_NAMES: Record<string, string> = { '3': 'Killing Spree', '4': 'Dominating', '5': 'Mega Kill', '6': 'Unstoppable', '7': 'Wicked Sick', '8': 'Monster Kill', '9': 'Godlike', '10': 'Beyond Godlike' }
+const VISION_NAMES: Record<string, string> = { '10': '10 wards placed', '25': '25 wards placed', '50': '50 wards placed', '100': '100 wards placed', '250': '250 wards placed' }
+const trophyName = (id: string) => id === 'first-blood' ? 'First Blood' : id.startsWith('multi-') ? id.slice(6) : id.startsWith('streak-') ? STREAK_NAMES[id.slice(7)] ?? id
+  : id === 'comeback' ? 'Against the odds' : id === 'no-death-10' ? 'Untouched at 10:00' : id.startsWith('cs-') ? id.slice(3) + ' last hits by 10:00'
+  : id.startsWith('vision-') ? VISION_NAMES[id.slice(7)] ?? id : id.startsWith('goal-') ? 'Goal: ' + id.slice(5).replaceAll('_', ' ') : id
 const trophyRank = (id: string) => id.includes('Rampage') ? 0 : id.includes('Ultra') ? 1 : id.includes('Triple') ? 2 : id.includes('Double') ? 3 : id === 'first-blood' ? 4 : 5
+/** Milestone/multi-kill/streak thresholds, grounded in how rare each actually is to pull off: a Rampage or
+ * Beyond Godlike is a different achievement than a Double Kill, even though both land in the same trophy case. */
+const trophyRarity = (id: string): 'common' | 'rare' | 'epic' | 'legendary' => {
+  if (id === 'comeback') return 'legendary'
+  if (id.startsWith('multi-')) return id.includes('Rampage') ? 'legendary' : id.includes('Ultra') ? 'epic' : id.includes('Triple') ? 'rare' : 'common'
+  if (id.startsWith('streak-')) { const n = Number(id.slice(7)); return n >= 9 ? 'legendary' : n >= 7 ? 'epic' : n >= 5 ? 'rare' : 'common' }
+  if (id.startsWith('vision-')) { const n = Number(id.slice(7)); return n >= 100 ? 'legendary' : n >= 50 ? 'epic' : n >= 25 ? 'rare' : 'common' }
+  if (id === 'no-death-10' || id === 'cs-60') return 'rare'
+  if (id === 'cs-80') return 'epic'
+  if (id === 'cs-100') return 'legendary'
+  return 'common'
+}
+const trophySection = (id: string): string => id.startsWith('multi-') ? 'Multi-kills' : id.startsWith('streak-') ? 'Kill streaks'
+  : id === 'comeback' ? 'Comebacks' : id.startsWith('vision-') ? 'Vision' : 'Milestones'
+const SECTION_ORDER = ['Kill streaks', 'Multi-kills', 'Milestones', 'Vision', 'Comebacks']
 
-/** Career trophy case: every achievement your own game feed has recorded on this device. */
+/** Career trophy case: every achievement your own game feed has recorded on this device, grouped by kind and
+ * tagged by how rare it actually is to pull off. */
 export function Trophies({ career }: { career: Record<string, number> }) {
-  const rows = Object.entries(career).sort((a, b) => trophyRank(a[0]) - trophyRank(b[0]) || b[1] - a[1])
+  // Per-hero item/timing achievements (id shaped "heroId:itemKey") already have their own card, with hero,
+  // role and timing, on the Achievements page — showing them again here duplicated them under a raw key.
+  const rows = Object.entries(career).filter(([id]) => !/^\d+:/.test(id)).sort((a, b) => trophyRank(a[0]) - trophyRank(b[0]) || b[1] - a[1])
+  const sections = SECTION_ORDER.map((name) => [name, rows.filter(([id]) => trophySection(id) === name)] as const).filter(([, group]) => group.length)
+  let i = 0
   return <section className="panel form-panel reveal">
     <header className="panel-heading"><div><h2>Trophy case</h2><p>Achievements recorded from your own games on this device</p></div></header>
-    {rows.length ? <div className="trophies">{rows.map(([id, n], i) => <div key={id} className={'trophy ' + ((trophyRank(id) < 4 || id === 'comeback') ? 'epic' : '')} style={{ ['--i' as string]: i }}><b>{n}</b><span>{trophyName(id)}</span></div>)}</div>
+    {sections.length ? sections.map(([name, group]) => <div key={name} className="trophy-section">
+      <h3>{name}</h3>
+      <div className="trophies">{group.map(([id, n]) => {
+        const rarity = trophyRarity(id)
+        return <div key={id} className={'trophy ' + rarity} style={{ ['--i' as string]: i++ }}><b>{n}</b><span>{trophyName(id)}</span><small className="trophy-rarity">{rarity}</small></div>
+      })}</div>
+    </div>)
       : <p className="fine-print">Play a game with the listener on: first blood, double/triple/ultra kills, rampages, streaks and item goals show up here.</p>}
   </section>
 }
