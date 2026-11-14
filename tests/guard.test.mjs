@@ -16,7 +16,7 @@ const files = [...walk('src'), ...walk('native')]
 // the file's own doc comment for the full scope). Every other forbidden API, and desktopCapturer everywhere
 // else in the tree, stays an absolute ban — this does not open the door to screen/memory/input/packet capture
 // in general, just this one calibrated, phase-gated, portrait-matching feature.
-const visionFile = 'src/main/draft-vision.ts'
+const visionFile = path.join('src', 'main', 'draft-vision.ts')
 test('source tree contains no memory/screen/input/packet-capture APIs outside the gated draft-vision module', () => {
   const forbidden = /child_process|desktopCapturer|robotjs|nut-tree|uiohook|iohook|node-pcap|\bpcap\b|node:dgram|ffi-napi|koffi|ReadProcessMemory|PROCESS_VM_READ|task_for_pid|vm_read|process_vm_readv|sendInput|CGEventPost|SendKeys|screencapture|CGWindowListCreateImage|\bBitBlt\b|\bPrintWindow\b|SetWindowsHookEx|CGEventTapCreate/i
   for (const file of files.filter((f) => f !== visionFile)) assert.equal(forbidden.test(readFileSync(file, 'utf8')), false, file + ' uses a forbidden API')

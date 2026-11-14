@@ -123,6 +123,7 @@ let overlayRequested = false
 let overlayTimer: NodeJS.Timeout | undefined
 let hoverTimer: NodeJS.Timeout | undefined
 let visionTimer: NodeJS.Timeout | undefined
+let visionLastRead: { radiant: number[]; dire: number[] } | null = null
 let achievementWindow: BrowserWindow | null = null
 let achievementHeight: number | null = null
 let editFocusTimer: NodeJS.Timeout | undefined
@@ -463,6 +464,7 @@ function resetSession(next: LiveState['status']) {
   sessionLane = null
   sessionCompleted = false
   lowPaceAlerted = null
+  updateDraftVision()
 }
 
 /** Advance the draft from own-player GSI, keeping the locked hero separate from teammates. */
@@ -489,13 +491,20 @@ function onPick(next: Pick | null) {
 function updateDraftVision() {
   clearInterval(visionTimer)
   visionTimer = undefined
+  visionLastRead = null
   if (!pick || !settings.features.draftVision) return
   void loadReferencePortraits(catalog.heroes).catch(() => {})
+  const same = (a: number[], b: number[]) => a.length === b.length && a.every((id, i) => id === b[i])
   visionTimer = setInterval(() => {
     const bounds = gameBounds ?? (overlay && !overlay.isDestroyed() ? overlay.getBounds() : null)
     if (!bounds) return
     void captureDraftPicks(Boolean(pick), bounds).then((result) => {
-      if (!result || !pick) return
+      if (!result || !pick) { visionLastRead = null; return }
+      // A single misread must not stick forever the way a real GSI wave-reveal would: only commit once two
+      // consecutive captures agree, so a one-off wrong match on a slot gets a chance to self-correct first.
+      const confirmed = visionLastRead && same(visionLastRead.radiant, result.radiant) && same(visionLastRead.dire, result.dire)
+      visionLastRead = result
+      if (!confirmed) return
       applyReveal({ radiant: { picks: result.radiant, bans: [] }, dire: { picks: result.dire, bans: [] }, activeTeam: revealMeta.activeTeam, timeLeft: revealMeta.timeLeft })
       broadcastSoon()
     }).catch(() => {})

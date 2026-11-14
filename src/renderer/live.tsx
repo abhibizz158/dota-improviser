@@ -139,7 +139,7 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
     {settings.features.draftVision && <section className="panel form-panel reveal">
       <header className="panel-heading"><div><h2>Test draft vision</h2><p>During pick/strategy phase, captures and shows exactly what the app sees, so you can tell whether the slot positions match your resolution.</p></div></header>
       <div className="actions">
-        <button className="button secondary" disabled={visionBusy} onClick={() => {
+        <button className="button secondary" disabled={visionBusy || !context.desktop} onClick={() => {
           setVisionBusy(true); setVisionError(''); setVisionResult(null)
           void api.visionDebug().then(setVisionResult).catch((error: Error) => setVisionError(error.message)).finally(() => setVisionBusy(false))
         }}>{visionBusy ? 'Capturing…' : 'Capture now'}</button>
