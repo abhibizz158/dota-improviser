@@ -90,15 +90,15 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
         {live.status === 'Unsupported session' && <p className="fine-print">The feed could not verify a supported session and your own account.</p>}
       </section>
       <section className="panel overlay-preview">
-        <header className="panel-heading"><div><h2>{settings.display === 'Companion' ? 'Companion window' : actual ? 'Practice lane card' : 'Overlay preview'}</h2>
+        <header className="panel-heading"><div><h2>{settings.display === 'Companion' ? 'Companion window' : actual ? 'Live coach' : 'Overlay preview'}</h2>
           <p>{actual ? 'Own-player stats from the local feed' : 'Example lane card at 7:13'}</p></div><Monitor size={19} className="quiet-icon" /></header>
-        <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={context.catalog.heroes} settings={settings} heroName={hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} compact={settings.size === 'Compact'} /> : <LaneCard live={live} preview={!actual} hero={hero} />}</div>
+        <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={context.catalog.heroes} settings={settings} performance={live.performance} heroName={hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} compact={settings.size === 'Compact'} /> : <LaneCard live={live} preview={!actual} hero={hero} />}</div>
         <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay' || (!active && !live.open)} onClick={() =>
           void act('overlay', async () => { onState(await api.toggleOverlay()) })}><Layers3 size={16} />{live.open ? 'Hide overlay' : 'Show overlay'}</button>
         {!active && settings.display === 'Overlay' && <p className="fine-print">Connect a supported game (practice, normal or ranked) to show the overlay.</p>}
         <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay'} onClick={() =>
           void act('draftOverlay', async () => { onState(await api.toggleDraftOverlay()) })}><Layers3 size={16} />Edit draft overlay · Ctrl/⌘ + Shift + O</button>
-        <p className="fine-print">The overlay passes mouse input through during play. Edit draft picks with the button or shortcut; Done, Escape, or leaving the editor returns it to click-through. Use Borderless or Companion if fullscreen covers the overlay.</p>
+        <p className="fine-print">Choose the game type and lane directly on the overlay. During play, use the shortcut to open controls. Use Borderless or Companion if fullscreen covers the overlay.</p>
         <p className="fine-print">{live.shortcutAvailable ? 'Hide shortcut · Ctrl/⌘ + Shift + H' : 'The hide shortcut is unavailable. Use this window to hide the overlay.'}</p>
         <p className="fine-print">Compact/large overlay · Ctrl/⌘ + Shift + C</p>
         {settings.features.overlayAssistant && <p className="fine-print">{live.assistantShortcutAvailable ? 'Overlay on (edit draft, or ask the AI assistant once a game is live) · Ctrl/⌘ + Shift + O' : 'The overlay-on shortcut is unavailable on this device.'}</p>}
@@ -126,6 +126,10 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
       <label className="check-field"><input type="checkbox" checked={settings.saveOwnMatches} disabled={!!busy} onChange={(event) => setting('saveOwnMatches', event.target.checked)} />
         <span>Save my completed match stats locally <small>With GSI connected, save your own scoreboard when Dota sends a result. Keeps up to 20 matches on this device. It cannot backfill past games.</small></span></label>
     </section>
+    {settings.features.performanceMeter && <section className="panel form-panel">
+      <header className="panel-heading"><div><h2>Personal performance</h2><p>Scores from 0 to 100 every five minutes. A higher score means you outpaced more of your past matches.</p></div></header>
+      <p className="fine-print">Open parsed games in Match Review to add earlier benchmarks. The app also keeps five-minute checkpoints from matches it follows. A score needs at least three comparable matches.</p>
+    </section>}
     <RoshanPanel api={api} live={live} onState={onState} />
     <Trophies career={live.career} />
     <section className="panel form-panel">
@@ -137,18 +141,15 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
           <span>{featureInfo[k].label} <small>{featureInfo[k].help}</small></span></label>)}</div>)}</div>
     </section>
     {settings.features.draftVision && <section className="panel form-panel reveal">
-      <header className="panel-heading"><div><h2>Test draft vision</h2><p>During pick/strategy phase, captures and shows exactly what the app sees, so you can tell whether the slot positions match your resolution.</p></div></header>
+      <header className="panel-heading"><div><h2>Test draft vision</h2><p>Check the portrait strip and recognized heroes during hero selection or strategy time.</p></div></header>
       <div className="actions">
         <button className="button secondary" disabled={visionBusy || !context.desktop} onClick={() => {
           setVisionBusy(true); setVisionError(''); setVisionResult(null)
-          void api.visionDebug().then(setVisionResult).catch((error: Error) => setVisionError(error.message)).finally(() => setVisionBusy(false))
+          void api.visionDebug().then(setVisionResult).catch((error: Error) => setVisionError(error.message.replace(/^Error invoking remote method '[^']+': Error: /, ''))).finally(() => setVisionBusy(false))
         }}>{visionBusy ? 'Capturing…' : 'Capture now'}</button>
         {/Mac/.test(navigator.platform) && <button className="text-button" type="button" onClick={() => void api.openExternal('screenRecording')}>Open Screen Recording settings <ArrowUpRight size={14} /></button>}
       </div>
       <Feedback message={visionError} error />
-      {visionError && (/Mac/.test(navigator.platform)
-        ? <p className="fine-print">After enabling it there, fully quit Dota Improviser (not just close the window) and reopen it — macOS only applies a permission change on the next launch.</p>
-        : <p className="fine-print">On Windows, make sure Dota is in Borderless Windowed or Windowed mode (Settings → Video → Display Mode) — an exclusive Fullscreen window can't be captured at all.</p>)}
       {visionResult && <div className="vision-debug">
         <img src={visionResult.barPng} alt="Captured pick-bar strip" />
         <div className="vision-rows"><p><strong>Radiant:</strong> {visionResult.radiantNames.map((n) => n ?? '—').join(', ') || 'none matched'}</p>

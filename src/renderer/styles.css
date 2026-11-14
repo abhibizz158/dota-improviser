@@ -94,11 +94,11 @@ select:focus, input:focus { border-color: var(--gold); outline: 0; }
 /* The width rule has to target the actual <dialog> element, not this inner div — a child declared wider than
    its containing block does not widen that container; it previously just overflowed the real (narrower) dialog
    box, clipping the wizard's text instead of giving it the room this rule intended. */
-dialog.dialog:has(.welcome-dialog) { width: min(640px, 94vw); }
+dialog.dialog:has(.welcome-dialog) { width: min(640px, 94vw); max-width: calc(100vw - 24px); }
 .welcome-dialog { min-width: 0; }
 .welcome-dialog p, .welcome-dialog .fine-print { overflow-wrap: break-word; }
 .wizard-steps { display: flex; gap: 8px; margin-bottom: 4px; }
-.wizard-steps span { flex: 1; text-align: center; padding: 6px 4px; border-radius: 8px; background: var(--s2); color: var(--muted); font-size: 12px; font-weight: 600; }
+.wizard-steps span { flex: 1; min-width: 0; overflow-wrap: anywhere; text-align: center; padding: 6px 4px; border-radius: 8px; background: var(--s2); color: var(--muted); font-size: 12px; font-weight: 600; }
 .wizard-steps span.active { background: var(--accent, var(--line-strong)); color: var(--text); }
 .clear-area { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 8px; color: var(--muted); }
 .fair-list { margin: 0; padding-left: 18px; color: var(--muted); display: grid; gap: 7px; } .fair-list li::marker { color: var(--good); }
@@ -436,16 +436,28 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .milestone-count { text-align: right; } .milestone-count strong { font: 800 22px var(--display); color: var(--text); } .milestone.earned .milestone-count strong { color: var(--gold); } .milestone-count small { display: block; color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
 .milestone-detail { grid-column: 1 / -1; display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 11px; padding-top: 4px; border-top: 1px dashed var(--hairline); }
 
-.assistant-card { animation: rise .35s cubic-bezier(.2,.8,.2,1) both; }
+.assistant-card:not(.session-prompt) { animation: rise .35s cubic-bezier(.2,.8,.2,1) both; }
 .assistant-card textarea { width: 100%; resize: vertical; background: rgba(255,255,255,.05); border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 9px; color: var(--text); font: inherit; }
 .assistant-actions { display: flex; gap: 8px; align-items: center; }
 .assistant-answer { display: grid; gap: 6px; padding: 8px 10px; border-radius: 8px; background: rgba(217,172,79,.08); border-left: 2px solid var(--gold); line-height: 1.4; }
 /* The overlay opens these at the same large, interactive size as the draft editor (overlay-layout.ts: editing=true). */
 .big-prompt { padding: 18px 20px; font-size: 14px; display: grid; gap: 12px; }
 .big-prompt textarea { font-size: 14px; padding: 10px 12px; }
-.session-prompt-group { display: grid; gap: 6px; }
-.session-prompt-group b { font: 700 11px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.session-prompt-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.session-prompt { background: var(--s1); color: var(--text); border: 1px solid var(--line-strong); border-radius: 12px; min-width: 0; padding: 14px 16px; }
+.session-prompt-group { display: grid; gap: 6px; padding: 0; margin: 0; min-width: 0; border: 0; }
+.session-prompt-group legend { padding: 0; margin-bottom: 6px; font: 700 12px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.session-prompt-options, .session-prompt .assistant-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.session-prompt-options button { min-height: 32px; }
+.session-prompt button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.personal-meter { display: grid; gap: 4px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--s1); }
+.personal-meter-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.personal-meter-heading b { color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.personal-meter meter { width: 100%; height: 8px; }
+.personal-meter meter::-webkit-meter-bar { background: var(--s3); border: 0; }
+.personal-meter meter::-webkit-meter-optimum-value { background: var(--grad-gold); }
+.personal-meter small, .personal-metrics, .personal-checkpoints { color: var(--muted); font-size: 11px; }
+.personal-metrics, .personal-checkpoints { display: flex; flex-wrap: wrap; gap: 4px 9px; }
+.personal-meter span b { color: var(--text); font-variant-numeric: tabular-nums; }
 
 .recovery-card { animation: rise .35s cubic-bezier(.2,.8,.2,1) both; }
 .recovery-card b { display: block; font-size: 13px; margin-bottom: 2px; } .recovery-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }

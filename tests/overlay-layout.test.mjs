@@ -34,3 +34,11 @@ test('passive card is capped and a larger editor remains within a small screen',
   assert.equal(editor.y + editor.height, passive.y + passive.height)
   assert.ok(editor.x + editor.width < work.x + work.width && editor.y + editor.height < work.y + work.height)
 })
+
+test('the clickable match setup opens at form size and the coach returns to compact size', () => {
+  const setup = overlayBounds(primary.workArea, null, compact, 'setup', null, false)
+  const coach = overlayBounds(primary.workArea, null, compact, 'lane', null, false)
+  assert.ok(setup.width > coach.width)
+  assert.ok(setup.height > coach.height)
+  assert.equal(setup.x + setup.width, coach.x + coach.width)
+})

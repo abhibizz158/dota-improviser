@@ -43,12 +43,13 @@ function place(workArea: Rect, game: Rect | null, placement: string, width: numb
 export function overlayBounds(workArea: Rect, game: Rect | null, settings: Pick<LiveSettings, 'size' | 'placement'>,
   view: OverlayView, measuredHeight: number | null, editing: boolean): Rect {
   const { area, inset } = cornerArea(workArea, game)
+  const expanded = editing || view === 'setup'
   const large = settings.size === 'Large'
-  const width = Math.min(Math.max(1, Math.floor(area.width - 2 * inset)), editing ? 440 :
+  const width = Math.min(Math.max(1, Math.floor(area.width - 2 * inset)), expanded ? 440 :
     Math.min(large ? 416 : 336, Math.max(224, Math.round(area.width * (large ? 0.34 : 0.28)))))
   const heightLimit = Math.min(area.height - 2 * inset,
-    Math.max(190, Math.round(area.height * (editing ? 0.78 : large ? 0.60 : 0.50))))
-  const height = Math.max(1, Math.min(Math.floor(heightLimit), measuredHeight ?? (view === 'draft' ? 320 : 220)))
+    Math.max(190, Math.round(area.height * (expanded ? 0.78 : large ? 0.60 : 0.50))))
+  const height = Math.max(1, Math.min(Math.floor(heightLimit), measuredHeight ?? (expanded ? 360 : view === 'draft' ? 320 : 220)))
   return place(workArea, game, resolvePlacement(settings, view), width, height)
 }
 

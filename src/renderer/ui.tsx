@@ -5,6 +5,7 @@ import type { DraftInput, GameType, GameView, Hero, LiveSettings, LiveState, Rol
 import { gameTypes, roleLabels, roles } from '../shared/model.js'
 import { aegisView, clockText as roshanClock, roshanView } from '../shared/roshan.js'
 import type { RoshanState } from '../shared/roshan.js'
+import type { Metric, PersonalPerformance } from '../shared/personal-performance.js'
 import type { CoachView } from '../shared/coach.js'
 import type { Support } from '../shared/guide.js'
 import type { Tip } from '../shared/coach.js'
@@ -163,7 +164,7 @@ export function DraftCard({ live, heroes, send, done }: { live: LiveState; heroe
     {detailed && draft.model.samples > 0 && <small className="draft-note">Learning from {draft.model.samples} of your matches · comfort weight {draft.model.comfortWeight}</small>}
     {!draft.suggestions.length && !draft.ownMatchups && <small className="draft-note">{draft.enemy.length ? 'Computing…' : 'Waiting for enemy picks.'}</small>}
     {draft.ownMatchups && (draft.ownMatchups.strongAgainst.length > 0 || draft.ownMatchups.weakAgainst.length > 0) && <div>
-      <small className="draft-note">{f.draftVision ? 'Still reading the pick screen — ' : "Dota doesn't reveal enemy/ally picks to this app — turn on Draft Vision (Live & Coach → Features) to read them from the pick screen, or use "}{byId(draft.ownHero ?? -1)?.name ?? 'your hero'}'s own matchups meanwhile:</small>
+      <small className="draft-note">{f.draftVision ? 'Waiting for recognized enemy picks. ' : 'Add visible picks with the draft shortcut. '}{byId(draft.ownHero ?? -1)?.name ?? 'your hero'}'s own matchups meanwhile:</small>
       <div className="counter-cols">
         <div><h3>Good matchups</h3><div className="counter-list">{draft.ownMatchups.strongAgainst.map((r) => <div key={r.heroId}><Portrait hero={byId(r.heroId)} />{byId(r.heroId)?.name}<b className="positive">{fmt(r.rate, 1)}%</b></div>)}</div></div>
         <div><h3>Watch out for</h3><div className="counter-list">{draft.ownMatchups.weakAgainst.map((r) => <div key={r.heroId}><Portrait hero={byId(r.heroId)} />{byId(r.heroId)?.name}<b className="negative">{fmt(r.rate, 1)}%</b></div>)}</div></div>
@@ -240,8 +241,27 @@ export function RoshanTimer({ roshan }: { roshan: RoshanState }) {
   </div>
 }
 
+const performanceLabels: Record<Metric, string> = {
+  gpm: 'GPM', xpm: 'XPM', lastHits: 'Last hits', deaths: 'Survival', level: 'Level', participation: 'Fight involvement', items: 'Item progress',
+}
+function PerformanceMeter({ performance, detailed }: { performance: PersonalPerformance; detailed: boolean }) {
+  const current = performance.points.at(-1)
+  return <section className="personal-meter" aria-label="Personal performance">
+    <div className="personal-meter-heading"><strong>Vs. your past matches</strong><b>{current?.score == null ? '—' : `${current.score}/100`}</b></div>
+    {current?.score != null ? <>
+      <meter aria-label="Personal performance score" min={0} max={100} value={current.score} />
+      <small>{current.at / 60}:00 · {current.matches} prior matches</small>
+    </> : <small>{current ? `Need more match data at ${current.at / 60}:00` : 'First checkpoint at 5:00'}</small>}
+    {detailed && current?.metrics.length ? <div className="personal-metrics">{current.metrics.map(({ key, score }) =>
+      <span key={key}>{performanceLabels[key]} <b>{score}</b></span>)}</div> : null}
+    {detailed && performance.points.length > 1 && <div className="personal-checkpoints" aria-label="Recent checkpoints">
+      {performance.points.slice(-4).map((point) => <span key={point.at}>{point.at / 60}:00 <b>{point.score ?? '—'}</b></span>)}
+    </div>}
+  </section>
+}
+
 /** Live coach: percentile score vs this hero's benchmarks, goals, tips, achievements. Own-player GSI data only. Detail mode (Settings) adds stats and medians. */
-export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, compact = false }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; compact?: boolean }) {
+export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, performance, compact = false }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; performance?: PersonalPerformance; compact?: boolean }) {
   const f = settings.features, s = coach.stats
   // Phase-adaptive layout: laning = lane tools, mid game = goals + momentum, late game = essentials only.
   const adaptive = f.phaseAdaptive, late = adaptive && coach.phase === 'Late game', laning = !adaptive || coach.phase === 'Laning'
@@ -250,6 +270,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
   const med = (v: number | null, d = 0) => v == null ? undefined : fmt(v, d)
   if (compact) return <article className="coach-card compact-coach">
     <Head icon={<Trophy size={13} />} tag={heroName} sub={clockText} />
+    {performance && <PerformanceMeter performance={performance} detailed={false} />}
     <div className="stat-row">
       <span><b>{fmt(s.lastHits)}/{fmt(s.denies)}</b><small>LH/DN</small></span><span><b>{fmt(s.deaths)}</b><small>Deaths</small></span>
       <span><b>{fmt(s.level)}</b><small>Level</small></span><span><b>{fmt(coach.gpm)}</b><small>GPM</small></span>
@@ -259,7 +280,8 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
   </article>
   return <article className="coach-card">
     <Head icon={<Trophy size={13} />} tag={'Coach · ' + heroName} sub={(coach.matchmaking ? 'Matchmaking' : 'Practice') + ' · ' + coach.phase + ' · ' + clockText} />
-    {coach.role && <span className="role-chip">{coach.role}{adaptive ? ' · adaptive view' : ''}</span>}
+    {performance && <PerformanceMeter performance={performance} detailed={detailed} />}
+    {coach.role && <span className="role-chip">{roleLabels[coach.role]}{adaptive ? ' · adaptive view' : ''}</span>}
     <div className="coach-top">
       <div className="score-ring" style={{ ['--v' as string]: coach.score ?? 0, ['--c' as string]: tone(coach.score) }}><span>{coach.score ?? '—'}</span></div>
       <div><Pace label="GPM" value={fmt(coach.gpm)} median={detailed ? med(coach.medians.gpm) : undefined} pct={coach.gpmPct} />
@@ -325,31 +347,35 @@ export function AssistantCard({ ask, done }: { ask?: (question: string) => Promi
 
 /** Shown once per game in the overlay's big interactive window: GSI never reliably reports lane or game type,
  * so the player picks both. Answering (or Escape to skip) returns the overlay to its normal compact size. */
-export function SessionPrompt({ onSubmit }: { onSubmit?: (gameType: GameType, lane: Role) => Promise<unknown> }) {
+export function SessionPrompt({ onSubmit, onSkip }: { onSubmit?: (gameType: GameType, lane: Role) => Promise<unknown>; onSkip?: () => Promise<unknown> }) {
   const [gameType, setGameType] = useState<GameType | null>(null)
   const [lane, setLane] = useState<Role | null>(null)
   const [busy, setBusy] = useState(false)
-  const submit = () => {
-    if (!onSubmit || !gameType || !lane || busy) return
+  const [error, setError] = useState('')
+  const save = (action: () => Promise<unknown>) => {
+    if (busy) return
     setBusy(true)
-    void onSubmit(gameType, lane).finally(() => setBusy(false))
+    setError('')
+    void action().catch((reason: unknown) => setError(reason instanceof Error
+      ? reason.message.replace(/^Error invoking remote method '[^']+': Error: /, '') : 'Could not save your match setup. Try again.')).finally(() => setBusy(false))
   }
-  return <article className="assistant-card reveal big-prompt session-prompt">
-    <Head icon={<Gamepad2 size={13} />} tag="This game" sub="Helps the coach guide the right lane" />
-    <p className="fine-print">Dota doesn't tell the app your lane or game type, so pick them here. Used for this game's advice and history only.</p>
-    <div className="session-prompt-group">
-      <b>Game type</b>
-      <div className="session-prompt-options">{gameTypes.map((option) => <button type="button" key={option}
+  return <article className="assistant-card big-prompt session-prompt" aria-label="Match setup">
+    <Head icon={<Gamepad2 size={14} />} tag="This game" />
+    <fieldset className="session-prompt-group" disabled={busy}>
+      <legend>Game type</legend>
+      <div className="session-prompt-options">{gameTypes.map((option) => <button type="button" key={option} aria-pressed={gameType === option}
         className={'button slim' + (gameType === option ? ' primary' : ' secondary')} onClick={() => setGameType(option)}>{option}</button>)}</div>
-    </div>
-    <div className="session-prompt-group">
-      <b>Your lane</b>
-      <div className="session-prompt-options">{roles.map((option) => <button type="button" key={option}
+    </fieldset>
+    <fieldset className="session-prompt-group" disabled={busy}>
+      <legend>Your lane</legend>
+      <div className="session-prompt-options">{roles.map((option) => <button type="button" key={option} aria-pressed={lane === option}
         className={'button slim' + (lane === option ? ' primary' : ' secondary')} onClick={() => setLane(option)}>{roleLabels[option]}</button>)}</div>
-    </div>
+    </fieldset>
+    <Feedback message={error} error />
     <div className="assistant-actions">
-      <button type="button" className="button primary" disabled={!gameType || !lane || busy} onClick={submit}>{busy ? 'Saving…' : 'Start coaching'}</button>
+      <button type="button" className="button primary" disabled={!onSubmit || !gameType || !lane || busy}
+        onClick={() => { if (onSubmit && gameType && lane) save(() => onSubmit(gameType, lane)) }}>{busy ? 'Saving…' : 'Start coaching'}</button>
+      {onSkip && <button type="button" className="button secondary" disabled={busy} onClick={() => save(onSkip)}>Skip</button>}
     </div>
-    <p className="fine-print">Esc skips for this game &mdash; the coach still works, just without lane-specific advice or a tagged history entry.</p>
   </article>
 }

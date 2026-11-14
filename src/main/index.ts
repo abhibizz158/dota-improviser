@@ -36,8 +36,11 @@ import type { DataStatus } from '../shared/model.js'
 import { configName, defaultBuilds, discover, steamLauncher } from './local.js'
 import type { LocalInfo } from './local.js'
 import { accountId, asRecord, catalog, itemInfo, matchId, steamId64, validHero } from './data.js'
-import { gsiConfig, parseCompletedOwnMatch, parseDraft, parseFrame, parsePick, redactedShape, startGsi, updateCheckpoints } from './gsi.js'
-import { captureDraftPicks, debugCaptureDraftPicks, loadReferencePortraits } from './draft-vision.js'
+import { gsiConfig, hasOwnMatchResult, parseCompletedOwnMatch, parseDraft, parseFrame, parsePick, redactedShape, startGsi, updateCheckpoints } from './gsi.js'
+import { captureDraftPicks, debugCaptureDraftPicks, DraftCaptureError, loadReferencePortraits } from './draft-vision.js'
+import { checkpointAt, comparePerformance } from '../shared/personal-performance.js'
+import type { PerformanceMatch, PerformanceSample } from '../shared/personal-performance.js'
+import { combinePerformance, livePerformanceSample, reviewedPerformance } from './performance-history.js'
 import { OpenDota } from './opendota.js'
 import { Store } from './store.js'
 import { ReleaseUpdates } from './release-updates.js'
@@ -93,6 +96,9 @@ let latestLocalMatch: { id: string; fields: number } | undefined
 let sessionGameType: GameType | null = null
 let sessionLane: Role | null = null
 let sessionCompleted = false
+let performanceSamples: PerformanceSample[] = []
+let performanceHistory: PerformanceMatch[] | null = null
+let performanceMemo: { samples: PerformanceSample[]; history: PerformanceMatch[]; role: Role; mode: PerformanceMatch['mode']; value: LiveState['performance'] } | null = null
 let lowPaceAlerted: 'gpm' | 'xpm' | null = null
 
 async function openSteam() {
@@ -123,11 +129,13 @@ let overlayRequested = false
 let overlayTimer: NodeJS.Timeout | undefined
 let hoverTimer: NodeJS.Timeout | undefined
 let visionTimer: NodeJS.Timeout | undefined
+let visionInFlight = false
+let visionBlocked = false
 let visionLastRead: { radiant: number[]; dire: number[] } | null = null
 let achievementWindow: BrowserWindow | null = null
 let achievementHeight: number | null = null
 let editFocusTimer: NodeJS.Timeout | undefined
-let windowProbe: { foregroundBounds: () => Rect | null } | null | undefined
+let windowProbe: { foregroundBounds: () => Rect | null; dotaWindowID?: () => number | null; requestScreenRecording?: () => boolean } | null | undefined
 let gameBounds: Rect | null = null
 let foregroundMisses = 0
 let fallbackDisplayId: number | undefined
@@ -137,8 +145,7 @@ let overlayDisplay: LiveState['overlayDisplay']
 let returnToLane = false
 let assistantReturn: { view: 'lane' | 'draft'; open: boolean } | null = null
 let overlayAskPending = false
-/** True while the overlay was opened only to show the session-info prompt, so answering it can close the overlay again. */
-let promptOpenedOverlay = false
+let sessionInfoDismissed = false
 let plans = new Map<string, string[]>()
 let receiver: Awaited<ReturnType<typeof startGsi>> | null = null
 let receiverTask: Promise<void> | null = null
@@ -244,11 +251,12 @@ function lineup() {
 function roleChoice() {
   const { ownHero, allied } = lineup()
   const known = profile()
-  const inputs = [ownHero, allied, draft.role, settings, levelMap, known]
+  const override = sessionLane ?? draft.role
+  const inputs = [ownHero, allied, override, settings, levelMap, known]
   if (!roleMemo || inputs.some((value, index) => value !== roleMemo!.inputs[index])) {
     const hero = catalog.heroes.find((entry) => entry.id === ownHero)
     const teammates = allied.flatMap((id) => catalog.heroes.filter((entry) => entry.id === id))
-    roleMemo = { inputs, value: chooseRole({ override: draft.role, preferred: hero && settings.heroRoles[hero.id],
+    roleMemo = { inputs, value: chooseRole({ override, preferred: hero && settings.heroRoles[hero.id],
       fallback: settings.role, automatic: settings.features.adaptiveRole, hero, teammates, levels: levelMap, history: hero && known.roles?.[hero.id] }) }
   }
   return roleMemo.value
@@ -380,16 +388,41 @@ function gameView(): GameView | null {
   }
 }
 
+function performanceKey() {
+  return 'performance:' + account
+}
+
+function performanceView(): LiveState['performance'] {
+  if (!frame || !settings.features.performanceMeter) return undefined
+  const role = roleChoice().role
+  const mode = frame.matchmaking ? sessionGameType : 'Practice'
+  performanceHistory ??= combinePerformance(store.get<PerformanceMatch[]>(performanceKey()) ?? [], store.savedReviews().flatMap((review) => {
+    const own = review.players.find((player) => player.accountId === account && player.won != null)
+    return own?.minutes.length ? [reviewedPerformance(own)] : []
+  }))
+  if (!performanceMemo || performanceMemo.samples !== performanceSamples || performanceMemo.role !== role ||
+      performanceMemo.mode !== mode || performanceMemo.history !== performanceHistory) {
+    const value = comparePerformance(performanceSamples, performanceHistory, { id: frame.matchId ?? null, heroId: frame.heroId ?? 0, role, mode })
+    performanceMemo = { samples: performanceSamples, history: performanceHistory, role, mode, value }
+  }
+  return performanceMemo.value
+}
+
 /** Persist a short summary of each finished game: feeds your career stats and future personal baselines. */
 /** Records the session that's ending: 'completed' if the game's own POST_GAME packet confirmed a win/loss,
  * 'abandoned' if the app or the game closed, or the player left, before that (also called from before-quit). */
 function finishGame() {
-  if (!frame || frame.clock < 300) return
+  if (!frame || (frame.clock < 300 && !performanceSamples.length)) return
   const sessions = store.get<SessionRecord[]>('sessions') ?? []
   const record: SessionRecord = {
     at: Date.now(), hero: frame.heroSlug, heroId: frame.heroId, clock: frame.clock, kills: frame.kills, deaths: frame.deaths,
     assists: frame.assists, lastHits: frame.lastHits, gpm: frame.gpm, xpm: frame.xpm, best: track.best, firstBlood: track.firstBlood,
     status: sessionCompleted ? 'completed' : 'abandoned', gameType: sessionGameType, lane: sessionLane,
+  }
+  if (account && frame.heroId && performanceSamples.length > 0 && settings.features.performanceMeter && (!frame.matchmaking || sessionCompleted)) {
+    const saved = store.get<PerformanceMatch[]>(performanceKey()) ?? []
+    const entry = { id: frame.matchId ?? null, heroId: frame.heroId, role: roleChoice().role, mode: frame.matchmaking ? sessionGameType : 'Practice' as const, samples: performanceSamples }
+    store.set(performanceKey(), [entry, ...saved.filter((match) => entry.id == null || match.id !== entry.id)].slice(0, 200))
   }
   sessions.push(record)
   store.set('sessions', sessions.slice(-60))
@@ -409,8 +442,8 @@ function state(): LiveState {
     toasts: toasts.filter((t) => Date.now() - t.shownAt < TOAST_MS),
     status, lane, receivedAt, settings, armed, shortcutAvailable, checkpoints, roshan,
     open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
-    needsSessionInfo: Boolean(frame) && !sessionGameType, sessionInfo: { gameType: sessionGameType, lane: sessionLane },
-    detectionAvailable: windowProbe !== null,
+    needsSessionInfo: view === 'setup' && Boolean(frame), sessionInfo: { gameType: sessionGameType, lane: sessionLane },
+    detectionAvailable: windowProbe !== null, performance: performanceView(),
   }
 }
 
@@ -434,7 +467,7 @@ function broadcastSoon() {
 }
 
 function broadcast() {
-  if (!frame && view === 'lane' && overlayRequested) hideOverlay()
+  if (!frame && (view === 'lane' || view === 'setup') && overlayRequested) hideOverlay()
   lastBroadcast = Date.now()
   const value = state()
   dashboard?.webContents.send('live:update', value)
@@ -461,8 +494,12 @@ function resetSession(next: LiveState['status']) {
   receivedAt = null
   status = next
   sessionGameType = null
+  sessionInfoDismissed = false
   sessionLane = null
   sessionCompleted = false
+  performanceSamples = []
+  performanceHistory = null
+  performanceMemo = null
   lowPaceAlerted = null
   updateDraftVision()
 }
@@ -488,28 +525,42 @@ function onPick(next: Pick | null) {
   updateDraftVision()
 }
 
+function draftVisionTarget(active: () => boolean) {
+  const bounds = detectDotaBounds() ?? gameBounds
+  return { windowID: windowProbe?.dotaWindowID?.(), width: bounds?.width ?? 1440, height: bounds?.height ?? 900, active }
+}
+
 function updateDraftVision() {
-  clearInterval(visionTimer)
-  visionTimer = undefined
-  visionLastRead = null
-  if (!pick || !settings.features.draftVision) return
+  if (!pick || !settings.features.draftVision || quitting) {
+    clearInterval(visionTimer)
+    visionTimer = undefined
+    visionLastRead = null
+    visionBlocked = false
+    return
+  }
+  if (visionTimer) return
   void loadReferencePortraits(catalog.heroes).catch(() => {})
   const same = (a: number[], b: number[]) => a.length === b.length && a.every((id, i) => id === b[i])
-  visionTimer = setInterval(() => {
-    const bounds = gameBounds ?? (overlay && !overlay.isDestroyed() ? overlay.getBounds() : null)
-    if (!bounds) return
-    void captureDraftPicks(Boolean(pick), bounds).then((result) => {
-      if (!result || !pick) { visionLastRead = null; return }
-      // A single misread must not stick forever the way a real GSI wave-reveal would: only commit once two
-      // consecutive captures agree, so a one-off wrong match on a slot gets a chance to self-correct first.
+  const timer = setInterval(() => {
+    if (visionInFlight || visionBlocked) return
+    visionInFlight = true
+    const active = () => visionTimer === timer && Boolean(pick) && !frame && settings.features.draftVision && !quitting
+    void captureDraftPicks(active(), draftVisionTarget(active)).then((result) => {
+      if (!active()) return
+      if (!result) { visionLastRead = null; return }
       const confirmed = visionLastRead && same(visionLastRead.radiant, result.radiant) && same(visionLastRead.dire, result.dire)
       visionLastRead = result
       if (!confirmed) return
       applyReveal({ radiant: { picks: result.radiant, bans: [] }, dire: { picks: result.dire, bans: [] }, activeTeam: revealMeta.activeTeam, timeLeft: revealMeta.timeLeft })
       broadcastSoon()
-    }).catch(() => {})
+    }).catch(() => {
+      if (!active()) return
+      visionLastRead = null
+      visionBlocked = screenAccessStatus() === 'denied'
+    }).finally(() => { visionInFlight = false })
   }, 2500)
-  visionTimer.unref()
+  visionTimer = timer
+  timer.unref()
 }
 
 /** Dota reveals picks in waves (2 / 2 / 2 / 1 in captains-style, all at once in Turbo). Merge whatever it sends; typed picks stay. */
@@ -557,7 +608,9 @@ function refreshCoachView() {
 function receive(value: unknown) {
   if (!armed) return
   const steamId = account ? steamId64(account) : ''
-  if (settings.saveOwnMatches && asRecord(asRecord(value).map).game_state === 'DOTA_GAMERULES_STATE_POST_GAME') {
+  const isPostGame = asRecord(asRecord(value).map).game_state === 'DOTA_GAMERULES_STATE_POST_GAME'
+  if (isPostGame && frame && hasOwnMatchResult(value, steamId)) sessionCompleted = true
+  if (settings.saveOwnMatches && isPostGame) {
     const completed = parseCompletedOwnMatch(value, steamId)
     if (completed) {
       sessionCompleted = true
@@ -598,7 +651,7 @@ function receive(value: unknown) {
   const pickBefore = pick
   const laneBefore = lane
   const frameBefore = frame
-  const newPractice = nextFrame && frameBefore && (nextFrame.clock < frameBefore.clock - 5 || nextFrame.heroSlug !== frameBefore.heroSlug)
+  const newPractice = nextFrame && frameBefore && ((nextFrame.matchId && frameBefore.matchId && nextFrame.matchId !== frameBefore.matchId) || nextFrame.clock < frameBefore.clock - 5 || nextFrame.heroSlug !== frameBefore.heroSlug)
   if (newPractice || (frameBefore && !nextFrame) || (pickBefore && !nextPick && !nextFrame)) {
     resetSession(nextStatus)
     receivedAt = now
@@ -635,22 +688,24 @@ function receive(value: unknown) {
         sub: 'Below your own average on this hero and most players at this point', at: nextFrame.clock })
     } else if (!result?.lowPace) lowPaceAlerted = null
   }
+  const performanceCheckpoint = nextFrame && settings.features.performanceMeter && !newPractice
+    ? checkpointAt(frameBefore?.clock ?? null, nextFrame.clock, nextFrame.paused) : null
+  if (performanceCheckpoint != null && nextFrame && !performanceSamples.some((sample) => sample.at === performanceCheckpoint)) {
+    performanceSamples = [...performanceSamples, livePerformanceSample(performanceCheckpoint, nextFrame, seen)]
+  }
   emit(events, award)
   const statusChanged = status !== nextStatus
   status = nextStatus
-  if (nextFrame && !frameBefore && interactive) {
-    view = 'lane'
+  if (nextFrame && (!frameBefore || newPractice) && settings.display === 'Overlay') {
+    overlayHeight = null
+    view = sessionInfoDismissed ? 'lane' : 'setup'
     returnToLane = false
-    setInteractive(false)
-  } else if (nextFrame && !frameBefore && !sessionGameType && settings.display === 'Overlay') {
-    // Prompt once per game for lane + game type (GSI never reliably reports either); big and interactive, like the draft editor.
-    promptOpenedOverlay = !overlayRequested
-    view = 'lane'
-    requestOverlay(true)
+    assistantReturn = null
+    requestOverlay(false)
   }
   if (!!nextFrame !== !!frameBefore && overlay?.isVisible()) placeOverlay(overlay)
   if (statusChanged || nextPick?.heroId !== pickBefore?.heroId || !!nextPick !== !!pickBefore || !!nextFrame !== !!frameBefore || !!next !== !!laneBefore) broadcast()
-  else if (refreshCoach || events.length || nextPick || nextFrame?.respawnSeconds !== frameBefore?.respawnSeconds) broadcastSoon()
+  else if (refreshCoach || performanceCheckpoint != null || events.length || nextPick || nextFrame?.respawnSeconds !== frameBefore?.respawnSeconds) broadcastSoon()
 }
 
 function windowGuard(window: BrowserWindow) {
@@ -738,7 +793,7 @@ function placeAchievementWindow() {
 }
 
 function trackOverlay() {
-  if (!overlayRequested || !overlay || overlay.isDestroyed() || interactive || settings.monitor !== 'auto') return
+  if (!overlayRequested || !overlay || overlay.isDestroyed() || interactive || settings.monitor !== 'auto' || (view === 'setup' && overlay.isFocused())) return
   const detected = detectDotaBounds()
   const previous = overlayDisplay
   if (detected) {
@@ -762,12 +817,18 @@ function updateHoverFade() {
   clearInterval(hoverTimer)
   hoverTimer = undefined
   if (!overlay || overlay.isDestroyed()) return
-  if (!overlayRequested || interactive) { overlay.setOpacity(settings.opacity); return }
+  overlay.setOpacity(view === 'setup' ? 1 : settings.opacity)
+  if (!overlayRequested || interactive || view === 'setup') return
+  let hovering = false
+  let canFade = false
   hoverTimer = setInterval(() => {
-    if (!overlay || overlay.isDestroyed() || interactive) return
+    if (!overlay?.isVisible() || interactive || view === 'setup') return
     const point = screen.getCursorScreenPoint()
     const bounds = overlay.getBounds()
-    const hovering = point.x >= bounds.x && point.x < bounds.x + bounds.width && point.y >= bounds.y && point.y < bounds.y + bounds.height
+    const inside = point.x >= bounds.x && point.x < bounds.x + bounds.width && point.y >= bounds.y && point.y < bounds.y + bounds.height
+    if (!inside) canFade = true
+    if (!canFade || inside === hovering) return
+    hovering = inside
     overlay.setOpacity(hovering ? Math.min(settings.opacity, 0.2) : settings.opacity)
   }, 150)
   hoverTimer.unref()
@@ -794,6 +855,9 @@ function requestOverlay(edit: boolean) {
   overlayRequested = true
   if (edit) setInteractive(true)
   else {
+    setInteractive(false)
+    window.setIgnoreMouseEvents(view !== 'setup', { forward: true })
+    window.setFocusable(view === 'setup')
     placeOverlay(window)
     window.showInactive()
     if (settings.features.toasts) {
@@ -808,7 +872,7 @@ function requestOverlay(edit: boolean) {
 function makeOverlay() {
   const window = new BrowserWindow({
     width: 360, height: 186, show: false, frame: false, transparent: true, resizable: false, focusable: false,
-    skipTaskbar: true, hasShadow: false, fullscreenable: false,
+    skipTaskbar: true, hasShadow: false, fullscreenable: false, acceptFirstMouse: true,
     // A panel can join fullscreen Spaces on macOS.
     type: process.platform === 'darwin' ? 'panel' : undefined,
     // The overlay is essentially never focused during a match (the game has focus) — unlike the dashboard,
@@ -829,16 +893,15 @@ function makeOverlay() {
   window.on('focus', () => { if (interactive) window.setIgnoreMouseEvents(false) })
   window.on('blur', () => { if (interactive) finishOverlayEditing() })
   window.webContents.on('before-input-event', (event, input) => {
-    if (interactive && input.type === 'keyDown' && input.key === 'Escape') {
-      event.preventDefault()
-      finishOverlayEditing()
-    }
+    if (input.type !== 'keyDown' || input.key !== 'Escape') return
+    if (view === 'setup') { event.preventDefault(); finishSessionSetup() }
+    else if (interactive) { event.preventDefault(); finishOverlayEditing() }
   })
   window.webContents.on('render-process-gone', () => { hideOverlay(); window.destroy(); broadcast() })
   window.on('closed', () => {
     overlay = null; overlayHeight = null; interactive = false; overlayRequested = false
     overlayDisplay = undefined; gameBounds = null; returnToLane = false
-    assistantReturn = null; promptOpenedOverlay = false
+    assistantReturn = null
     clearTimeout(editFocusTimer)
     if (achievementWindow && !achievementWindow.isDestroyed()) achievementWindow.close()
     updateOverlayTracking()
@@ -869,7 +932,7 @@ function makeAchievementWindow() {
 }
 
 function setInteractive(on: boolean) {
-  if (interactive === on) return
+  if (interactive === on && on) return
   interactive = on
   clearTimeout(editFocusTimer)
   const window = overlay
@@ -909,10 +972,24 @@ function finishOverlayEditing() {
   return broadcast()
 }
 
+function finishSessionSetup(gameType?: GameType, role?: Role) {
+  if (view !== 'setup' || !frame) return broadcast()
+  sessionGameType = gameType ?? null
+  sessionLane = role ?? null
+  sessionInfoDismissed = true
+  view = 'lane'
+  overlayHeight = null
+  foregroundMisses = 0
+  refreshCoachView()
+  requestOverlay(false)
+  return broadcast()
+}
+
 function hideOverlay() {
   overlayRequested = false
   returnToLane = false
   assistantReturn = null
+  if (view === 'setup') { view = 'lane'; sessionInfoDismissed = true }
   setInteractive(false)
   overlay?.hide()
   achievementWindow?.hide()
@@ -921,7 +998,7 @@ function hideOverlay() {
 }
 
 function toggleDraftOverlay() {
-  if (settings.display === 'Companion') return broadcast()
+  if (settings.display === 'Companion' || view === 'setup') return broadcast()
   if (interactive) return finishOverlayEditing()
   returnToLane = Boolean(frame)
   view = 'draft'
@@ -932,12 +1009,13 @@ function toggleDraftOverlay() {
 /** The merged "overlay on" hotkey: before a hero is live there's nothing to ask about yet, so it opens draft
  * editing; once a game is running it opens the AI assistant instead. Either way, pressing it again exits. */
 function toggleOverlayInteractive() {
+  if (view === 'setup') return broadcast()
   if (interactive) return finishOverlayEditing()
   return frame ? toggleAssistant() : toggleDraftOverlay()
 }
 
 function toggleAssistant() {
-  if (!settings.features.overlayAssistant || settings.display !== 'Overlay' || (!pick && !frame)) return broadcast()
+  if (view === 'setup' || !settings.features.overlayAssistant || settings.display !== 'Overlay' || (!pick && !frame)) return broadcast()
   if (interactive) return finishOverlayEditing()
   assistantReturn = { view: frame ? 'lane' : 'draft', open: overlayRequested }
   view = 'assistant'
@@ -950,7 +1028,7 @@ function toggleOverlay() {
   if (overlayRequested) {
     hideOverlay()
   } else {
-    if (!frame) throw new Error('Join a local practice match with the listener running before opening the overlay.')
+    if (!frame) throw new Error('Join a match with the listener running before opening the overlay.')
     view = 'lane'
     requestOverlay(false)
   }
@@ -1387,6 +1465,7 @@ function handlers() {
     if (typeof value !== 'number' || !Number.isFinite(value)) return
     const measured = Math.min(2400, Math.max(48, Math.ceil(value)))
     if (overlay && event.sender === overlay.webContents && event.senderFrame === overlay.webContents.mainFrame) {
+      if (overlayHeight === measured) return
       overlayHeight = measured
       placeOverlay(overlay)
     } else if (achievementWindow && event.sender === achievementWindow.webContents && event.senderFrame === achievementWindow.webContents.mainFrame) {
@@ -1404,6 +1483,9 @@ function handlers() {
     if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || !interactive) return
     return finishOverlayEditing()
   })
+  ipcMain.handle('overlay:skip-session', (event: IpcMainInvokeEvent) => {
+    if (overlay && event.sender === overlay.webContents && event.senderFrame === overlay.webContents.mainFrame && !clearTask) return finishSessionSetup()
+  })
   ipcMain.handle('overlay:ask', (event: IpcMainInvokeEvent, question: unknown) => {
     if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || !interactive || view !== 'assistant' || clearTask) {
       throw new Error('Open the overlay assistant before asking a question.')
@@ -1411,17 +1493,13 @@ function handlers() {
     return askLiveCoach(question)
   })
   ipcMain.handle('overlay:session-info', (event: IpcMainInvokeEvent, gameType: unknown, lane: unknown) => {
-    if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame) {
-      throw new Error('This action is only available in the overlay.')
+    if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || view !== 'setup' || !frame || clearTask) {
+      throw new Error('The game setup prompt is no longer active.')
     }
     if (!(gameTypes as readonly string[]).includes(gameType as string) || !(roles as readonly string[]).includes(lane as string)) {
       throw new Error('Pick a lane and game type from the list.')
     }
-    sessionGameType = gameType as GameType
-    sessionLane = lane as Role
-    if (promptOpenedOverlay) { promptOpenedOverlay = false; hideOverlay() }
-    else { setInteractive(false); if (overlay) placeOverlay(overlay) }
-    return broadcast()
+    return finishSessionSetup(gameType as GameType, lane as Role)
   })
   handle('app:bootstrap', async () => { await initialDiscovery; return bootstrap() })
   handle('draft:set', setDraft)
@@ -1512,14 +1590,15 @@ function handlers() {
     return 'Installed into your Dota folder. Add -gamestateintegration to Dota 2 launch options in Steam, then restart Dota.'
   })
   handle('profile:save', (id) => {
-    account = accountId(id)
+    const nextAccount = accountId(id)
+    resetSession('Idle')
+    account = nextAccount
     store.set('account', account)
     ++profileOperation
     armed = false
     diagnostics = []
     latestLocalMatch = undefined
     paceMemo = null; profileMemo = null; weightsMemo = null
-    resetSession('Idle')
     broadcast()
     return account
   })
@@ -1531,6 +1610,7 @@ function handlers() {
       return { ...local, stale: true }
     })
     paceMemo = null; profileMemo = null; weightsMemo = null
+    performanceHistory = null
     if (armed && lane) broadcast()
     return result
   })
@@ -1554,6 +1634,7 @@ function handlers() {
     }
     const result = await provider.match(matchId(id), refresh === true)
     paceMemo = null; profileMemo = null; weightsMemo = null
+    performanceHistory = null
     if (armed && lane) broadcast()
     return result
   })
@@ -1565,18 +1646,30 @@ function handlers() {
   })
   handle('draft:build', (id) => provider.build(validHero(id)))
   handle('draft:vision-debug', async () => {
-    if (!settings.features.draftVision) throw new Error('Turn on Draft vision in Settings first.')
-    const access = screenAccessStatus()
-    if (access !== 'granted') throw new Error(access === 'not-determined'
-      ? 'macOS hasn’t asked for Screen Recording permission yet — click Capture now again to trigger the prompt.'
-      : 'Screen Recording permission isn’t active for this app yet. If you already turned it on in System Settings, macOS only applies that after a full quit and reopen — not just this click. Use "Open Screen Recording settings" below, enable Dota Improviser, then quit and reopen the app.')
-    await loadReferencePortraits(catalog.heroes)
-    const bounds = gameBounds ?? (overlay && !overlay.isDestroyed() ? overlay.getBounds() : null) ?? detectDotaBounds()
-    if (!bounds) throw new Error('Could not find the Dota window — make sure Dota 2 is running and in the foreground.')
-    const result = await debugCaptureDraftPicks(true, bounds)
-    if (!result) throw new Error(process.platform === 'win32'
-      ? 'Found the Dota window but could not capture it. Windows can’t thumbnail-capture an exclusive Fullscreen DirectX window — in Dota, go to Settings → Video → Display Mode and switch to Borderless Windowed or Windowed, then try again.'
-      : 'Found the Dota window but not a window source for it to capture — make sure Dota 2 isn’t minimized, and that it is named "Dota 2" in the Dock (not renamed).')
+    const timer = visionTimer
+    const active = () => Boolean(timer && visionTimer === timer && pick && !frame && settings.features.draftVision && !quitting)
+    if (!active()) throw new Error('Capture now is available during hero selection or strategy time, with the Dota feed connected.')
+    if (visionInFlight) throw new Error('A draft scan is running. Try again in a moment.')
+    visionInFlight = true
+    let result
+    try {
+      if (process.platform === 'darwin' && screenAccessStatus() !== 'granted') windowProbe?.requestScreenRecording?.()
+      void loadReferencePortraits(catalog.heroes).catch(() => {})
+      result = await debugCaptureDraftPicks(active(), draftVisionTarget(active))
+      if (!result) throw new Error('Dota left the draft before the capture finished.')
+      visionBlocked = false
+    } catch (error) {
+      if (!active()) throw new Error('Dota left the draft before the capture finished.')
+      const access = screenAccessStatus()
+      const reason = error instanceof DraftCaptureError ? error.reason : 'unavailable'
+      if (process.platform === 'darwin' && (access === 'denied' || access === 'restricted' || access === 'not-determined')) {
+        throw new Error('macOS has not granted Screen Recording to this running app. In System Settings, remove and re-add the Dota Improviser app you are launching, allow access, then quit and reopen it. A new test build can require a fresh grant.')
+      }
+      if (reason === 'window') throw new Error('Dota’s window is unavailable. Keep Dota open and unminimized on the current desktop during the draft.')
+      if (process.platform === 'win32' && reason === 'thumbnail') throw new Error('Dota returned an empty window image. Change Display Mode to Borderless Windowed or Windowed in Dota’s Video settings.')
+      throw new Error(reason === 'timeout' ? 'Dota’s window capture timed out. Return to the draft and try again.' :
+        'Dota’s window did not return a usable image. Try Borderless Windowed or Windowed mode.')
+    } finally { visionInFlight = false }
     const heroName = (id: number | null) => id == null ? null : catalog.heroes.find((h) => h.id === id)?.name ?? null
     return { ...result, radiantNames: result.radiant.map(heroName), direNames: result.dire.map(heroName) }
   })
@@ -1598,7 +1691,6 @@ function handlers() {
     store.set('live', settings)
     profileMemo = null; weightsMemo = null
     refreshCoachView()
-    overlay?.setOpacity(settings.opacity)
     if (overlay) {
       if (settings.display === 'Companion') hideOverlay()
       else if (overlayRequested) {
@@ -1754,7 +1846,7 @@ else {
     })
     // Roshan/Aegis stopwatch: you press this when you SEE Roshan die. Reads nothing from the game, same as typing a draft pick.
     const roshanGuard = (fn: () => void) => () => {
-      if (frame && overlayRequested && !interactive && settings.features.roshanTimer) fn()
+      if (frame && overlayRequested && view === 'lane' && !interactive && settings.features.roshanTimer) fn()
     }
     globalShortcut.register('CommandOrControl+Alt+F6', roshanGuard(() => startRoshan('both')))
     globalShortcut.register('CommandOrControl+Alt+F7', roshanGuard(() => startRoshan('rosh')))
@@ -1797,6 +1889,8 @@ else {
   app.on('window-all-closed', () => app.quit())
   app.on('before-quit', () => {
     quitting = true
+    updateDraftVision()
+    clearInterval(hoverTimer)
     // The game is still live if the app closes here, so this records as 'abandoned' (sessionCompleted stays false).
     finishGame()
     dataCancel.stop = true

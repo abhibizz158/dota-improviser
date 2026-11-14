@@ -35,6 +35,10 @@ function gate(value: unknown, expectedSteamId: string, matchmaking: boolean, pha
 }
 
 const completedPhases = new Set(['DOTA_GAMERULES_STATE_POST_GAME'])
+export function hasOwnMatchResult(value: unknown, expectedSteamId: string) {
+  const g = gate(value, expectedSteamId, true, completedPhases)
+  return g != null && ['radiant', 'dire'].includes(String(g.map.win_team).toLowerCase())
+}
 /** This projection is only used for local history, after a result is available. */
 export function parseCompletedOwnMatch(value: unknown, expectedSteamId: string, now = Date.now()): MatchSummary | null {
   const g = gate(value, expectedSteamId, true, completedPhases)
@@ -64,6 +68,7 @@ export function parseFrame(value: unknown, expectedSteamId: string, matchmaking:
   if (!g) return null
   const { packet, player, hero } = g
   return {
+    matchId: /^[1-9]\d{5,14}$/.test(String(g.map.matchid ?? '')) ? String(g.map.matchid) : undefined,
     clock: Math.floor(g.clock), heroSlug: g.heroSlug, heroId: heroBySlug.get(g.heroSlug) ?? null, level: stat(hero.level),
     alive: hero.alive !== false, respawnSeconds: hero.alive === false ? stat(hero.respawn_seconds) : null,
     gold: stat(player.gold), gpm: stat(player.gpm), xpm: stat(player.xpm),

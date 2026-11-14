@@ -16,7 +16,7 @@ import './styles.css'
 declare global {
   interface Window {
     dota?: AppApi
-    overlayApi?: { height: (height: number) => void; state: () => Promise<LiveState>; draft: AppApi['draft'] extends (i: infer I) => unknown ? (i: I) => Promise<unknown> : never; done: () => Promise<void>; ask: (question: string) => Promise<string>; sessionInfo: (gameType: string, lane: string) => Promise<unknown>; onAchievementSound: (callback: () => void) => () => void; onLive: AppApi['onLive'] }
+    overlayApi?: { height: (height: number) => void; state: () => Promise<LiveState>; draft: AppApi['draft'] extends (i: infer I) => unknown ? (i: I) => Promise<unknown> : never; done: () => Promise<void>; ask: (question: string) => Promise<string>; sessionInfo: (gameType: string, lane: string) => Promise<unknown>; skipSession: () => Promise<unknown>; onAchievementSound: (callback: () => void) => () => void; onLive: AppApi['onLive'] }
   }
 }
 const Draft = lazy(() => import('./draft').then((module) => ({ default: module.Draft })))
@@ -75,15 +75,16 @@ function Overlay() {
   const { live, card } = useOverlayLive(true)
   const hero = demoCatalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
   const compact = live.settings.size === 'Compact'
-  const editorial = live.view !== 'draft' && live.view !== 'assistant'
-  return <div className={'overlay-scroll' + (live.interactive ? ' interactive' : '')}><div className="overlay-view" ref={card}>
+  const editorial = live.view === 'lane'
+  const acceptsInput = live.interactive || live.view === 'setup'
+  return <div className={'overlay-scroll' + (acceptsInput ? ' interactive' : '')}><div className="overlay-view" ref={card}>
     {live.needsSessionInfo
-      ? <SessionPrompt onSubmit={(gameType, lane) => window.overlayApi?.sessionInfo(gameType, lane) ?? Promise.resolve()} />
+      ? <SessionPrompt onSubmit={window.overlayApi?.sessionInfo} onSkip={window.overlayApi?.skipSession} />
       : live.view === 'assistant'
       ? <AssistantCard ask={window.overlayApi?.ask} done={window.overlayApi?.done} />
       : live.view === 'draft'
       ? <DraftCard live={live} heroes={demoCatalog.heroes} send={window.overlayApi?.draft} done={window.overlayApi?.done} />
-      : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={demoCatalog.heroes} settings={live.settings} compact={compact} heroName={demoCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
+      : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={demoCatalog.heroes} settings={live.settings} performance={live.performance} compact={compact} heroName={demoCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
         : <LaneCard live={live} hero={hero} />}
     {live.settings.features.deathAdvice && live.recovery && editorial && <RecoveryCard recovery={live.recovery} />}
     {live.settings.features.roshanTimer && editorial && <RoshanTimer roshan={live.roshan} />}

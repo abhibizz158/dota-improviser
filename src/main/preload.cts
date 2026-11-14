@@ -15,6 +15,7 @@ if (location.hash === '#overlay') {
     done: () => ipcRenderer.invoke('overlay:done'),
     ask: (question: string) => ipcRenderer.invoke('overlay:ask', question),
     sessionInfo: (gameType: string, lane: string) => ipcRenderer.invoke('overlay:session-info', gameType, lane),
+    skipSession: () => ipcRenderer.invoke('overlay:skip-session'),
     onAchievementSound: (callback: () => void) => {
       const listener = () => callback()
       ipcRenderer.on('achievement:sound', listener)

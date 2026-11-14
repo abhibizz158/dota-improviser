@@ -1,3 +1,4 @@
+import type { PersonalPerformance } from './personal-performance.js'
 import type { Suggestion } from './brain.js'
 import type { CoachView, HeroData } from './coach.js'
 import type { HeroGuide, Support } from './guide.js'
@@ -47,7 +48,7 @@ export type DataStatus = { state: 'idle' | 'updating' | 'ready' | 'error'; done:
 export const placements = ['Auto', 'Top left', 'Top right', 'Bottom left', 'Bottom right'] as const
 export type Placement = typeof placements[number]
 export type DisplayChoice = { id: string; name: string }
-export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'coachTips', 'achievements', 'personal', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision'] as const
+export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'coachTips', 'achievements', 'personal', 'performanceMeter', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision'] as const
 export type FeatureKey = typeof featureKeys[number]
 export type Features = Record<FeatureKey, boolean>
 export const defaultFeatures = Object.fromEntries(featureKeys.map((k) => [k, k !== 'achievementSound' && k !== 'draftVision'])) as Features
@@ -58,6 +59,7 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   laneWatch: { group: 'Overlay modules', label: 'Lane watch', help: 'Your win rate vs each revealed enemy, plus lineup advice.' },
   coachTips: { group: 'Overlay modules', label: 'Coach tips', help: 'Live tips: farm, unspent gold, deaths.' },
   achievements: { group: 'Overlay modules', label: 'Track practice achievements', help: 'Record hero and role item milestones and timed goals.' },
+  performanceMeter: { group: 'Overlay modules', label: 'Personal performance meter', help: 'Compare your pace with previous matches every five minutes.' },
   personal: { group: 'Overlay modules', label: 'Your own average', help: 'Compare with your average on this hero.' },
   hints: { group: 'Overlay modules', label: 'Hotkey hints', help: 'Footer line with shortcuts.' },
   toasts: { group: 'Overlay modules', label: 'Achievement pop-ups', help: 'Animated banners for first blood, multi-kills, streaks and goals.' },
@@ -74,7 +76,7 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   autoInstallApp: { group: 'Automation', label: 'Launch verified updates automatically', help: 'Once a GitHub release is downloaded and verified, launch its installer as soon as you are not mid-game, instead of waiting for you to click Install in Settings. You still click through the installer itself (and enter your password on macOS) — this app never launches other programs silently or in the background; that is a deliberate fair-play guardrail, not a missing feature.' },
   learning: { group: 'Intelligence', label: 'Learn from my matches', help: 'Use your history to adjust suggestions. Off = public data only.' },
   patchAware: { group: 'Intelligence', label: 'Patch awareness', help: 'Trust old data less for heroes changed in recent patches.' },
-  draftVision: { group: 'Intelligence', label: 'Draft vision (off by default)', help: 'Reads one small, cropped strip of your own screen — the pick-bar hero portraits — and matches it against Valve\'s own hero art, ONLY while Dota reports hero selection or strategy time, never once a game is live. This is the one deliberate exception to the app never reading your screen. macOS will ask for Screen Recording permission the first time (grant it, then fully quit and reopen this app). On Windows, Dota must be in Borderless Windowed or Windowed mode — exclusive Fullscreen DirectX windows can\'t be thumbnail-captured at all. Needs calibration per resolution/UI scale — use Test draft vision below to check it.' },
+  draftVision: { group: 'Intelligence', label: 'Draft vision', help: 'Match visible hero portraits during hero selection and strategy time. On Mac, allow Screen Recording for the app. On Windows, use Borderless Windowed or Windowed mode.' },
 }
 export type LiveSettings = {
   display: 'Overlay' | 'Companion'; size: 'Compact' | 'Large'; placement: Placement; monitor: string;
@@ -113,7 +115,7 @@ export type KnowledgeContext = {
 }
 export type UpdateInfo = { current: string; latest: string | null; state: 'idle' | 'checking' | 'downloading' | 'ready' | 'current' | 'error'; message: string }
 export type Frame = {
-  clock: number; heroSlug: string; heroId: number | null; level: number | null; alive: boolean; gold: number | null
+  matchId?: string; clock: number; heroSlug: string; heroId: number | null; level: number | null; alive: boolean; gold: number | null
   gpm: number | null; xpm: number | null; lastHits: number | null; denies: number | null; kills: number | null
   deaths: number | null; assists: number | null; items: string[]; itemsObserved: boolean; respawnSeconds: number | null; paused: boolean; matchmaking: boolean
   team: 'Radiant' | 'Dire'; radiantScore: number | null; direScore: number | null; killStreak: number | null
@@ -125,7 +127,7 @@ export type GameView = {
   multi: Record<string, number>; best: string | null; streak: number; kills: number | null
 }
 export type Toast = GameEvent & { shownAt: number }
-export type OverlayView = 'lane' | 'draft' | 'assistant'
+export type OverlayView = 'lane' | 'draft' | 'assistant' | 'setup'
 export type LiveState = {
   view: OverlayView; interactive: boolean; draft: DraftView; pick: Pick | null; coach: CoachView | null; data: DataStatus; support: Support | null; game: GameView | null; toasts: Toast[]; career: Record<string, number>;
   status: 'Idle' | 'Waiting for Dota' | 'Pick phase' | 'Live' | 'Paused' | 'Feed stale' | 'Unsupported session' | 'Connection error';
@@ -137,6 +139,7 @@ export type LiveState = {
   detectionAvailable: boolean
   historyChangedAt?: number
   /** True once a game is live but you haven't said this session's lane/role and game type yet — the overlay should prompt. */
+  performance?: PersonalPerformance;
   needsSessionInfo: boolean; sessionInfo: { gameType: GameType | null; lane: Role | null }
 }
 export type MechRow = { heroId: number; edge: number; parts: { label: FeatureName; points: number }[] }
