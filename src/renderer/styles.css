@@ -443,7 +443,7 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 /* The overlay opens these at the same large, interactive size as the draft editor (overlay-layout.ts: editing=true). */
 .big-prompt { padding: 18px 20px; font-size: 14px; display: grid; gap: 12px; }
 .big-prompt textarea { font-size: 14px; padding: 10px 12px; }
-.session-prompt { background: var(--s1); color: var(--text); border: 1px solid var(--line-strong); border-radius: 12px; min-width: 0; padding: 14px 16px; }
+.session-prompt { background: var(--bg); color: var(--text); border: 1px solid var(--line-strong); border-radius: 12px; min-width: 0; padding: 14px 16px; }
 .session-prompt-group { display: grid; gap: 6px; padding: 0; margin: 0; min-width: 0; border: 0; }
 .session-prompt-group legend { padding: 0; margin-bottom: 6px; font: 700 12px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .session-prompt-options, .session-prompt .assistant-actions { display: flex; flex-wrap: wrap; gap: 6px; }
