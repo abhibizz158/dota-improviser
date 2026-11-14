@@ -2111,18 +2111,25 @@ function handlers() {
   handle('history:sessions', () => store.get<SessionRecord[]>(profileKey('sessions')) ?? [])
   handle('history:parsing', () => provider.pendingParseIds())
   handle('match:get', async (id, refresh) => {
-    const local = account && store.get<{ data: import('../shared/model.js').MatchSummary[]; updatedAt: number }>(localHistoryKey(account))
-    const row = local ? local.data.find((match) => match.id === id) : undefined
-    if (row && local) {
+    // Try OpenDota first, even for a match that was once local-only: a match saved from your own GSI feed
+    // carries its real matchid (parseCompletedOwnMatch), so OpenDota can go on to pick it up and parse it well
+    // after the fact. Checking the local stub first (as this used to) meant it stayed stuck on that scoreboard
+    // forever, even once richer parsed data existed — the local row is now only a fallback for when OpenDota
+    // genuinely has nothing (private match, offline, not yet indexed).
+    try {
+      const result = await provider.match(matchId(id), refresh === true)
+      paceMemo = null; profileMemo = null; weightsMemo = null
+      performanceHistory = null
+      recordVision(result.data)
+      if (armed && lane) broadcast()
+      return result
+    } catch (error) {
+      const local = account && store.get<{ data: import('../shared/model.js').MatchSummary[]; updatedAt: number }>(localHistoryKey(account))
+      const row = local ? local.data.find((match) => match.id === id) : undefined
+      if (!row || !local) throw error
       const player = { ...row, slot: row.side === 'Radiant' ? 0 : 128, accountId: account, minutes: [], events: [] }
       return { data: { id: row.id, start: row.start, duration: row.duration, mode: row.mode, patch: row.patch, parsed: false, localOnly: true, players: [player] }, updatedAt: local.updatedAt, stale: false }
     }
-    const result = await provider.match(matchId(id), refresh === true)
-    paceMemo = null; profileMemo = null; weightsMemo = null
-    performanceHistory = null
-    recordVision(result.data)
-    if (armed && lane) broadcast()
-    return result
   })
   handle('parse:request', (id) => provider.requestParse(matchId(id)))
   handle('parse:status', (id) => provider.parseStatus(matchId(id)))

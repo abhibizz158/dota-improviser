@@ -19,10 +19,20 @@ import { OutlookCard } from './match-outlook'
 const base = import.meta.env.BASE_URL
 const bundled = new Set(Object.keys(import.meta.glob('../../public/heroes/*.png')).map((path) => path.split('/').at(-1)?.replace('.png', '')))
 const CDN = 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/'
+/** Small item portrait, same CDN-with-fallback pattern as hero portraits (heroPortrait, above): tried image sources
+ * in order, falling back to a plain text badge (no image at all) rather than inventing a "short name" dotaconstants
+ * doesn't provide — the icon itself is what replaces the long written name, not an abbreviation we'd be guessing at. */
+function ItemIcon({ itemKey, name }: { itemKey: string; name: string }) {
+  const sources = [CDN + 'items/' + itemKey + '_lg.png', CDN + 'items/' + itemKey + '.png']
+  const [i, setI] = useState(0)
+  if (i >= sources.length) return <span className="item-icon-fallback" title={name} aria-hidden="true">{name.slice(0, 1)}</span>
+  return <img className="item-icon" src={sources[i]} alt={name} title={name} onError={() => setI((n) => n + 1)} />
+}
+
 const renderTip = (tip: Tip) => <div key={tip.text} className={'tip ' + tip.level}>{tip.text}{tip.items?.length ? <div className="tip-items" aria-label="Suggested defensive items">{tip.items.map((key) => {
   const item = (itemCatalog as Record<string, ItemInfo>)[key]
   const stage = item ? (item.c < 1200 ? 'early' : item.c < 3200 ? 'core' : 'late') : 'early'
-  return <span key={key}><b>{item?.n ?? key.replaceAll('_', ' ')}</b><small>{stage} · {item?.c?.toLocaleString('en-US') ?? 'cost varies'}</small></span>
+  return <span key={key}><ItemIcon itemKey={key} name={item?.n ?? key.replaceAll('_', ' ')} /><b>{item?.n ?? key.replaceAll('_', ' ')}</b><small>{stage} · {item?.c?.toLocaleString('en-US') ?? 'cost varies'}</small></span>
 })}</div> : null}</div>
 /** Image sources in order of preference; every one is tried before falling back to an initials badge. */
 const portraitSources = (slug: string) => [
@@ -272,7 +282,7 @@ function PerformanceMeter({ performance, detailed }: { performance: PersonalPerf
 function MatchItems({ items, compact }: { items: ItemRecommendation[]; compact?: boolean }) {
   return <section className="match-items" aria-label="Matchup items">
     {items.slice(0, compact ? 1 : 2).map((item) => <div key={item.key}>
-      <header><b>{item.name}</b><small>{item.timing}</small></header>
+      <header><span className="match-item-name"><ItemIcon itemKey={item.key} name={item.name} /><b>{item.name}</b></span><small>{item.timing}</small></header>
       <p>{item.reason}</p><small>{item.goal}</small>
     </div>)}
   </section>
