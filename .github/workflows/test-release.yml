@@ -82,7 +82,8 @@ jobs:
           }
           $output = "$PWD/artifacts/Dota-Improviser-$version-$env:PLATFORM-setup.exe"
           $source = (Resolve-Path $package).Path
-          & $compiler "/DAPP_DIR=$source" "/DOUTPUT_FILE=$output" scripts/windows-installer.nsi
+          $license = (Resolve-Path LICENSE).Path
+          & $compiler "/DAPP_DIR=$source" "/DOUTPUT_FILE=$output" "/DLICENSE_FILE=$license" scripts/windows-installer.nsi
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $installation = Start-Process -FilePath $output -ArgumentList '/S' -Wait -PassThru
           if ($installation.ExitCode -ne 0) { exit $installation.ExitCode }

@@ -7,7 +7,7 @@ SetCompressor /SOLID lzma
 !include "LogicLib.nsh"
 !include "MUI2.nsh"
 !define MUI_ABORTWARNING
-!insertmacro MUI_PAGE_LICENSE "${__FILEDIR__}\..\LICENSE"
+!insertmacro MUI_PAGE_LICENSE "${LICENSE_FILE}"
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 
