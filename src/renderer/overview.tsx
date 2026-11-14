@@ -12,10 +12,11 @@ import { FeaturedStage, GuideSections, Insights, useFeatured } from './featured'
 type Props = {
   api: AppApi; onUseHero: (id: number) => void; showStyle?: boolean; catalog: Catalog; history: SourceResult<MatchSummary[]> | null; loading: boolean; account: string; historyChangedAt?: number;
   onAccount: () => void; onRefresh: () => void; onMatch: (id: string) => void; onImport: () => void; onPrivateHistory: () => void; onDraft: () => void; onOpenGame: () => void; local: LocalStatus;
+  savingSessions?: boolean;
 }
 const base = import.meta.env.BASE_URL
 
-export function Overview({ api, onUseHero, showStyle = true, catalog, history, historyChangedAt, loading, account, onAccount, onRefresh, onMatch, onImport, onPrivateHistory, onDraft, onOpenGame, local }: Props) {
+export function Overview({ api, onUseHero, showStyle = true, catalog, history, historyChangedAt, loading, account, onAccount, onRefresh, onMatch, onImport, onPrivateHistory, onDraft, onOpenGame, local, savingSessions }: Props) {
   const [sessions, setSessions] = useState<SessionRecord[]>([])
   useEffect(() => {
     let active = true
@@ -98,7 +99,7 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, h
       </div>
     </section>
 
-    <SessionHistory api={api} sessions={sessions} byId={byId} onMatch={onMatch} publicGpm={total.gpm} publicXpm={total.xpm} />
+    <SessionHistory api={api} sessions={sessions} byId={byId} onMatch={onMatch} publicGpm={total.gpm} publicXpm={total.xpm} savingSessions={savingSessions} />
 
     <Insights f={f} catalog={catalog} matches={matches} showStyle={showStyle} />
 
@@ -158,9 +159,13 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, h
 /** Every own-feed game recorded locally while the listener was running (practice, normal or ranked alike), tagged
  * completed or abandoned (AGENTS.md's half-recorded rule: app/game closed or you left = abandoned, ancient fell = completed),
  * plus what those sessions say about your real pace next to your public match history. */
-function SessionHistory({ api, sessions, byId, onMatch, publicGpm, publicXpm }: { api: AppApi; sessions: SessionRecord[]; byId: Map<number, Catalog['heroes'][number]>; onMatch: (id: string) => void; publicGpm: number | null; publicXpm: number | null }) {
+function SessionHistory({ api, sessions, byId, onMatch, publicGpm, publicXpm, savingSessions }: { api: AppApi; sessions: SessionRecord[]; byId: Map<number, Catalog['heroes'][number]>; onMatch: (id: string) => void; publicGpm: number | null; publicXpm: number | null; savingSessions?: boolean }) {
   const [selectedOutlook, setSelectedOutlook] = useState<number | null>(null)
-  if (!sessions.length) return null
+  if (!sessions.length) return savingSessions ? null : <section className="panel sessions-panel" aria-labelledby="sessions-title">
+    <header className="panel-heading"><div><h2 id="sessions-title"><History size={17} className="quiet-icon" /> Recorded sessions</h2>
+      <p>Off &mdash; nothing recorded yet.</p></div></header>
+    <p className="fine-print">Turn on "Save my completed match stats locally" in Live & Coach to start recording your own scoreboard here as you play, local-only. It only records games from when it's turned on &mdash; past games aren't backfilled.</p>
+  </section>
   const completed = sessions.filter((s) => s.status === 'completed')
   const abandoned = sessions.length - completed.length
   const chartSessions = completed.filter((session) => (session.outlook?.length ?? 0) > 1)

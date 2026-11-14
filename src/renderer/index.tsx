@@ -362,7 +362,7 @@ function App() {
       <div className="content-scroll">
         <main key={page} className="content" id="main-content" tabIndex={-1}>
           <Feedback message={error} error />
-          {page === 'overview' && <Overview api={api} showStyle={live.settings.features.styleProfile} onUseHero={(id) => { void api.draft({ pool: [...new Set([...latestLive.current.draft.pool, id])] }); navigate('draft') }} catalog={context.catalog} account={context.accountId} loading={loading} history={history} historyChangedAt={live.historyChangedAt}
+          {page === 'overview' && <Overview api={api} showStyle={live.settings.features.styleProfile} savingSessions={live.settings.saveOwnMatches} onUseHero={(id) => { void api.draft({ pool: [...new Set([...latestLive.current.draft.pool, id])] }); navigate('draft') }} catalog={context.catalog} account={context.accountId} loading={loading} history={history} historyChangedAt={live.historyChangedAt}
             onAccount={() => showModal('account')} onRefresh={() => void loadHistory(context.accountId, true)}
             onMatch={openMatch} onImport={() => showModal('import')} onDraft={() => navigate('draft')}
             onPrivateHistory={() => showModal('privateHistory')} onOpenGame={() => { setError(''); void api.openGame().catch((reason: Error) => setError(reason.message)) }} local={context.local} />}

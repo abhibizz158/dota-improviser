@@ -66,7 +66,7 @@ export function contextualCoach(input: {
       'Recover near allied vision and ask for help controlling the next wave.' } : { level: 'info', text: lanePlan[role] })
     if (ownControl && !partner) tips.push({ level: 'info', text: `Hold ${ownControl.n} for a trade your teammate can follow up on.` })
   } else if (phase === 'Mid game') {
-    tips.push({ level: 'info', text: behind && !support ? 'Take safe waves near your team before committing to the next fight.' :
+    tips.push({ level: 'info', text: behind && !support ? 'Take safe waves near your team and wait for a fight that favours you.' :
       role === 'Offlane' ? 'Set up the next initiation with an ally in range to follow up.' : support ? 'Move with a core and establish vision around the next objective.' :
       'Push a safe wave before rotating toward the next objective.' })
     if (ultimate && frame.level != null && frame.level >= 6 && mode !== 'Ability Draft') {
@@ -74,7 +74,7 @@ export function contextualCoach(input: {
     }
   } else {
     tips.push({ level: 'info', text: support ? 'Keep vision and saves available for the next objective. Move with an ally.' :
-      'Check buyback and teleport before committing to a fight around an objective.' })
+      'Have buyback and teleport ready before a fight breaks out around an objective.' })
   }
   if (mode === 'Ability Draft') {
     // The catalogue has native hero abilities. Ability Draft can replace the entire kit.
@@ -91,7 +91,7 @@ export function contextualCoach(input: {
     tips.splice(Math.min(1, tips.length), 0, { level: 'info', text: phase === 'Laning' ? `If you lane with ${partner.name}, ${action[0].toLowerCase() + action.slice(1)}` : action })
   }
   if (nextItem && phase !== 'Laning') {
-    tips.splice(Math.min(3, tips.length), 0, { level: 'info', text: frame.gold != null && frame.gold >= nextItem.cost ? `${nextItem.name} is affordable from your current gold. Check buyback before committing.` :
+    tips.splice(Math.min(3, tips.length), 0, { level: 'info', text: frame.gold != null && frame.gold >= nextItem.cost ? `You can afford ${nextItem.name} right now — buy it on your next trip back.` :
       `Check the remaining components for ${nextItem.name} before your next rotation.`, items: [nextItem.key] })
   }
   const bracketIndex = input.bracket == null ? -1 : brackets.indexOf(input.bracket)

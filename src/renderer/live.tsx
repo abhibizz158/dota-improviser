@@ -195,6 +195,7 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
       <header className="panel-heading"><div><h2>Match outlook</h2><p>{live.game.outlook.scope} · Estimated {live.game.outlook.win}% team win chance</p></div></header>
       <OutlookGraph points={live.game.outlook.points} detailed />
       <p className="fine-print">{live.game.outlook.factors.join(' · ')}</p>
+      <p className="fine-print">Built from team kills, lineup and your own pace — Dota's own feed never reports tower, Roshan or barracks state during a live match (that's spectator-only data, blocked by this app's fair-play guardrail), so a tower or Roshan lead only shows up here if it also shows up in kills or your pace. The full picture, including towers and net worth, is in Match Review after the game.</p>
     </section>}
     <Trophies career={live.career} />
     <section className="panel form-panel">

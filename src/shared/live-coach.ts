@@ -80,5 +80,5 @@ export function recoveryAdvice(frame: Frame, role: Role, view: CoachView | null,
   if (support) return { ...detail, title: 'Reconnect with an ally', tip: 'Bring detection or wards if needed. Set vision with a core who can follow up on your spells.' }
   if (role === 'Offlane') return { ...detail, title: 'Plan your next initiation', tip: 'Approach from allied vision. Wait until a teammate is in range to follow up.' }
   if (view?.gpmPct != null && view.gpmPct < 35) return { ...detail, title: 'Recover your farm', tip: 'Take a safe wave and nearby camps. Keep a teleport for a fight you can reach.' }
-  return { ...detail, title: role === 'Mid' ? 'Pick your next rotation' : 'Choose a safe route', tip: 'Check your teleport and item timing before committing. Start where an ally can support you.' }
+  return { ...detail, title: role === 'Mid' ? 'Pick your next rotation' : 'Choose a safe route', tip: 'Line up your teleport and next item purchase, and come back where an ally can back you up.' }
 }
