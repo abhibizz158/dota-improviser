@@ -77,6 +77,7 @@ function Overlay() {
   const compact = live.settings.size === 'Compact'
   const editorial = live.view === 'lane'
   const acceptsInput = live.interactive || live.view === 'setup'
+  const recovery = editorial && live.settings.features.deathAdvice ? live.recovery : null
   return <div className={'overlay-scroll' + (acceptsInput ? ' interactive' : '')}><div className="overlay-view" ref={card}>
     {live.needsSessionInfo
       ? <SessionPrompt onSubmit={window.overlayApi?.sessionInfo} onSkip={window.overlayApi?.skipSession} />
@@ -84,9 +85,9 @@ function Overlay() {
       ? <AssistantCard ask={window.overlayApi?.ask} done={window.overlayApi?.done} />
       : live.view === 'draft'
       ? <DraftCard live={live} heroes={demoCatalog.heroes} send={window.overlayApi?.draft} done={window.overlayApi?.done} />
-      : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={demoCatalog.heroes} settings={live.settings} coaching={live.coaching} performance={live.performance} compact={compact} heroName={demoCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
+      : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={demoCatalog.heroes} settings={live.settings} coaching={recovery ? undefined : live.coaching} performance={live.performance} compact={compact || Boolean(recovery)} recoveryMode={Boolean(recovery)} heroName={demoCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
         : <LaneCard live={live} hero={hero} />}
-    {live.settings.features.deathAdvice && live.recovery && editorial && <RecoveryCard recovery={live.recovery} />}
+    {recovery && <RecoveryCard recovery={recovery} />}
     {live.settings.features.roshanTimer && editorial && <RoshanTimer roshan={live.roshan} />}
     {!compact && live.settings.features.toasts && editorial && <Toasts toasts={live.toasts.filter((t) => t.kind === 'alert')} />}
   </div></div>

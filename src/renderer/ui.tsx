@@ -262,7 +262,7 @@ function PerformanceMeter({ performance, detailed }: { performance: PersonalPerf
 }
 
 /** Live coach: percentile score vs this hero's benchmarks, goals, tips, achievements. Own-player GSI data only. Detail mode (Settings) adds stats and medians. */
-export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, performance, coaching, compact = false }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; performance?: PersonalPerformance; coaching?: CoachingContext; compact?: boolean }) {
+export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, performance, coaching, compact = false, recoveryMode = false }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; performance?: PersonalPerformance; coaching?: CoachingContext; compact?: boolean; recoveryMode?: boolean }) {
   const f = settings.features, s = coach.stats
   // Phase-adaptive layout: laning = lane tools, mid game = goals + momentum, late game = essentials only.
   const adaptive = f.phaseAdaptive, late = adaptive && coach.phase === 'Late game', laning = !adaptive || coach.phase === 'Laning'
@@ -273,7 +273,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
   const med = (v: number | null, d = 0) => v == null ? undefined : fmt(v, d)
   if (compact) return <article className="coach-card compact-coach">
     <Head icon={<Trophy size={13} />} tag={heroName} sub={clockText} />
-    {performance && <PerformanceMeter performance={performance} detailed={false} />}
+    {!recoveryMode && performance && <PerformanceMeter performance={performance} detailed={false} />}
     <div className="stat-row">
       <span><b>{fmt(s.lastHits)}/{fmt(s.denies)}</b><small>LH/DN</small></span><span><b>{fmt(s.deaths)}</b><small>Deaths</small></span>
       <span><b>{fmt(s.level)}</b><small>Level</small></span><span><b>{fmt(coach.gpm)}</b><small>GPM</small></span>
@@ -284,7 +284,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
   </article>
   return <article className="coach-card">
     <Head icon={<Trophy size={13} />} tag={'Coach · ' + heroName} sub={(coach.matchmaking ? 'Matchmaking' : 'Practice') + ' · ' + coach.phase + ' · ' + clockText} />
-    {performance && <PerformanceMeter performance={performance} detailed={detailed} />}
+    {!recoveryMode && performance && <PerformanceMeter performance={performance} detailed={detailed} />}
     {coach.role && <span className="role-chip">{roleLabels[coach.role]}{adaptive ? ' · adaptive view' : ''}</span>}
     <div className="coach-top">
       <div className="score-ring" style={{ ['--v' as string]: coach.score ?? 0, ['--c' as string]: tone(coach.score) }}><span>{coach.score ?? '—'}</span></div>
@@ -299,25 +299,25 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
       </div>
       <div className="tips">{coaching.tips.slice(0, detailed ? 4 : 2).map(renderTip)}</div>
     </div>}
-    {game && <GameStrip game={game} />}
-    {f.momentum && game && game.momentum.length > 1 && (!adaptive || coach.phase !== 'Laning' || game.momentum.length > 4) && <MomentumGraph points={game.momentum} />}
+    {!recoveryMode && game && <GameStrip game={game} />}
+    {!recoveryMode && f.momentum && game && game.momentum.length > 1 && (!adaptive || coach.phase !== 'Laning' || game.momentum.length > 4) && <MomentumGraph points={game.momentum} />}
     {detailed && <div className="stat-row">
       <span><b>{fmt(s.kills)}/{fmt(s.deaths)}/{fmt(s.assists)}</b><small>K/D/A</small></span><span><b>{fmt(s.lastHits)}/{fmt(s.denies)}</b><small>LH/DN</small></span>
       <span><b>{fmt(s.level)}</b><small>LEVEL</small></span><span className={(s.gold ?? 0) >= 1500 ? 'warn' : ''}><b>{fmt(s.gold)}</b><small>GOLD</small></span></div>}
-    {!!coach.planned?.length && <div className="coach-plan">
+    {!recoveryMode && !!coach.planned?.length && <div className="coach-plan">
       <small>APPROVED BUILD</small>
       <span>{coach.planned.find((item) => item.at == null)?.name ?? 'All planned items seen'}</span>
       <small>{coach.planned.filter((item) => item.at != null).length}/{coach.planned.length} seen</small>
     </div>}
-    {coach.nextGoal && f.achievements && <div className="next-goal"><small>NEXT GOAL</small><b>{coach.nextGoal.label}</b><em>{mmss(coach.nextGoal.left)} left</em></div>}
-    {f.laneWatch && laning && support && support.matchups.length > 0 && <div className="lane-watch"><small>LANE WATCH · you vs revealed enemies</small>
+    {!recoveryMode && coach.nextGoal && f.achievements && <div className="next-goal"><small>NEXT GOAL</small><b>{coach.nextGoal.label}</b><em>{mmss(coach.nextGoal.left)} left</em></div>}
+    {!recoveryMode && f.laneWatch && laning && support && support.matchups.length > 0 && <div className="lane-watch"><small>LANE WATCH · you vs revealed enemies</small>
       <div>{support.matchups.map((m) => <span key={m.enemy} className={m.rate >= 52 ? 'good' : m.rate < 48 ? 'bad' : ''} title={heroes.find((h) => h.id === m.enemy)?.name}><Portrait hero={heroes.find((h) => h.id === m.enemy)} />{fmt(m.rate, 0)}%</span>)}</div></div>}
-    {f.laneWatch && !coaching && support && support.tips.length > 0 && <div className="tips">{support.tips.slice(0, detailed ? 3 : 1).map(renderTip)}</div>}
-    {f.coachTips && !coaching && coach.tips.length > 0 && <div className="tips">{coach.tips.slice(0, detailed ? 3 : 1).map(renderTip)}</div>}
-    {f.achievements && !late && coach.achievements.length > 0 && <div className="ach">{coach.achievements.map((a) => <span key={a.id} className={a.state}>{a.elite ? '★' : a.state === 'done' ? '✓' : a.state === 'late-done' ? '•' : a.state === 'live' ? '◔' : '×'} {a.label}</span>)}</div>}
-    {f.personal && coach.personal && <small className="draft-note">Your avg on this hero: {coach.personal.gpm} GPM · {coach.personal.xpm} XPM ({coach.personal.n} games, patch-weighted)</small>}
-    {!coach.benchmarkAvailable && <small className="draft-note">No benchmark data for this hero yet. Open Heroes → Update data now.</small>}
-    {f.hints && <Foot>{coach.benchmarkLabel ? `Public benchmark · ${coach.benchmarkLabel} ${coach.role.includes('support') ? 'supports' : 'cores'}` : 'Public hero benchmark'} · <kbd>{mod}C</kbd> compact · <kbd>{mod}H</kbd> hide</Foot>}
+    {!recoveryMode && f.laneWatch && !coaching && support && support.tips.length > 0 && <div className="tips">{support.tips.slice(0, detailed ? 3 : 1).map(renderTip)}</div>}
+    {!recoveryMode && f.coachTips && !coaching && coach.tips.length > 0 && <div className="tips">{coach.tips.slice(0, detailed ? 3 : 1).map(renderTip)}</div>}
+    {!recoveryMode && f.achievements && !late && coach.achievements.length > 0 && <div className="ach">{coach.achievements.map((a) => <span key={a.id} className={a.state}>{a.elite ? '★' : a.state === 'done' ? '✓' : a.state === 'late-done' ? '•' : a.state === 'live' ? '◔' : '×'} {a.label}</span>)}</div>}
+    {!recoveryMode && f.personal && coach.personal && <small className="draft-note">Your avg on this hero: {coach.personal.gpm} GPM · {coach.personal.xpm} XPM ({coach.personal.n} games, patch-weighted)</small>}
+    {!recoveryMode && !coach.benchmarkAvailable && <small className="draft-note">No benchmark data for this hero yet. Open Heroes → Update data now.</small>}
+    {!recoveryMode && f.hints && <Foot>{coach.benchmarkLabel ? `Public benchmark · ${coach.benchmarkLabel} ${coach.role.includes('support') ? 'supports' : 'cores'}` : 'Public hero benchmark'} · <kbd>{mod}C</kbd> compact · <kbd>{mod}H</kbd> hide</Foot>}
   </article>
 }
 

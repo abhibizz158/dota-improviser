@@ -459,7 +459,12 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .personal-metrics, .personal-checkpoints { display: flex; flex-wrap: wrap; gap: 4px 9px; }
 .personal-meter span b { color: var(--text); font-variant-numeric: tabular-nums; }
 
-.recovery-card { animation: rise .35s cubic-bezier(.2,.8,.2,1) both; }
+.recovery-card {
+  display: grid; gap: 4px; min-width: 0; padding: 8px 10px; color: var(--text);
+  background: rgba(15,17,24,.96); border: 1px solid var(--line); border-left: 2px solid var(--gold); border-radius: 8px;
+  animation: rise .35s cubic-bezier(.2,.8,.2,1) both;
+}
+@media (prefers-reduced-motion: reduce) { .recovery-card { animation: none; } }
 .recovery-card b { display: block; font-size: 13px; margin-bottom: 2px; } .recovery-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .obj-table td:not(:first-child) { font-variant-numeric: tabular-nums; } .obj-sub { margin: 14px 0 6px; }
 .overlay-view { display: grid; align-content: start; justify-items: end; }
