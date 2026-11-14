@@ -92,7 +92,13 @@ export function coach(frame: Frame, data: HeroData | undefined, percentiles: num
   }
   if (warm && data) {
     if (gpmPct != null && gpmPct < 30) tips.push({ level: 'warn', text: `GPM ${frame.gpm} is under the 30th percentile for ${heroName} (median ${Math.round(data.bench.gpm[2] ?? 0)}). Take more creep waves and camps.` })
-    if (core && lhPct != null && lhPct < 30) tips.push({ level: 'warn', text: `Last hits are behind: ${lhpm!.toFixed(1)}/min vs median ${(data.bench.lhpm[2] ?? 0).toFixed(1)}. Prioritise lane CS over trading.` })
+    if (core && lhPct != null && lhPct < 30) {
+      const medianRate = data.bench.lhpm[2] ?? 0
+      const nextMark = (Math.floor(minutes / 5) + 1) * 5
+      const target = Math.round(medianRate * nextMark)
+      const need = frame.lastHits != null ? Math.max(0, target - frame.lastHits) : null
+      tips.push({ level: 'warn', text: `Last hits are behind: ${lhpm!.toFixed(1)}/min vs median ${medianRate.toFixed(1)}.${need != null && need > 0 ? ` Need about ${need} more by ${nextMark}:00 to catch the median pace.` : ' Prioritise lane CS over trading.'}` })
+    }
     if (xpmPct != null && xpmPct < 30) tips.push({ level: 'warn', text: `XPM ${frame.xpm} is low. Rotate into XP, stay near allies in fights.` })
     if (score != null && score >= 70) tips.push({ level: 'good', text: `Ahead of pace for ${heroName} (${score}/100). Convert it into objectives.` })
   }

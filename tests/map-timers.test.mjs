@@ -26,11 +26,13 @@ test('day/night alternates every 5 minutes for every role', () => {
   assert.equal(dawn[0]?.label, 'Daybreak')
 })
 
-test('the stacking heads-up only fires for support roles, 15s before each minute', () => {
+test('the stacking heads-up fires for every role 15s before each minute, worded for who is pulling vs who is farming', () => {
   assert.deepEqual(ids(dueMapTimers(44, 45, 'Hard support', 'Normal')), ['stack-45'])
   assert.deepEqual(ids(dueMapTimers(44, 45, 'Soft support', 'Normal')), ['stack-45'])
-  assert.deepEqual(ids(dueMapTimers(44, 45, 'Carry', 'Normal')), [])
+  assert.deepEqual(ids(dueMapTimers(44, 45, 'Carry', 'Normal')), ['stack-45'])
   assert.deepEqual(ids(dueMapTimers(104, 105, 'Hard support', 'Normal')), ['stack-105'])
+  assert.match(dueMapTimers(44, 45, 'Hard support', 'Normal')[0].sub, /pull/)
+  assert.match(dueMapTimers(44, 45, 'Carry', 'Normal')[0].sub, /clear/)
 })
 
 test('a big tick jump still fires the crossed event exactly once, and nothing fires in Ability Draft', () => {

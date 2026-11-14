@@ -53,10 +53,13 @@ export function dueMapTimers(before: number, after: number, role: Role | null, m
     if (t != null) alerts.push({ id: 'daynight-' + t, label: (Math.round(t / 300) % 2 === 1 ? 'Night falls' : 'Daybreak'), sub: 'Vision range changes' })
   }
   // Creep stacking: a heads-up 15s before each minute so a support can get into position — the actual pull
-  // window (camp-specific, roughly the last 5-7s before the minute) still varies by camp and patch.
-  if (support) {
+  // window (camp-specific, roughly the last 5-7s before the minute) still varies by camp and patch. Cores get
+  // the same heads-up too (not just support): knowing a camp is about to be stacked is exactly "farm
+  // optimization" for whoever's going to clear it, carry included, even though the pull itself is usually the
+  // support's job.
+  {
     const t = crossing(before, after, 45, 60)
-    if (t != null) alerts.push({ id: 'stack-' + t, label: 'Stack window soon', sub: 'Get to a camp — pull in the next ~15s' })
+    if (t != null) alerts.push({ id: 'stack-' + t, label: 'Stack window soon', sub: support ? 'Get to a camp — pull in the next ~15s' : 'A camp may get stacked — plan your next clear around it' })
   }
   return alerts
 }
