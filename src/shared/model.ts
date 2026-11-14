@@ -1,5 +1,6 @@
 import type { Bracket, CoachingContext } from './contextual-coach.js'
 import type { PersonalPerformance } from './personal-performance.js'
+import type { MatchOutlook, OutlookPoint } from './match-outlook.js'
 import type { Suggestion } from './brain.js'
 import type { CoachView, HeroData } from './coach.js'
 import type { HeroGuide, Support } from './guide.js'
@@ -27,7 +28,7 @@ export type SessionRecord = {
   at: number; hero: string; heroId: number | null; clock: number; kills: number | null; deaths: number | null; assists: number | null
   lastHits: number | null; gpm: number | null; xpm: number | null; best: string | null; firstBlood: GameTrack['firstBlood']
   status: 'completed' | 'abandoned'; gameType: GameType | null; lane: Role | null
-  matchId?: string; performance?: PersonalPerformance['points'][number]
+  matchId?: string; performance?: PersonalPerformance['points'][number]; outlook?: OutlookPoint[]; won?: boolean; comeback?: number
 }
 export type Minute = { time: number; gold: number | null; xp: number | null; lastHits: number | null; deaths: number | null }
 export type ReviewEvent = { time: number | null; label: string; kind: 'item' | 'vision' | 'objective' | 'death'; key?: string }
@@ -50,7 +51,7 @@ export type DataStatus = { state: 'idle' | 'updating' | 'ready' | 'error'; done:
 export const placements = ['Auto', 'Top left', 'Top right', 'Bottom left', 'Bottom right'] as const
 export type Placement = typeof placements[number]
 export type DisplayChoice = { id: string; name: string }
-export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'coachTips', 'itemCoach', 'achievements', 'personal', 'performanceMeter', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision'] as const
+export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'matchOutlook', 'coachTips', 'itemCoach', 'achievements', 'personal', 'performanceMeter', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision'] as const
 export type FeatureKey = typeof featureKeys[number]
 export type Features = Record<FeatureKey, boolean>
 export const defaultFeatures = Object.fromEntries(featureKeys.map((k) => [k, k !== 'achievementSound' && k !== 'draftVision'])) as Features
@@ -58,6 +59,7 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   winMeter: { group: 'Overlay modules', label: 'Lineup win meter', help: 'Estimated edge of your lineup vs theirs while drafting.' },
   roshanTimer: { group: 'Overlay modules', label: 'Roshan / Aegis timer', help: 'A stopwatch you start yourself (hotkey or button) when Roshan dies. Reads nothing from the game.' },
   bans: { group: 'Overlay modules', label: 'Show bans', help: 'Banned heroes row in the draft overlay.' },
+  matchOutlook: { group: 'Overlay modules', label: 'Live win estimate', help: 'Show a running estimate from your revealed lineup and the available own-player feed.' },
   laneWatch: { group: 'Overlay modules', label: 'Lane watch', help: 'Your win rate vs each revealed enemy, plus lineup advice.' },
   itemCoach: { group: 'Overlay modules', label: 'Matchup item recommendations', help: 'Adjust purchases to visible opponents, your own inventory and the game phase.' },
   coachTips: { group: 'Overlay modules', label: 'Coach tips', help: 'Live tips: farm, unspent gold, deaths.' },
@@ -125,6 +127,7 @@ export type DraftReveal = { radiant: { picks: number[]; bans: number[]; slots: R
 export type Pick = { team: 'Radiant' | 'Dire'; heroId: number | null }
 export type GameView = {
   team: 'Radiant' | 'Dire'; firstBlood: GameTrack['firstBlood']; lead: number | null; momentum: [number, number][]
+  outlook?: MatchOutlook;
   multi: Record<string, number>; best: string | null; streak: number; kills: number | null
 }
 export type Toast = GameEvent & { shownAt: number }

@@ -14,6 +14,7 @@ import type { ItemRecommendation } from '../shared/item-coaching.js'
 import type { ItemInfo } from '../shared/items.js'
 import type { Recovery } from '../shared/live-coach.js'
 import itemCatalog from 'virtual:dota-items'
+import { OutlookCard } from './match-outlook'
 
 const base = import.meta.env.BASE_URL
 const bundled = new Set(Object.keys(import.meta.glob('../../public/heroes/*.png')).map((path) => path.split('/').at(-1)?.replace('.png', '')))
@@ -187,7 +188,7 @@ const tone = (p: number | null) => p == null ? 'var(--dim)' : p >= 66 ? 'var(--g
 function Pace({ label, value, median, pct }: { label: string; value: string; median?: string; pct: number | null }) {
   return <div className="pace-row"><span>{label} <em>{value}{median ? ' / ' + median : ''}</em></span><div className="meter"><i style={{ width: (pct ?? 0) + '%', background: tone(pct) }} /></div><b>{pct == null ? '—' : Math.round(pct)}</b></div>
 }
-const toastIcon = (kind: string) => kind === 'first-blood' ? '🩸' : kind === 'multikill' ? '⚔' : kind === 'streak' ? '🔥' : kind === 'item' ? '★' : kind === 'alert' ? '⚠' : '✓'
+const toastIcon = (kind: string) => kind === 'first-blood' ? '🩸' : kind === 'multikill' ? '⚔' : kind === 'streak' ? '🔥' : (kind === 'item' || kind === 'comeback') ? '★' : kind === 'alert' ? '⚠' : '✓'
 
 /** Animated achievement/alert banners. Each fades itself out via CSS; the overlay just stops receiving them once
  * TOAST_MS elapses. Several landing at once (a multikill plus a streak, say) stack instead of replacing each other. */
@@ -284,12 +285,14 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
   const adaptive = f.phaseAdaptive, late = adaptive && coach.phase === 'Late game', laning = !adaptive || coach.phase === 'Laning'
   const detailed = settings.detailed && !late
   const contextualTips = coaching?.tips ?? coach.tips
+  const outlook = !recoveryMode && f.matchOutlook ? game?.outlook : undefined
   const items = !recoveryMode && f.itemCoach ? coaching?.items ?? [] : []
   const primaryTip = (f.coachTips ? contextualTips.find((tip) => tip.level === 'warn') ?? contextualTips[0] : undefined) ??
     (f.laneWatch ? support?.tips[0] : undefined)
   const med = (v: number | null, d = 0) => v == null ? undefined : fmt(v, d)
   if (compact) return <article className="coach-card compact-coach">
     <Head icon={<Trophy size={13} />} tag={heroName} sub={clockText} />
+    {outlook && <OutlookCard outlook={outlook} compact />}
     {!recoveryMode && performance && <PerformanceMeter performance={performance} detailed={false} />}
     <div className="stat-row">
       <span><b>{fmt(s.lastHits)}/{fmt(s.denies)}</b><small>LH/DN</small></span><span><b>{fmt(s.deaths)}</b><small>Deaths</small></span>
@@ -302,6 +305,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
   </article>
   return <article className="coach-card">
     <Head icon={<Trophy size={13} />} tag={'Coach · ' + heroName} sub={(coach.matchmaking ? 'Matchmaking' : 'Practice') + ' · ' + coach.phase + ' · ' + clockText} />
+    {outlook && <OutlookCard outlook={outlook} />}
     {!recoveryMode && performance && <PerformanceMeter performance={performance} detailed={detailed} />}
     {coach.role && <span className="role-chip">{roleLabels[coach.role]}{adaptive ? ' · adaptive view' : ''}</span>}
     <div className="coach-top">

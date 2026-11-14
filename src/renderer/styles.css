@@ -629,3 +629,22 @@ body { font-size: clamp(13px, 0.22vw + 11.2px, 16px); }
 .match-items p { margin: 2px 0 0; font-size: 11px; line-height: 1.32; }
 .match-items small { color: var(--muted); font-size: 10px; }
 .live-item-ai { margin-block: 8px; }
+
+.match-outlook { display: grid; gap: 3px; border-radius: 6px; background: var(--s1); padding: 5px 8px; }
+.match-outlook header { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; }
+.match-outlook header strong { font: 800 18px var(--display); color: var(--good); font-variant-numeric: tabular-nums; }
+.match-outlook.trailing header strong { color: var(--bad); }
+.match-outlook small, .outlook-axis, .outlook-scrub { font-size: 10px; color: var(--muted); }
+.match-outlook.compact:has(.outlook-graph) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; column-gap: 10px; }
+.match-outlook.compact small { grid-column: 1 / -1; }
+.match-outlook.compact .outlook-graph svg { height: 22px; }
+.outlook-graph svg { width: 100%; display: block; height: 36px; }
+.outlook-graph.detailed svg { height: clamp(100px, 18vw, 180px); }
+.outlook-gridline { stroke: var(--line-strong); stroke-dasharray: 4 4; }
+.outlook-line { fill: none; stroke: var(--gold); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.outlook-area { fill: var(--gold); opacity: .13; }
+.outlook-marker { fill: var(--gold); }
+.outlook-axis, .outlook-scrub { display: flex; justify-content: space-between; gap: 8px; }
+.outlook-scrub { margin-top: 6px; align-items: center; }
+.outlook-scrub input { width: min(48%, 260px); }
+.session-outlook { padding: 8px 10px; }

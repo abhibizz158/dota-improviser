@@ -41,6 +41,8 @@ import { BAR_HEIGHT_FRACTION, captureDraftPicks, confirmDraftPicks, debugCapture
 import type { PortraitMemory, VisionReveal } from './draft-vision.js'
 import { brackets, contextualCoach, knownThreat } from '../shared/contextual-coach.js'
 import type { Bracket, CoachHero } from '../shared/contextual-coach.js'
+import { comebackLow, matchEstimate, recordOutlook } from '../shared/match-outlook.js'
+import type { MatchOutlook, OutlookPoint } from '../shared/match-outlook.js'
 import { deathScenarioKey, findCoachAnswer, recordDeathCase, saveCoachAnswer, scenarioKey } from '../shared/coach-memory.js'
 import type { CoachAnswer, DeathCase } from '../shared/coach-memory.js'
 import { checkpointAt, comparePerformance } from '../shared/personal-performance.js'
@@ -102,6 +104,9 @@ let latestLocalMatch: { id: string; fields: number } | undefined
 let sessionGameType: GameType | null = null
 let sessionLane: Role | null = null
 let sessionCompleted = false
+let sessionWon: boolean | null = null
+let outlookPoints: OutlookPoint[] = []
+let outlook: Omit<MatchOutlook, 'points'> | null = null
 let performanceSamples: PerformanceSample[] = []
 let performanceHistory: PerformanceMatch[] | null = null
 let performanceMemo: { samples: PerformanceSample[]; history: PerformanceMatch[]; role: Role; mode: PerformanceMatch['mode']; value: LiveState['performance'] } | null = null
@@ -351,6 +356,7 @@ function setDraft(input: unknown) {
   refreshDraftMatchups()
   refreshCoachView()
   updateDeathThreat()
+  if (frame) updateMatchOutlook(frame)
   return broadcast()
 }
 
@@ -362,7 +368,7 @@ function refreshDraftMatchups() {
     void provider.matchups([id]).then(({ data }) => {
       if (pendingMatchups.get(id) === request) {
         liveMatchups = { ...liveMatchups, ...data }
-        if (frame) { refreshCoachView(); updateDeathThreat() }
+        if (frame) { refreshCoachView(); updateDeathThreat(); updateMatchOutlook(frame) }
       }
     }).catch(() => { /* Keep the available seed data. */ }).finally(() => {
       if (pendingMatchups.get(id) !== request) return
@@ -412,9 +418,22 @@ function emitAlert(event: GameEvent) {
   toastTimer = setTimeout(() => broadcast(), TOAST_MS + 300)
 }
 
+function updateMatchOutlook(current: Frame) {
+  if (!settings.features.matchOutlook || current.paused) return false
+  const draft = draftView()
+  const previous = outlook
+  outlook = matchEstimate({ frame: current, draftWin: draft.teamWin, allies: draft.analysis.ally, enemies: draft.analysis.enemy,
+    mode: sessionGameType, coach: coachView })
+  if (!outlook) return previous != null
+  const before = outlookPoints
+  outlookPoints = recordOutlook(outlookPoints, { at: current.clock, win: outlook.win, lead: outlook.lead })
+  return outlookPoints !== before || previous?.win !== outlook.win || previous?.lead !== outlook.lead
+}
+
 function gameView(): GameView | null {
   if (!frame) return null
   return {
+    outlook: settings.features.matchOutlook && outlook ? { ...outlook, points: outlookPoints } : undefined,
     team: frame.team, firstBlood: track.firstBlood, lead: track.lead.at(-1)?.[1] ?? null, momentum: settings.features.momentum ? momentum(track) : [],
     multi: track.multi, best: track.best, streak: frame.killStreak ?? 0, kills: frame.kills,
   }
@@ -447,11 +466,25 @@ function finishGame() {
   if (sessionCompleted) rememberDeath()
   if (!frame || frame.clock < 0 || (!sessionCompleted && frame.clock < 300)) return
   const sessions = store.get<SessionRecord[]>('sessions') ?? []
+  const existing = frame.matchId ? sessions.find((entry) => entry.matchId === frame?.matchId) : undefined
+  const low = frame.matchmaking && frame.matchId && settings.features.achievements && sessionCompleted && !existing?.comeback
+    ? comebackLow(outlookPoints, sessionWon) : null
+  if (low != null && frame.matchId) {
+    const key = 'comeback-match:' + frame.matchId
+    if (!store.get<boolean>(key)) {
+      store.set(key, true)
+      emit([{ id: 'comeback', kind: 'comeback', label: 'Against the odds', sub: `Won after an estimated ${low}% chance`, epic: true, at: frame.clock }], [])
+    }
+  }
+  const timeline = sessionWon == null ? outlookPoints : outlookPoints.length > 0
+    ? recordOutlook(outlookPoints, { at: frame.clock, win: sessionWon ? 100 : 0, lead: outlook?.lead ?? null }, true) : []
   const record: SessionRecord = {
     at: Date.now(), matchId: frame.matchId, hero: frame.heroSlug, heroId: frame.heroId, clock: frame.clock, kills: frame.kills, deaths: frame.deaths,
     assists: frame.assists, lastHits: frame.lastHits, gpm: frame.gpm, xpm: frame.xpm, best: track.best, firstBlood: track.firstBlood,
     status: sessionCompleted ? 'completed' : 'abandoned', gameType: sessionGameType, lane: roleChoice().role,
     performance: performanceView()?.points.findLast((point) => point.score != null),
+    outlook: timeline.length ? timeline : existing?.outlook, won: sessionWon ?? existing?.won,
+    comeback: low ?? existing?.comeback,
   }
   if (account && frame.heroId && performanceSamples.length > 0 && settings.features.performanceMeter && (!frame.matchmaking || sessionCompleted)) {
     const saved = store.get<PerformanceMatch[]>(performanceKey()) ?? []
@@ -464,7 +497,6 @@ function finishGame() {
     }
     store.set(performanceKey(), [entry, ...saved.filter((match) => entry.id == null || match.id !== entry.id)].slice(0, 200))
   }
-  const existing = record.matchId ? sessions.find((entry) => entry.matchId === record.matchId) : undefined
   if (!existing || existing.status !== 'completed' || record.status === 'completed') {
     const previous = record.matchId ? sessions.filter((entry) => entry.matchId !== record.matchId) : sessions
     store.set('sessions', [...previous, record].slice(-60))
@@ -518,6 +550,14 @@ function broadcast() {
   if (!frame && (view === 'lane' || view === 'setup') && overlayRequested) hideOverlay()
   lastBroadcast = Date.now()
   const value = state()
+  if (value.toasts.some((toast) => toast.kind === 'comeback') && overlay && settings.display === 'Overlay' && settings.features.toasts && dashboard) {
+    const toastWindow = achievementWindow ?? makeAchievementWindow()
+    placeAchievementWindow()
+    if (!toastWindow.isVisible()) {
+      toastWindow.showInactive()
+      setTimeout(() => { if (!overlayRequested && !toastWindow.isDestroyed()) toastWindow.hide() }, TOAST_MS + 350).unref()
+    }
+  }
   dashboard?.webContents.send('live:update', value)
   if (overlay?.isVisible()) overlay.webContents.send('live:update', value)
   if (achievementWindow?.isVisible()) achievementWindow.webContents.send('live:update', value)
@@ -529,7 +569,8 @@ function resetSession(next: LiveState['status']) {
   timeout = undefined
   finishGame()
   if (pick || view !== 'draft' || returnToLane) hideOverlay()
-  track = newTrack(); awarded = new Set(); toasts = []
+  track = newTrack(); awarded = new Set()
+  toasts = sessionCompleted ? toasts.filter((toast) => toast.kind === 'comeback' && Date.now() - toast.shownAt < TOAST_MS) : []
   lane = null
   frame = null
   coachView = null
@@ -548,6 +589,9 @@ function resetSession(next: LiveState['status']) {
   sessionInfoDismissed = false
   sessionLane = null
   sessionCompleted = false
+  sessionWon = null
+  outlook = null
+  outlookPoints = []
   performanceSamples = []
   performanceHistory = null
   performanceMemo = null
@@ -755,7 +799,9 @@ function receive(value: unknown) {
     const finalFrame = parseResultFrame(value, steamId)
     if (finalFrame && finalFrame.heroSlug === frame.heroSlug) {
       sessionCompleted = true
-      frame = { ...frame, ...finalFrame, clock: Math.max(frame.clock, finalFrame.clock),
+      const { won, ...result } = finalFrame
+      sessionWon = won
+      frame = { ...frame, ...result, clock: Math.max(frame.clock, finalFrame.clock),
         kills: finalFrame.kills ?? frame.kills, deaths: finalFrame.deaths ?? frame.deaths, assists: finalFrame.assists ?? frame.assists,
         gpm: finalFrame.gpm ?? frame.gpm, xpm: finalFrame.xpm ?? frame.xpm, lastHits: finalFrame.lastHits ?? frame.lastHits }
     }
@@ -859,6 +905,7 @@ function receive(value: unknown) {
     deathCase = { frame: nextFrame, role: roleChoice().role, phase: coachView?.phase ?? 'Laning', killer: null, repeats: 0, threat: null }
     updateDeathThreat()
   }
+  const outlookChanged = nextFrame && updateMatchOutlook(nextFrame)
   const performanceCheckpoint = nextFrame && settings.features.performanceMeter && !newPractice
     ? checkpointAt(frameBefore?.clock ?? null, nextFrame.clock, nextFrame.paused) : null
   if (performanceCheckpoint != null && nextFrame && !performanceSamples.some((sample) => sample.at === performanceCheckpoint)) {
@@ -877,7 +924,7 @@ function receive(value: unknown) {
   }
   if (!!nextFrame !== !!frameBefore && overlay?.isVisible()) placeOverlay(overlay)
   if (picksChanged || lifeChanged || statusChanged || nextPick?.heroId !== pickBefore?.heroId || !!nextPick !== !!pickBefore || !!nextFrame !== !!frameBefore || !!next !== !!laneBefore) broadcast()
-  else if (refreshCoach || performanceCheckpoint != null || events.length || nextPick || nextFrame?.respawnSeconds !== frameBefore?.respawnSeconds) broadcastSoon()
+  else if (outlookChanged || refreshCoach || performanceCheckpoint != null || events.length || nextPick || nextFrame?.respawnSeconds !== frameBefore?.respawnSeconds) broadcastSoon()
 }
 
 function windowGuard(window: BrowserWindow) {
@@ -1199,6 +1246,7 @@ function finishSessionSetup(gameType?: GameType, role?: Role) {
   sessionLane = role ?? null
   sessionInfoDismissed = true
   refreshCoachView()
+  updateMatchOutlook(frame)
   if (deathCase) {
     deathCase.role = roleChoice().role
     deathCase.phase = coachView?.phase ?? deathCase.phase
@@ -2006,6 +2054,7 @@ function handlers() {
     settings = readSettings(value)
     if (!settings.features.overlayAssistant && view === 'assistant') finishOverlayEditing()
     if (!settings.features.toasts) toasts = []
+    if (!settings.features.matchOutlook) outlook = null
     updateDraftVision()
     if (autoUpdate !== settings.features.autoUpdate) {
       if (!settings.features.autoUpdate) dataCancel.stop = true
@@ -2014,6 +2063,7 @@ function handlers() {
     store.set('live', settings)
     profileMemo = null; weightsMemo = null
     refreshCoachView()
+    if (frame) updateMatchOutlook(frame)
     updateDeathThreat()
     if (overlay) {
       if (settings.display === 'Companion') hideOverlay()

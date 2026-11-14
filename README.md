@@ -72,6 +72,10 @@ On Windows, use **Borderless Windowed** or **Windowed** for Draft Vision. Keep D
 
 The live overlay suggests one matchup item in Compact mode and up to two in Large mode. Suggestions consider your role, hero level, game phase, owned items, gold and current GPM. They use the known enemy lineup and update as you buy items. The displayed purchase time is an estimate. You can turn the card off under **Live & Coach → Features → Matchup item recommendations**.
 
+## Match outlook
+
+The overlay shows an estimated team win chance and a compact trend line. Live & Coach lists the available factors, and Overview retains the chart for recorded completed games. The estimate uses the visible lineup, team kills and your own feed. It does not use hidden enemy gold, XP or objectives. A verified matchmaking win earns **Against the odds** if your team was behind on kills with estimates below 50% at two consecutive samples after minute five.
+
 ## Puter AI and privacy
 
 Puter is optional and runs only when asked. Live questions use a compact context and short answers. Learn from my matches can reuse earlier answers in matching situations. Open **Settings → Puter AI → Sign in with Puter** to use the browser-based login. The app stores the session using Electron's OS-backed secure storage when available; otherwise, it keeps the session for the current run. You can disconnect Puter or clear the app's local data in Settings.

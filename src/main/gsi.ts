@@ -83,7 +83,10 @@ export function parseFrame(value: unknown, expectedSteamId: string, matchmaking:
 
 export function parseResultFrame(value: unknown, expectedSteamId: string) {
   const result = gate(value, expectedSteamId, true, completedPhases)
-  return result && ['radiant', 'dire'].includes(String(result.map.win_team).toLowerCase()) ? projectFrame(result) : null
+  const winner = String(result?.map.win_team ?? '').toLowerCase()
+  if (!result || !['radiant', 'dire'].includes(winner)) return null
+  const frame = projectFrame(result)
+  return { ...frame, won: frame.team.toLowerCase() === winner }
 }
 
 function projectFrame(g: NonNullable<ReturnType<typeof gate>>): Frame {

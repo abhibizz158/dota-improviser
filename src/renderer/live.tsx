@@ -3,13 +3,14 @@ import { ArrowUpRight, CheckCircle2, CircleHelp, Download, FileDown, Layers3, Mo
 import type { AppApi, Bootstrap, FeatureKey, LiveSettings, LiveState, Placement } from '../shared/model'
 import { featureInfo, featureKeys, placements, roleLabels, roles } from '../shared/model'
 import { brackets } from '../shared/contextual-coach'
+import { OutlookGraph } from './match-outlook'
 import { ShareMatch } from './share-match'
 import { CoachCard, Dialog, Feedback, LaneCard, RecoveryCard, RoshanTimer, SessionPrompt, clock } from './ui'
 
 type Props = { api: AppApi; context: Bootstrap; live: LiveState; onState: (live: LiveState) => void; onAccount: () => void }
 
 const trophyName = (id: string) => id === 'first-blood' ? 'First Blood' : id.startsWith('multi-') ? id.slice(6) : id.startsWith('streak-') ? ({ '3': 'Killing Spree', '4': 'Dominating', '5': 'Mega Kill', '6': 'Unstoppable', '7': 'Wicked Sick', '8': 'Monster Kill', '9': 'Godlike', '10': 'Beyond Godlike' } as Record<string, string>)[id.slice(7)] ?? id
-  : id === 'no-death-10' ? 'Untouched at 10:00' : id === 'cs-60' ? '60 last hits by 10:00' : id.startsWith('goal-') ? 'Goal: ' + id.slice(5).replaceAll('_', ' ') : id
+  : id === 'comeback' ? 'Against the odds' : id === 'no-death-10' ? 'Untouched at 10:00' : id === 'cs-60' ? '60 last hits by 10:00' : id.startsWith('goal-') ? 'Goal: ' + id.slice(5).replaceAll('_', ' ') : id
 const trophyRank = (id: string) => id.includes('Rampage') ? 0 : id.includes('Ultra') ? 1 : id.includes('Triple') ? 2 : id.includes('Double') ? 3 : id === 'first-blood' ? 4 : 5
 
 /** Career trophy case: every achievement your own game feed has recorded on this device. */
@@ -17,7 +18,7 @@ export function Trophies({ career }: { career: Record<string, number> }) {
   const rows = Object.entries(career).sort((a, b) => trophyRank(a[0]) - trophyRank(b[0]) || b[1] - a[1])
   return <section className="panel form-panel reveal">
     <header className="panel-heading"><div><h2>Trophy case</h2><p>Achievements recorded from your own games on this device</p></div></header>
-    {rows.length ? <div className="trophies">{rows.map(([id, n], i) => <div key={id} className={'trophy ' + (trophyRank(id) < 4 ? 'epic' : '')} style={{ ['--i' as string]: i }}><b>{n}</b><span>{trophyName(id)}</span></div>)}</div>
+    {rows.length ? <div className="trophies">{rows.map(([id, n], i) => <div key={id} className={'trophy ' + ((trophyRank(id) < 4 || id === 'comeback') ? 'epic' : '')} style={{ ['--i' as string]: i }}><b>{n}</b><span>{trophyName(id)}</span></div>)}</div>
       : <p className="fine-print">Play a game with the listener on: first blood, double/triple/ultra kills, rampages, streaks and item goals show up here.</p>}
   </section>
 }
@@ -189,6 +190,11 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
       <p className="fine-print">Open parsed games in Match Review to add earlier benchmarks. The app also keeps five-minute checkpoints from matches it follows. A score needs at least three comparable matches.</p>
     </section>}
     <RoshanPanel api={api} live={live} onState={onState} />
+    {live.game?.outlook && <section className="panel form-panel">
+      <header className="panel-heading"><div><h2>Match outlook</h2><p>{live.game.outlook.scope} · Estimated {live.game.outlook.win}% team win chance</p></div></header>
+      <OutlookGraph points={live.game.outlook.points} detailed />
+      <p className="fine-print">{live.game.outlook.factors.join(' · ')}</p>
+    </section>}
     <Trophies career={live.career} />
     <section className="panel form-panel">
       <header className="panel-heading"><div><h2>Features</h2><p>Switch anything off. Changes apply instantly to the overlay and the app.</p></div>

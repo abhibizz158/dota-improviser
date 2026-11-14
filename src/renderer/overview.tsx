@@ -5,6 +5,7 @@ import { roleLabels, roles } from '../shared/model'
 import { available, summarize } from '../shared/analysis'
 import { day, HistoryChart, rollingWins, Sparkline } from './charts'
 import { clock, Empty, fmt, Portrait, Trend } from './ui'
+import { OutlookGraph } from './match-outlook'
 import { ShareMatch } from './share-match'
 import { FeaturedStage, GuideSections, Insights, useFeatured } from './featured'
 
@@ -158,9 +159,12 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, h
  * completed or abandoned (AGENTS.md's half-recorded rule: app/game closed or you left = abandoned, ancient fell = completed),
  * plus what those sessions say about your real pace next to your public match history. */
 function SessionHistory({ api, sessions, byId, publicGpm, publicXpm }: { api: AppApi; sessions: SessionRecord[]; byId: Map<number, Catalog['heroes'][number]>; publicGpm: number | null; publicXpm: number | null }) {
+  const [selectedOutlook, setSelectedOutlook] = useState<number | null>(null)
   if (!sessions.length) return null
   const completed = sessions.filter((s) => s.status === 'completed')
   const abandoned = sessions.length - completed.length
+  const chartSessions = completed.filter((session) => (session.outlook?.length ?? 0) > 1)
+  const chartSession = chartSessions.find((session) => session.at === selectedOutlook) ?? chartSessions.at(-1)
   const avg = (pick: (s: SessionRecord) => number | null) => {
     const values = sessions.map(pick).filter((v): v is number => v != null)
     return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null
@@ -189,5 +193,16 @@ function SessionHistory({ api, sessions, byId, publicGpm, publicXpm }: { api: Ap
           hero: byId.get(session.heroId ?? -1)?.name ?? session.hero.replaceAll('_', ' '), status: session.status === 'completed' ? 'Completed' : 'Abandoned' }} /></td>
       </tr>)}</tbody>
     </table></div>
+    {chartSession?.outlook && <details className="session-outlook">
+      <summary>Completed match outlook {chartSession.comeback != null && ' · Against the odds'}</summary>
+      {chartSessions.length > 1 && <label className="field">Recorded match
+        <select value={chartSession.at} onChange={(event) => setSelectedOutlook(Number(event.target.value))}>
+          {chartSessions.slice().reverse().map((session) => <option key={session.at} value={session.at}>
+            {byId.get(session.heroId ?? -1)?.name ?? session.hero.replaceAll('_', ' ')} · {new Date(session.at).toLocaleString()}
+          </option>)}
+        </select>
+      </label>}
+      <OutlookGraph key={chartSession.at} points={chartSession.outlook} detailed />
+    </details>}
   </section>
 }
