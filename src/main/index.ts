@@ -1574,7 +1574,9 @@ function handlers() {
     const bounds = gameBounds ?? (overlay && !overlay.isDestroyed() ? overlay.getBounds() : null) ?? detectDotaBounds()
     if (!bounds) throw new Error('Could not find the Dota window — make sure Dota 2 is running and in the foreground.')
     const result = await debugCaptureDraftPicks(true, bounds)
-    if (!result) throw new Error('Found the Dota window but not a window source for it to capture — make sure Dota 2 isn’t minimized, and that it is named "Dota 2" in the Dock (not renamed).')
+    if (!result) throw new Error(process.platform === 'win32'
+      ? 'Found the Dota window but could not capture it. Windows can’t thumbnail-capture an exclusive Fullscreen DirectX window — in Dota, go to Settings → Video → Display Mode and switch to Borderless Windowed or Windowed, then try again.'
+      : 'Found the Dota window but not a window source for it to capture — make sure Dota 2 isn’t minimized, and that it is named "Dota 2" in the Dock (not renamed).')
     const heroName = (id: number | null) => id == null ? null : catalog.heroes.find((h) => h.id === id)?.name ?? null
     return { ...result, radiantNames: result.radiant.map(heroName), direNames: result.dire.map(heroName) }
   })
