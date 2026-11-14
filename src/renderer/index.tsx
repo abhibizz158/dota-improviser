@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Activity, ArrowDownToLine, ArrowRight, Award, BookOpen, BrainCircuit, CircleHelp, Database, Gamepad2, LayoutDashboard, PanelTop, Radio, Settings2, ShieldCheck, Swords, UserRound } from 'lucide-react'
-import type { AppApi, Bootstrap, LiveState, MatchSummary, PuterStatus, SourceResult, UpdateInfo } from '../shared/model'
+import type { AppApi, Bootstrap, FeatureKey, LiveState, MatchSummary, PuterStatus, SourceResult, UpdateInfo } from '../shared/model'
+import { featureInfo } from '../shared/model'
 import { browserApi, demoCatalog, demoHistory, initialLive } from './demo'
 import { Overview } from './overview'
 import { AssistantCard, CoachCard, Dialog, DraftCard, Feedback, LaneCard, RecoveryCard, RoshanTimer, SessionPrompt, Toasts, clock } from './ui'
@@ -35,7 +36,11 @@ const pages = [
   { id: 'know', label: 'Know', icon: BookOpen },
 ] as const
 type Page = typeof pages[number]['id']
-type Modal = 'account' | 'import' | 'settings' | 'puter' | 'fair' | 'updates' | 'privateHistory' | null
+type Modal = 'account' | 'import' | 'settings' | 'puter' | 'fair' | 'updates' | 'privateHistory' | 'welcome' | null
+
+const onboardedKey = 'dota-improviser-onboarded'
+function readOnboarded() { try { return localStorage.getItem(onboardedKey) === '1' } catch { return true } }
+function markOnboarded() { try { localStorage.setItem(onboardedKey, '1') } catch { /* ignore */ } }
 
 function BrandMark() {
   return <img className="brand-logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={34} height={34} />
@@ -104,10 +109,13 @@ function App() {
   const [history, setHistory] = useState<SourceResult<MatchSummary[]> | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [sample, setSample] = useState(true)
+  const [sample, setSample] = useState(false)
   const [page, setPage] = useState<Page>('overview')
   const [selection, setSelection] = useState({ id: '', sample: false })
   const [modal, setModal] = useState<Modal>(null)
+  const [welcomeStep, setWelcomeStep] = useState(0)
+  const [gsiMessage, setGsiMessage] = useState({ message: '', error: false })
+  const [gsiBusy, setGsiBusy] = useState(false)
   const [input, setInput] = useState('')
   const [formError, setFormError] = useState('')
   const [formBusy, setFormBusy] = useState(false)
@@ -153,11 +161,14 @@ function App() {
       setContext(value)
       if (!received) { latestLive.current = value.live; setLive(value.live) }
       if (value.accountId) {
-        setSample(false)
+        markOnboarded()
         if (value.cachedHistory) setHistory(value.cachedHistory)
         // An empty cached result could just mean nothing was fetched after public match data was turned on
         // (the 30-minute cache can't tell "truly empty" from "not asked yet") — always force a live check then.
         void loadHistory(value.accountId, !value.cachedHistory?.data.length)
+      } else if (!readOnboarded()) {
+        setWelcomeStep(0)
+        setModal('welcome')
       }
     }).catch((reason: Error) => { if (mounted) setError(reason.message) })
     return () => { mounted = false; unsubscribe() }
@@ -210,7 +221,8 @@ function App() {
       setHistory(null)
       setSelection({ id: '', sample: false })
       setSample(false)
-      setModal(null)
+      markOnboarded()
+      if (modal === 'welcome') setWelcomeStep(1); else setModal(null)
       void loadHistory(id, true)
     } catch (reason) { setFormError(reason instanceof Error ? reason.message : 'This account could not be added.') }
     finally { setFormBusy(false) }
@@ -219,6 +231,24 @@ function App() {
   async function detectSteam() {
     const id = await api.detectSteam().catch(() => null)
     if (id) setInput(id); else setFormError('No signed-in Steam user found on this computer.')
+  }
+
+  async function installGsiNow() {
+    setGsiBusy(true); setGsiMessage({ message: '', error: false })
+    try { setGsiMessage({ message: await api.installConfig(), error: false }) }
+    catch (error) { setGsiMessage({ message: error instanceof Error ? error.message : 'Could not install the config.', error: true }) }
+    finally { setGsiBusy(false) }
+  }
+
+  async function saveGsiNow() {
+    setGsiBusy(true); setGsiMessage({ message: '', error: false })
+    try { setGsiMessage({ message: (await api.saveConfig()) ? 'Config saved. Restart Dota after installing it.' : '', error: false }) }
+    catch (error) { setGsiMessage({ message: error instanceof Error ? error.message : 'Could not save the config.', error: true }) }
+    finally { setGsiBusy(false) }
+  }
+
+  async function toggleFeature(key: FeatureKey, value: boolean) {
+    setLive(await api.liveSettings({ ...live.settings, features: { ...live.settings.features, [key]: value } }))
   }
 
   async function updateAction(action: 'check' | 'install') {
@@ -336,10 +366,48 @@ function App() {
         </main>
       </div>
     </div>
-    {modal && <Dialog title={modal === 'account' ? 'Dota account' : modal === 'import' ? 'Open match by ID' : modal === 'fair' ? 'Fair-play guardrails' : modal === 'puter' ? 'Puter AI connection' : modal === 'updates' ? 'App updates' : modal === 'privateHistory' ? 'Import your own matches' : 'Workspace settings'}
-      onClose={() => { if (!formBusy) setModal(null) }}>
-      {modal === 'fair' ? <div className="settings-dialog"><ul className="fair-list">{fairPlay.map((rule) => <li key={rule}>{rule}</li>)}</ul>
+    {modal && <Dialog title={modal === 'account' ? 'Dota account' : modal === 'import' ? 'Open match by ID' : modal === 'fair' ? 'Fair-play guardrails' : modal === 'puter' ? 'Puter AI connection' : modal === 'updates' ? 'App updates' : modal === 'privateHistory' ? 'Import your own matches' : modal === 'welcome' ? 'Set up Dota Improviser' : 'Workspace settings'}
+      onClose={() => { if (!formBusy) { markOnboarded(); setModal(null) } }}>
+      {modal === 'welcome' ? <div className="settings-dialog welcome-dialog">
+        <div className="wizard-steps"><span className={welcomeStep === 0 ? 'active' : ''}>1. Account</span><span className={welcomeStep === 1 ? 'active' : ''}>2. Live feed</span><span className={welcomeStep === 2 ? 'active' : ''}>3. Features</span></div>
+        {welcomeStep === 0 && <>
+          <p>This app is local-first: everything stays on this device except public OpenDota/Valve lookups and whatever your own Dota account already shares publicly. Link your account now to load match history, or skip and add it later from Settings.</p>
+          <form onSubmit={(event) => void submit(event)}>
+            <label className="field">Dota account ID or SteamID64<input autoFocus inputMode="numeric" autoComplete="off" maxLength={17} value={input} onChange={(event) => setInput(event.target.value)} placeholder="e.g. 86745912" /></label>
+            <Feedback message={formError} error />
+            <div className="actions">
+              <button className="button primary" type="submit" disabled={formBusy || !input.trim() || !context.desktop}>{formBusy ? 'Saving…' : 'Load match history'} <ArrowRight size={16} /></button>
+              {context.local.steamFound && <button className="text-button" type="button" onClick={() => void detectSteam()}>Use my Steam account</button>}
+            </div>
+          </form>
+          <p className="fine-print">Match history needs Dota's own "Expose Public Match Data" setting on (Dota Settings → General). OpenDota can take a few minutes to notice after you turn it on.</p>
+        </>}
+        {welcomeStep === 1 && <>
+          <p>The live overlay, draft card and achievements need Dota's Game State Integration (GSI) — a local config file, opt-in and read-only. Skip this if you only want match history and draft planning.</p>
+          <ol className="setup-steps">
+            <li><div><strong>Install the config</strong><p>{context.local.gsiInstalled ? 'Already installed.' : context.local.installFound ? 'One click into your local Dota install.' : 'Local Dota install not found on this device — use "Save as…" and copy the file in by hand.'}</p></div>
+              <span className="inline-actions">{context.local.installFound && <button className="button secondary slim" disabled={gsiBusy} onClick={() => void installGsiNow()}>{gsiBusy ? 'Installing…' : context.local.gsiInstalled ? 'Reinstall' : 'Install'}</button>}
+              <button className="button secondary slim" disabled={gsiBusy || !context.desktop} onClick={() => void saveGsiNow()}>Save as…</button></span></li>
+            <li><div><strong>Add the launch option</strong><p>In Steam, right-click Dota 2 → Properties → Launch Options, add <code>-gamestateintegration</code>, then restart Dota.</p></div></li>
+          </ol>
+          <Feedback {...gsiMessage} />
+          <p className="fine-print">{/Mac/.test(navigator.platform) ? 'macOS only asks for Screen Recording permission if you turn on Draft vision on the next step — the overlay and GSI feed need no OS permission at all.' : 'Windows needs no special permission for the overlay or GSI feed; some antivirus tools flag a new local listener on first run, which is safe to allow.'}</p>
+        </>}
+        {welcomeStep === 2 && <>
+          <p>Everything below is off until you choose it. Draft vision is the only feature that ever reads your screen, and only the pick-bar strip during hero selection — never once a match is live.</p>
+          <label className="check-field"><input type="checkbox" checked={live.settings.features.draftVision} onChange={(event) => void toggleFeature('draftVision', event.target.checked)} /><span>{featureInfo.draftVision.label}<small>{featureInfo.draftVision.help}</small></span></label>
+          <label className="check-field"><input type="checkbox" checked={live.settings.features.toasts} onChange={(event) => void toggleFeature('toasts', event.target.checked)} /><span>{featureInfo.toasts.label}<small>{featureInfo.toasts.help}</small></span></label>
+          <p className="fine-print">"Save my completed match stats locally" lives on Live &amp; Coach once the listener is running — it records your own finished games automatically, nothing made public. Change any of this any time from Live &amp; Coach → Features, or Settings here.</p>
+        </>}
+        <div className="actions">
+          {welcomeStep > 0 && <button className="button secondary" onClick={() => setWelcomeStep((step) => step - 1)}>Back</button>}
+          {welcomeStep < 2 && <button className="button secondary" onClick={() => setWelcomeStep((step) => step + 1)}>Next</button>}
+          {welcomeStep === 2 && <button className="button primary" onClick={() => { markOnboarded(); setModal(null) }}>Finish</button>}
+          <button className="text-button" onClick={() => { markOnboarded(); setModal(null) }}>Skip setup</button>
+        </div>
+      </div> : modal === 'fair' ? <div className="settings-dialog"><ul className="fair-list">{fairPlay.map((rule) => <li key={rule}>{rule}</li>)}</ul>
         <p className="fine-print">Enforced in code (network allowlist, fixed GSI sections) and by tests that fail the build on forbidden APIs. Valve's rules can change: this is not legal advice, and you remain responsible for how you use any tool.</p></div> : modal === 'settings' ? <div className="settings-dialog">
+        <button className="settings-choice" onClick={() => { setWelcomeStep(0); setModal('welcome') }}><UserRound size={18} /><span><strong>Setup guide</strong><small>Account, live feed and feature setup, step by step</small></span><ArrowRight size={16} /></button>
         <button className="settings-choice" onClick={() => { setSample(!sample); setModal(null); navigate('overview') }}><PanelTop size={18} /><span><strong>{sample ? 'Open your workspace' : 'Explore sample data'}</strong><small>{sample ? 'Use public match data from your Dota account.' : 'Try the dashboard with example matches.'}</small></span><ArrowRight size={16} /></button>
         <button className="settings-choice" onClick={() => showModal('account')}><UserRound size={18} /><span><strong>Dota account</strong><small>{context.accountId || 'Add a numeric Dota account ID'}</small></span><ArrowRight size={16} /></button>
         <button className="settings-choice" onClick={() => showModal('puter')}><BrainCircuit size={18} /><span><strong>Puter AI</strong><small>{puter.connected ? `Connected · ${puter.model}` : 'Sign in in your browser to request AI coaching'}</small></span><ArrowRight size={16} /></button>
