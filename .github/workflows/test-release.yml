@@ -40,6 +40,8 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - name: Prepare the development Electron runtime for native smoke tests
+        run: node node_modules/electron/install.js
       - shell: bash
         run: npm run "$PACKAGE_COMMAND"
       - name: Run application tests against the packaged build inputs
@@ -51,7 +53,7 @@ jobs:
         run: |
           app="release/$PACKAGE_DIR/Dota Improviser.app"
           helper="$app/Contents/Resources/app.asar.unpacked/dist/main/main/overlay-window.node"
-          driver="$PWD/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+          driver=$(node -p 'require("electron")')
           ELECTRON_RUN_AS_NODE=1 "$driver" scripts/smoke-overlay-module.cjs "$helper"
           mkdir -p artifacts
           version=$(node -p 'require("./package.json").version')
