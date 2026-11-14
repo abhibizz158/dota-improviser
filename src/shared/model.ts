@@ -100,12 +100,10 @@ export type DraftView = {
   bans: number[]; timeLeft: number | null; activeTeam: 'Radiant' | 'Dire' | null; teamWin: number | null
   model: { samples: number; comfortWeight: number }; patched: number[]; avoid: Suggestion[]; analysis: Analysis
   stale: boolean; seedPatch: string; build: number | null; patchChanged: boolean; loading: boolean; personal: number
-  /** Your own locked hero's matchups, so there's still something useful on screen once enemy/ally picks can't be read. */
-  ownMatchups: { strongAgainst: { heroId: number; rate: number }[]; weakAgainst: { heroId: number; rate: number }[] } | null
 }
 export const emptyDraft: DraftView = {
   enemy: [], allied: [], pool: [], role: 'Carry', bans: [], timeLeft: null, activeTeam: null, teamWin: null, model: { samples: 0, comfortWeight: 0.5 }, patched: [], avoid: [], analysis: { enemy: null, ally: null, fixes: [], model: null }, suggestions: [], stale: true, seedPatch: '', build: null,
-  patchChanged: false, loading: false, personal: 0, ownMatchups: null,
+  patchChanged: false, loading: false, personal: 0,
   ownHero: null, lockedHero: null, revealedEnemy: [], revealedAllied: [], roleChoice: { role: 'Carry', source: 'Default', override: null },
 }
 export type LocalStatus = { installFound: boolean; gsiInstalled: boolean; steamFound: boolean; build: number | null; localBuilds: number }
@@ -122,7 +120,7 @@ export type Frame = {
   deaths: number | null; assists: number | null; items: string[]; itemsObserved: boolean; respawnSeconds: number | null; paused: boolean; matchmaking: boolean
   team: 'Radiant' | 'Dire'; radiantScore: number | null; direScore: number | null; killStreak: number | null
 }
-export type DraftReveal = { radiant: { picks: number[]; bans: number[] }; dire: { picks: number[]; bans: number[] }; activeTeam: 'Radiant' | 'Dire' | null; timeLeft: number | null }
+export type DraftReveal = { radiant: { picks: number[]; bans: number[]; slots: ReadonlyMap<number, number> }; dire: { picks: number[]; bans: number[]; slots: ReadonlyMap<number, number> }; activeTeam: 'Radiant' | 'Dire' | null; timeLeft: number | null }
 export type Pick = { team: 'Radiant' | 'Dire'; heroId: number | null }
 export type GameView = {
   team: 'Radiant' | 'Dire'; firstBlood: GameTrack['firstBlood']; lead: number | null; momentum: [number, number][]

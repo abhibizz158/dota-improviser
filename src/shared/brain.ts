@@ -1,6 +1,7 @@
 import type { Hero, MatchReview, MatchSummary, Matchups, Role } from './model.js'
 import { roleFit } from './analysis.js'
-import type { FeatureName, MechModel } from './mechanics.js'
+import { allyCombination, counterInteraction } from './draft-reasons.js'
+import type { FeatureName, Kit, MechModel } from './mechanics.js'
 
 // Win-rate blend for "my hero C vs enemy E". Sources, strongest-first:
 //  live  = fresh OpenDota aggregate (fetched this session / cached <24h)
@@ -15,12 +16,12 @@ export type Profile = { heroes: Record<number, Count>; pairs: Record<string, Cou
 export type Weights = { comfort: number; fit: number; samples: number }
 export const defaultWeights: Weights = { comfort: 0.5, fit: 2, samples: 0 }
 export type Overrides = Record<string, number> // key `${mine}:${enemy}` -> delta points, clamped ±15
-export type Why = { enemy: number; rate: number; games: number; source: 'live' | 'seed' | 'you' | 'prior' | 'mechanics'; edge: number; mech?: number }
+export type Why = { enemy: number; rate: number; games: number; source: 'live' | 'seed' | 'you' | 'prior' | 'mechanics'; edge: number; mech?: number; reason?: string }
 export type Suggestion = {
   heroId: number; teamWin: number | null; score: number; winRate: number | null; games: number; fit: boolean; fitScore: number
   confidence: number; comfort: number | null; why: Why[]
   /** matchup-specific edge in points vs what overall strengths predict; base = hero's overall win rate % */
-  edge: number | null; base: number | null; comp: number
+  edge: number | null; base: number | null; comp: number; synergy?: string
   build?: { early: string[]; mid: string[]; late: string[] }
   /** matchup edge the game's mechanics predict (points), with the biggest contributors */
   mech?: { edge: number; parts: { label: FeatureName; points: number }[] }
@@ -30,6 +31,7 @@ export type BrainInput = {
   seed: Seed | null; live: Matchups; profile: Profile; overrides: Overrides; stale: boolean; weights?: Weights; changed?: number[]
   mech?: MechModel | null // mechanics model, used as the prior for each matchup
   base?: Record<number, number> // overall win rate per hero, 0..1
+  kits?: Record<number, Kit>
   levels?: Record<number, number[]> // Valve role levels per hero
 }
 
@@ -128,10 +130,18 @@ function rankAll(input: BrainInput): Suggestion[] {
   const changed = new Set(input.changed ?? [])
   const weights = input.weights ?? defaultWeights
   const kPrior = input.mech?.k ?? K
+  const byId = new Map(heroes.map((hero) => [hero.id, hero]))
+  const eligible = new Set(pool)
+  const enemyIds = [...new Set(enemy)]
+  const liveRows = new Map(enemyIds.map((id) => [id, new Map(live[id]?.map((row) => [row.heroId, row]))]))
+  const allies = allied.flatMap((id) => {
+    const hero = byId.get(id)
+    return hero ? [{ hero, kit: input.kits?.[id] }] : []
+  })
   const allyRows = allied.map((id) => input.levels?.[id]).filter((l): l is number[] => Boolean(l))
 
   const pairOf = (hero: Hero, e: number): Pair => {
-    const liveRow = live[e]?.find((r) => r.heroId === hero.id) // wins are the ENEMY's
+    const liveRow = liveRows.get(e)?.get(hero.id) // wins are the ENEMY's
     const seedRow = index.get(hero.id)?.get(e)
     let g = 0, w = 0, source: Pair['source'] = 'prior'
     if (liveRow && liveRow.games >= 20) { g = liveRow.games; w = liveRow.games - liveRow.wins; source = 'live' }
@@ -144,12 +154,13 @@ function rankAll(input: BrainInput): Suggestion[] {
     return { g, w, source }
   }
 
-  return heroes.filter((h) => !picked.has(h.id) && (!pool.length || pool.includes(h.id))).map((hero) => {
+  return heroes.filter((h) => !picked.has(h.id) && (!eligible.size || eligible.has(h.id))).map((hero) => {
     const levels = input.levels?.[hero.id]
     const fitScore = positionFit(hero, role, levels)
     const why: Why[] = []
+    let interactionPoints = 0
     const mechParts = new Map<FeatureName, number>()
-    for (const e of new Set(enemy)) {
+    for (const e of enemyIds) {
       const { g, w, source } = pairOf(hero, e)
       // Expected win rate from the two heroes' overall strength. Shrinking toward THIS (not 50%) keeps strong heroes from looking like counters to everyone.
       const expected = clamp(0.5 + (base(hero.id) - base(e)), 0.35, 0.65)
@@ -159,6 +170,11 @@ function rankAll(input: BrainInput): Suggestion[] {
       const p = (w + kPrior * prior) / (g + kPrior)
       const nudge = clamp(overrides[pairKey(hero.id, e)] ?? 0, -15, 15) * staleFactor / 100
       why.push({ enemy: e, rate: clamp(p + nudge, 0, 1), games: Math.round(g), source: source === 'prior' && m ? 'mechanics' : source, edge: 100 * (p + nudge - expected), mech: m?.edge })
+      const interaction = counterInteraction(hero, byId.get(e), input.kits?.[hero.id], input.kits?.[e])
+      if (interaction && (g < 150 || why[why.length - 1].edge >= -2)) {
+        why[why.length - 1].reason = interaction.text
+        interactionPoints = Math.max(interactionPoints, interaction.points * (g >= 150 ? 0.7 : 1))
+      }
       if (m) for (const part of m.parts) mechParts.set(part.label, (mechParts.get(part.label) ?? 0) + part.points)
     }
     const games = why.reduce((s, x) => s + x.games, 0)
@@ -168,12 +184,13 @@ function rankAll(input: BrainInput): Suggestion[] {
     const meta = (base(hero.id) - 0.5) * 100 * 0.25
     const mine = profile.heroes[hero.id]
     const comfort = mine && mine.g >= 3 ? ((mine.w + 5) / (mine.g + 10) - 0.5) * 100 : null
-    const comp = compositionPoints(levels, allyRows)
+    const combo = allyCombination(hero, input.kits?.[hero.id], allies)
+    const comp = compositionPoints(levels, allyRows) + (combo?.points ?? 0)
     const fitPts = (fitScore - 0.45) * 6 * weights.fit
-    const score = counter + meta + comp + fitPts + (comfort ?? 0) * weights.comfort
+    const score = counter + meta + comp + fitPts + interactionPoints + (comfort ?? 0) * weights.comfort
     return {
       heroId: hero.id, teamWin: teamWinProb([...allied, hero.id], enemy, index, input.base), score, fit: fitScore >= 0.4, fitScore, comfort, why, games,
-      edge, base: input.base ? base(hero.id) * 100 : null, comp,
+      edge, base: input.base ? base(hero.id) * 100 : null, comp, synergy: combo?.text,
       mech: input.mech && why.length ? { edge: mean((x) => x.mech ?? 0), parts: [...mechParts].map(([label, points]) => ({ label, points: points / why.length })).filter((p) => Math.abs(p.points) >= 0.05).sort((a, b) => Math.abs(b.points) - Math.abs(a.points)).slice(0, 4) } : undefined,
       winRate: why.length ? 100 * mean((x) => x.rate) : null,
       confidence: clamp(games / (K * Math.max(1, enemy.length)), 0, 1),

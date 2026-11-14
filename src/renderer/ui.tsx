@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ArrowDown, ArrowUp, BrainCircuit, Clock3, Gamepad2, Minus, Radio, Shield, Swords, Trophy, X } from 'lucide-react'
 import type { DraftInput, GameType, GameView, Hero, LiveSettings, LiveState, Role, Toast } from '../shared/model.js'
@@ -115,9 +115,9 @@ export function WinMeter({ allied, enemy }: { allied: number | null; enemy?: nev
     <div className="meter"><i style={{ width: a + '%' }} /><i style={{ width: 100 - a + '%' }} /></div></div>
 }
 
-function Team({ label, tone, ids, heroes, remove }: { label: string; tone: 'a' | 'e'; ids: number[]; heroes: Hero[]; remove?: (id: number) => void }) {
+function Team({ label, tone, ids, byId, remove }: { label: string; tone: 'a' | 'e'; ids: number[]; byId: (id: number) => Hero | undefined; remove?: (id: number) => void }) {
   return <div className="ov-team"><span className={'lbl ' + tone}>{label}</span>
-    {ids.map((id) => <span className="ov-pick" key={id} title={heroes.find((h) => h.id === id)?.name}><Portrait hero={heroes.find((h) => h.id === id)} />
+    {ids.map((id) => <span className="ov-pick" key={id} title={byId(id)?.name}><Portrait hero={byId(id)} />
       {remove && <button aria-label="Remove" onClick={() => remove(id)}>×</button>}</span>)}
     {!ids.length && <small>{tone === 'e' ? 'none revealed' : 'none'}</small>}</div>
 }
@@ -126,9 +126,14 @@ function Team({ label, tone, ids, heroes, remove }: { label: string; tone: 'a' |
 export function DraftCard({ live, heroes, send, done }: { live: LiveState; heroes: Hero[]; send?: (input: DraftInput) => Promise<unknown>; done?: () => Promise<void> }) {
   const [query, setQuery] = useState('')
   const { draft, interactive } = live
-  const byId = (id: number) => heroes.find((hero) => hero.id === id)
-  const taken = new Set([...draft.enemy, ...draft.allied, ...draft.bans, ...(draft.ownHero != null ? [draft.ownHero] : [])])
-  const matches = query.length > 0 ? heroes.filter((hero) => !taken.has(hero.id) && hero.name.toLowerCase().includes(query.toLowerCase())).slice(0, 5) : []
+  const heroLookup = useMemo(() => new Map(heroes.map((hero) => [hero.id, hero])), [heroes])
+  const byId = (id: number) => heroLookup.get(id)
+  const matches = useMemo(() => {
+    const input = query.trim().toLowerCase()
+    if (!input) return []
+    const taken = new Set([...draft.enemy, ...draft.allied, ...draft.bans, draft.ownHero])
+    return heroes.filter((hero) => !taken.has(hero.id) && hero.name.toLowerCase().includes(input)).slice(0, 5)
+  }, [query, heroes, draft.enemy, draft.allied, draft.bans, draft.ownHero])
   const pick = (ally: boolean, hero = matches[0]) => {
     if (!hero || !send) return
     setQuery('')
@@ -138,40 +143,41 @@ export function DraftCard({ live, heroes, send, done }: { live: LiveState; heroe
   useEffect(() => { if (!interactive) setQuery('') }, [interactive])
   const compact = live.settings.size === 'Compact' && !canEdit
   const f = live.settings.features, detailed = live.settings.detailed
-  const reason = (item: (typeof draft.suggestions)[number]) => { const best = [...item.why].sort((a, b) => b.rate - a.rate)[0]; return best ? 'best vs ' + (byId(best.enemy)?.name ?? 'enemy') + ' ' + fmt(best.rate * 100, 0) + '% (' + best.source + ')' + (draft.patched.includes(item.heroId) ? ' · patched recently' : '') : '' }
+  const reason = (item: (typeof draft.suggestions)[number]) => {
+    const mechanic = item.why.find((pair) => pair.reason)?.reason
+    const best = item.why.reduce<(typeof item.why)[number] | undefined>((strongest, pair) =>
+      pair.edge > 0 && (pair.games >= 60 || pair.source === 'mechanics') && (!strongest || pair.edge > strongest.edge) ? pair : strongest, undefined)
+    return mechanic ?? (best ? `Good against ${byId(best.enemy)?.name ?? 'revealed enemy'}` : item.synergy ?? `Fits ${roleLabels[draft.role].toLowerCase()}`)
+  }
+  const locked = draft.lockedHero != null
+  const statusText = locked ? 'Hero locked' : draft.activeTeam && live.pick ? (draft.activeTeam === live.pick.team ? 'Your team picking' : 'Enemy team picking') : 'Pick suggestions'
   return <article className="draft-card">
     {canEdit && <div className="overlay-edit"><span>Editing draft picks</span><button type="button" onClick={() => void done?.()}>Done <kbd>Esc</kbd></button></div>}
-    <Head icon={<Swords size={13} />} tag={'Draft' + (draft.activeTeam ? ' · ' + draft.activeTeam + ' picking' : '')} sub={draft.role + ' · ' + draft.roleChoice.source + (draft.timeLeft != null ? ' · ' + Math.round(draft.timeLeft) + 's' : '')} />
+    <Head icon={<Swords size={13} />} tag={statusText} sub={roleLabels[draft.role] + (!locked && draft.timeLeft != null ? ' · ' + Math.round(draft.timeLeft) + 's' : '')} />
     {draft.ownHero != null && <div className="ov-team you"><span className="lbl you">You</span><span className="ov-pick" title={byId(draft.ownHero)?.name}><Portrait hero={byId(draft.ownHero)} />{byId(draft.ownHero)?.name}</span></div>}
-    <Team label="Enemy" tone="e" ids={draft.enemy} heroes={heroes} remove={canEdit ? (id) => void send({ enemy: draft.enemy.filter((x) => x !== id) }) : undefined} />
-    <Team label="Teammates" tone="a" ids={draft.allied} heroes={heroes} remove={canEdit ? (id) => void send({ allied: draft.allied.filter((x) => x !== id) }) : undefined} />
+    <Team label="Enemy" tone="e" ids={draft.enemy} byId={byId} remove={canEdit ? (id) => void send({ enemy: draft.enemy.filter((x) => x !== id) }) : undefined} />
+    <Team label="Teammates" tone="a" ids={draft.allied} byId={byId} remove={canEdit ? (id) => void send({ allied: draft.allied.filter((x) => x !== id) }) : undefined} />
     {f.bans && draft.bans.length > 0 && <div className="ov-team bans"><span className="lbl">Bans</span>{draft.bans.slice(0, 10).map((id) => <Portrait key={id} hero={byId(id)} />)}</div>}
     {canEdit && <label className="overlay-role"><span>Your role</span>
       <select value={draft.roleChoice.source === 'Manual' ? draft.role : ''} onChange={(event) => void send({ role: event.target.value ? event.target.value as Role : null })}>
         <option value="">Auto ({roleLabels[draft.role]})</option>
         {roles.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}
       </select></label>}
-    {f.winMeter && <WinMeter allied={draft.teamWin} />}
+    {f.winMeter && !locked && <WinMeter allied={draft.teamWin} />}
     {canEdit && <div className="draft-entry"><input autoFocus spellCheck={false} aria-label="Find hero to add" placeholder="Search heroes" value={query}
       onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') pick(event.shiftKey) }} />
       {matches.length > 0 && <div>{matches.map((hero) => <button type="button" key={hero.id} onClick={(event) => pick(event.shiftKey, hero)}>{hero.name}</button>)}</div>}
       <small>Click or Enter for enemy · hold Shift for ally</small></div>}
-    <ol className="draft-list">{draft.suggestions.slice(0, compact ? 3 : 5).map((item, index) => <li key={item.heroId}>
-      <span className="rank">{index + 1}</span><Portrait hero={byId(item.heroId)} /><strong>{byId(item.heroId)?.name}</strong>
-      <span className={'wr ' + (item.score >= 0 ? 'positive' : 'negative')}>{item.winRate == null ? '—' : fmt(item.winRate, 1) + '%'}</span>
-      <small>{item.comfort != null ? 'you ' + (item.comfort >= 0 ? '+' : '') + fmt(item.comfort, 0) : item.why[0]?.source}</small>
-      {detailed && !compact && <em className="why">{reason(item)}</em>}
-      <i className="bar" style={{ width: Math.min(100, Math.max(4, ((item.winRate ?? 50) - 44) * 6)) + '%' }} /></li>)}</ol>
-    {detailed && draft.model.samples > 0 && <small className="draft-note">Learning from {draft.model.samples} of your matches · comfort weight {draft.model.comfortWeight}</small>}
-    {!draft.suggestions.length && !draft.ownMatchups && <small className="draft-note">{draft.enemy.length ? 'Computing…' : 'Waiting for enemy picks.'}</small>}
-    {draft.ownMatchups && (draft.ownMatchups.strongAgainst.length > 0 || draft.ownMatchups.weakAgainst.length > 0) && <div>
-      <small className="draft-note">{f.draftVision ? 'Waiting for recognized enemy picks. ' : 'Add visible picks with the draft shortcut. '}{byId(draft.ownHero ?? -1)?.name ?? 'your hero'}'s own matchups meanwhile:</small>
-      <div className="counter-cols">
-        <div><h3>Good matchups</h3><div className="counter-list">{draft.ownMatchups.strongAgainst.map((r) => <div key={r.heroId}><Portrait hero={byId(r.heroId)} />{byId(r.heroId)?.name}<b className="positive">{fmt(r.rate, 1)}%</b></div>)}</div></div>
-        <div><h3>Watch out for</h3><div className="counter-list">{draft.ownMatchups.weakAgainst.map((r) => <div key={r.heroId}><Portrait hero={byId(r.heroId)} />{byId(r.heroId)?.name}<b className="negative">{fmt(r.rate, 1)}%</b></div>)}</div></div>
-      </div>
-    </div>}
-    {(draft.stale || draft.patchChanged || draft.loading) && <small className="draft-note">{draft.patchChanged ? 'New patch: data refreshing' : draft.stale ? 'Seed predates this build' : 'Refreshing live data…'}</small>}
+    {!locked && draft.suggestions.length > 0 && <ol className="draft-list">{draft.suggestions.slice(0, compact ? 3 : 5).map((item) => <li key={item.heroId}>
+      <Portrait hero={byId(item.heroId)} />
+      <div className="draft-candidate"><strong>{byId(item.heroId)?.name}</strong><span className="why">{reason(item)}</span>
+        {detailed && !compact && item.synergy && item.synergy !== reason(item) && <span className="why">{item.synergy}</span>}</div>
+      {item.winRate != null && item.games >= 60 && <span className={'wr ' + (item.winRate >= 50 ? 'positive' : 'negative')} title="Sample-weighted estimate against revealed enemies">{fmt(item.winRate, 1)}%</span>}
+    </li>)}</ol>}
+    {!locked && !draft.suggestions.length && <small className="draft-note">{draft.ownHero != null ? 'Clear your planned hero to compare other picks.' :
+      draft.enemy.length || draft.allied.length ? 'No available heroes match this role and pool.' :
+        'Waiting for visible picks. You can add a revealed hero with the draft shortcut.'}</small>}
+    {!locked && draft.loading && <small className="draft-note">Updating matchup data…</small>}
     {f.hints && <Foot><kbd>{mod}O</kbd> type picks · <kbd>{mod}C</kbd> compact · <kbd>{mod}H</kbd> hide</Foot>}
   </article>
 }

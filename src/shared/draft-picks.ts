@@ -9,3 +9,9 @@ export function draftLineup(own: number | null, manualAllied: number[], manualEn
   const enemy = mergePicks(manualEnemy.filter((id) => id !== own && !allied.includes(id)), revealedEnemy, 5)
   return { ownHero: own, allied, enemy, revealedAllied, revealedEnemy }
 }
+
+/** Keep recent feed updates in their original slots; a blank packet may precede the next visible round. */
+export function mergeDraftSlots(current: ReadonlyMap<number, number>, incoming: ReadonlyMap<number, number>) {
+  if (![...incoming].some(([slot, hero]) => current.get(slot) !== hero)) return current
+  return new Map([...current, ...incoming])
+}

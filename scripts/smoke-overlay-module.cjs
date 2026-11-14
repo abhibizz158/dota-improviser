@@ -4,6 +4,9 @@ const path = require('node:path')
 assert.ok(process.versions.electron, 'Run this check with Electron')
 const overlay = require(path.resolve(process.argv[2]))
 assert.equal(typeof overlay.foregroundBounds, 'function')
+assert.equal(typeof overlay.dotaWindowID, 'function')
+const windowID = overlay.dotaWindowID()
+assert.ok(windowID === null || (Number.isSafeInteger(windowID) && windowID > 0))
 if (process.platform === 'darwin') {
   for (const method of ['dotaWindowID', 'requestScreenRecording', 'startDraftWindowPicker', 'draftWindowShareState', 'readSharedDraftBar', 'stopDraftWindowShare']) {
     assert.equal(typeof overlay[method], 'function', method)

@@ -127,13 +127,18 @@ export function parseDraft(value: unknown): DraftReveal | null {
   if (!Object.keys(draft).length) return null
   const side = (raw: unknown) => {
     const team = asRecord(raw)
-    const read = (kind: 'pick' | 'ban', length: number) => Array.from({ length }, (_, index) => index).flatMap((index) => {
-      const heroClass = team[`${kind}${index}_class`]
-      const slug = typeof heroClass === 'string' ? heroClass.replace(/^npc_dota_hero_/, '') : ''
-      const id = heroBySlug.get(slug) ?? stat(team[`${kind}${index}_id`])
-      return id != null && heroById.has(id) ? [id] : []
-    })
-    return { picks: [...new Set(read('pick', 5))], bans: [...new Set(read('ban', 12))] }
+    const read = (kind: 'pick' | 'ban', length: number) => {
+      const slots = new Map<number, number>()
+      for (let index = 0; index < length; index++) {
+        const heroClass = team[`${kind}${index}_class`]
+        const slug = typeof heroClass === 'string' ? heroClass.replace(/^npc_dota_hero_/, '') : ''
+        const id = heroBySlug.get(slug) ?? stat(team[`${kind}${index}_id`])
+        if (id != null && heroById.has(id)) slots.set(index, id)
+      }
+      return slots
+    }
+    const slots = read('pick', 5)
+    return { picks: [...new Set(slots.values())], bans: [...new Set(read('ban', 12).values())], slots }
   }
   const active = number(draft.activeteam)
   return {

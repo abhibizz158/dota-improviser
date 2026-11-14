@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import type { Display, IpcMainInvokeEvent } from 'electron'
 import type { Bootstrap, Checkpoint, Pick, DraftView, DraftWindowShare, GameType, KnowledgeContext, Lane, LiveSettings, LiveState, Matchups, OverlayView, Placement, PuterStatus, Role, SessionRecord, UpdateInfo } from '../shared/model.js'
 import { defaultFeatures, defaultLiveSettings, featureKeys, gameTypes, placements, roleLabels, roles } from '../shared/model.js'
-import { draftLineup, mergePicks } from '../shared/draft-picks.js'
+import { draftLineup, mergeDraftSlots, mergePicks } from '../shared/draft-picks.js'
 import { chooseRole, observeAchievement, recoveryAdvice } from '../shared/live-coach.js'
 import type { AwardRecord } from '../shared/live-coach.js'
 import { momentum, newTrack, trackFrame } from '../shared/game.js'
@@ -185,7 +185,7 @@ let seed: Seed | null = null
 let local: LocalInfo = { installDir: null, build: null, versionDate: null, localBuilds: 0, steamAccount: null, gsiDir: null, gsiInstalled: false }
 let patchChanged = false
 const emptyPicks = { manualEnemy: [] as number[], manualAllied: [] as number[], manualHero: null as number | null,
-  lockedHero: null as number | null, vision: { radiant: [], dire: [] } as VisionReveal, visionTeam: null as Pick['team'] | null, feedAllied: [] as number[], feedEnemy: [] as number[], banned: [] as number[], role: null as Role | null }
+  lockedHero: null as number | null, vision: { radiant: [], dire: [] } as VisionReveal, visionTeam: null as Pick['team'] | null, feedAllied: new Map<number, number>() as ReadonlyMap<number, number>, feedEnemy: new Map<number, number>() as ReadonlyMap<number, number>, banned: [] as number[], role: null as Role | null }
 let draft = { ...emptyPicks, pool: [] as number[] }
 let draftStarted = false
 let heroDb: HeroDb | null = null
@@ -270,11 +270,11 @@ function lineup() {
     const visionAllied = draft.visionTeam === 'Radiant' ? radiantPicks : direPicks
     const visionEnemy = draft.visionTeam === 'Radiant' ? direPicks : radiantPicks
     const own = draft.lockedHero ?? draft.manualHero
-    const knownAllied = draft.feedAllied.filter((id) => id !== own)
-    const knownEnemy = draft.feedEnemy.filter((id) => id !== own && !knownAllied.includes(id))
+    const knownAllied = [...new Set(draft.feedAllied.values())].filter((id) => id !== own && !draft.banned.includes(id))
+    const knownEnemy = [...new Set(draft.feedEnemy.values())].filter((id) => id !== own && !knownAllied.includes(id) && !draft.banned.includes(id))
     lineupMemo = { draft, value: draftLineup(own, draft.manualAllied, draft.manualEnemy,
-      mergePicks(visionAllied.filter((id) => id !== own && !knownEnemy.includes(id)), knownAllied, 4),
-      mergePicks(visionEnemy.filter((id) => id !== own && !knownAllied.includes(id)), knownEnemy, 5)) }
+      mergePicks(visionAllied.filter((id) => id !== own && !knownEnemy.includes(id) && !draft.banned.includes(id)), knownAllied, 4),
+      mergePicks(visionEnemy.filter((id) => id !== own && !knownAllied.includes(id) && !draft.banned.includes(id)), knownEnemy, 5)) }
   }
   return lineupMemo.value
 }
@@ -320,17 +320,12 @@ function draftView(): DraftView {
     const fitted = canRank ? weights() : defaultWeights
     const changed = patchedHeroes()
     const input = { heroes: catalog.heroes, enemy: picks.enemy, allied: team, pool: draft.pool, role: choice.role, banned: draft.banned,
-      seed, live: liveMatchups, profile: known, overrides, stale, weights: fitted, changed, base: baseWr, levels: levelMap, mech: model }
+      seed, live: liveMatchups, profile: known, overrides, stale, weights: fitted, changed, base: baseWr, levels: levelMap, kits: kitsDb?.heroes, mech: model }
     const ranked = canRank ? draftRanks(input, 8, 3) : { suggestions: [], avoid: [] }
     const enemy = teamProfile(picks.enemy, kitsDb)
     const ally = teamProfile(team, kitsDb)
-    const ownDetail = picks.ownHero != null ? heroDetail(picks.ownHero, false) : null
     draftMemo = { inputs, result: {
       ...picks, lockedHero: draft.lockedHero, pool: draft.pool, role: choice.role, roleChoice: choice, bans: draft.banned, patched: changed,
-      ownMatchups: ownDetail ? {
-        strongAgainst: ownDetail.strongAgainst.slice(0, 4).map((r) => ({ heroId: r.heroId, rate: r.rate })),
-        weakAgainst: ownDetail.weakAgainst.slice(0, 4).map((r) => ({ heroId: r.heroId, rate: r.rate })),
-      } : null,
       model: { samples: fitted.samples, comfortWeight: Math.round(fitted.comfort * 100) / 100 },
       teamWin: picks.enemy.length && team.length ? teamWinProb(team, picks.enemy, seedIndex(seed), baseWr, model?.k) : null,
       stale, seedPatch: seed?.patch ?? '', build: local.build, patchChanged,
@@ -583,7 +578,7 @@ function onPick(next: Pick | null) {
 
 function draftVisionTarget(active: () => boolean) {
   const bounds = detectDotaBounds() ?? gameBounds
-  return { windowID: windowProbe?.dotaWindowID?.(), ownHero: pick?.heroId, ownTeam: pick?.team, learned: settings.features.learning ? portraitMemory : [],
+  return { windowID: windowProbe?.dotaWindowID?.(), requireWindowID: process.platform === 'win32' && Boolean(windowProbe?.dotaWindowID), ownHero: pick?.heroId, ownTeam: pick?.team, learned: settings.features.learning ? portraitMemory : [],
     readSharedBar: windowProbe?.draftWindowShareState?.() === 'sharing' ? windowProbe.readSharedDraftBar : undefined, width: bounds?.width ?? 1440, height: bounds?.height ?? 900, active }
 }
 
@@ -635,19 +630,20 @@ function updateDraftVision() {
   timer.unref()
 }
 
-/** Dota reveals picks in waves (2 / 2 / 2 / 1 in captains-style, all at once in Turbo). Merge whatever it sends; typed picks stay. */
+/** Update visible team slots as Dota reveals each round. A later update may replace a pick after a conflict. */
 function applyReveal(reveal: DraftReveal | null) {
-  if (!reveal || !pick) return
+  if (!reveal || !pick) return false
   const mine = pick.team === 'Radiant' ? reveal.radiant : reveal.dire
   const theirs = pick.team === 'Radiant' ? reveal.dire : reveal.radiant
-  const feedEnemy = mergePicks(theirs.picks, draft.feedEnemy, 5)
-  const feedAllied = mergePicks(mine.picks, draft.feedAllied, 5)
+  const feedEnemy = mergeDraftSlots(draft.feedEnemy, theirs.slots)
+  const feedAllied = mergeDraftSlots(draft.feedAllied, mine.slots)
   const banned = mergePicks([...reveal.radiant.bans, ...reveal.dire.bans], draft.banned, 24)
   revealMeta = { activeTeam: reveal.activeTeam, timeLeft: reveal.timeLeft }
   const same = (a: number[], b: number[]) => a.length === b.length && a.every((id, i) => id === b[i])
-  if (same(feedEnemy, draft.feedEnemy) && same(feedAllied, draft.feedAllied) && same(banned, draft.banned)) return
+  if (feedEnemy === draft.feedEnemy && feedAllied === draft.feedAllied && same(banned, draft.banned)) return false
   draft = { ...draft, feedAllied, feedEnemy, banned }
   refreshDraftMatchups()
+  return true
 }
 
 function approvedBuild(hero: number) {
@@ -824,7 +820,7 @@ function receive(value: unknown) {
   lane = next
   frame = nextFrame
   onPick(nextPick)
-  applyReveal(nextPick ? parseDraft(value) : null)
+  const picksChanged = applyReveal(nextPick ? parseDraft(value) : null)
   if (nextFrame?.heroId && nextFrame.heroId !== draft.lockedHero) draft = { ...draft, lockedHero: nextFrame.heroId }
   if (!nextFrame || nextFrame.alive) {
     if (nextFrame && !newPractice) rememberDeath()
@@ -876,7 +872,7 @@ function receive(value: unknown) {
     requestOverlay(false)
   }
   if (!!nextFrame !== !!frameBefore && overlay?.isVisible()) placeOverlay(overlay)
-  if (lifeChanged || statusChanged || nextPick?.heroId !== pickBefore?.heroId || !!nextPick !== !!pickBefore || !!nextFrame !== !!frameBefore || !!next !== !!laneBefore) broadcast()
+  if (picksChanged || lifeChanged || statusChanged || nextPick?.heroId !== pickBefore?.heroId || !!nextPick !== !!pickBefore || !!nextFrame !== !!frameBefore || !!next !== !!laneBefore) broadcast()
   else if (refreshCoach || performanceCheckpoint != null || events.length || nextPick || nextFrame?.respawnSeconds !== frameBefore?.respawnSeconds) broadcastSoon()
 }
 
@@ -1973,7 +1969,9 @@ function handlers() {
         throw new Error('No frame arrived from the shared Dota window. Keep Dota visible and try again.')
       }
       if (access !== 'granted') throw new Error('macOS has no active Screen Recording grant. Choose Share Dota window or follow Reset instructions.')
-      if (reason === 'window') throw new Error('Dota’s window is unavailable. Keep Dota open and unminimized on the current desktop during the draft.')
+      if (reason === 'window') throw new Error(process.platform === 'win32'
+        ? 'Dota’s window is unavailable. Keep it unminimized in Borderless Windowed mode. Run Dota and Dota Improviser at the same privilege level.'
+        : 'Dota’s window is unavailable. Keep Dota open and unminimized on the current desktop during the draft.')
       if (process.platform === 'win32' && reason === 'thumbnail') throw new Error('Dota returned an empty window image. Change Display Mode to Borderless Windowed or Windowed in Dota’s Video settings.')
       throw new Error(reason === 'timeout' ? 'Dota’s window capture timed out. Return to the draft and try again.' :
         'Dota’s window did not return a usable image. Try Borderless Windowed or Windowed mode.')

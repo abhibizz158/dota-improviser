@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { coach, percentileOf, timingTargets } from '../dist/main/shared/coach.js'
+import { mergeDraftSlots } from '../dist/main/shared/draft-picks.js'
 import { parseDraft, parseFrame } from '../dist/main/main/gsi.js'
 
 const P = [0.1, 0.3, 0.5, 0.7, 0.9, 0.99]
@@ -86,4 +87,13 @@ test('coach exposes phase, next goal, stats and medians for the detailed overlay
   assert.equal(v.medians.gpm, 460)
   assert.equal(v.nextGoal.left, 80) // Hand of Midas par 8:00 is the earliest live goal at 6:40
   assert.equal(coach(frame({ clock: 1600 }), data, P, 'Carry', {}).phase, 'Late game')
+})
+
+test('partial draft rounds preserve other slots and replace a changed pick', () => {
+  const round = (team3) => parseDraft({ draft: { team3 } }).dire.slots
+  const first = round({ pick1_id: 94, pick0_id: 2 })
+  assert.equal(mergeDraftSlots(first, round({ pick0_id: 2 })), first)
+  const second = mergeDraftSlots(first, round({ pick2_id: 7 }))
+  assert.deepEqual([...second], [[0, 2], [1, 94], [2, 7]])
+  assert.deepEqual([...mergeDraftSlots(second, round({ pick1_id: 1 }))], [[0, 2], [1, 1], [2, 7]])
 })

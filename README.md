@@ -6,7 +6,7 @@
 
 Dota Improviser combines public match aggregates, read-only local Steam/Dota discovery, user-entered picks, and Dota's opt-in Game State Integration (GSI) feed. The dashboard and overlay are designed for Windows and macOS.
 
-> **Fair-play status:** live overlay coaching is currently restricted to supported local practice sessions. Ranked live coaching is disabled. The app does not read game memory, inspect packets, or automate inputs. One opt-in, off-by-default feature ("Draft vision") reads a small strip of your own screen — the pick-bar hero portraits — to match them against Valve's own hero art, strictly while Dota reports pick/strategy phase and never once a game is live; see [AGENTS.md](AGENTS.md#draft-vision-the-one-screen-reading-exception) for the full scope and its real limitation. Outside that one exception, the app never reads your screen or reveals hidden information.
+> **Fair-play status:** Draft suggestions use picks visible to the player. Live coaching uses the linked player’s own feed in supported sessions. The app does not read game memory, inspect packets, or automate inputs. One opt-in, off-by-default feature ("Draft vision") reads a small strip of your own screen — the pick-bar hero portraits — to match them against Valve's own hero art, strictly while Dota reports pick/strategy phase and never once a game is live; see [AGENTS.md](AGENTS.md#draft-vision-the-one-screen-reading-exception) for the full scope and its real limitation. Outside that one exception, the app never reads your screen or reveals hidden information.
 
 **[⬇ Download the latest release](https://github.com/abhibizz158/dota-improviser/releases/latest)** — macOS (Apple Silicon or Intel `.pkg`) and Windows (x64 `.exe`).
 
@@ -58,9 +58,15 @@ The first launch shows a sample workspace until you add a Dota account ID or ope
 
 In **Live & Coach → Display preferences**, select **Follow Dota** and **Auto** placement to put the draft card in the upper left and the lane card in the upper right of the detected game window. Pick a specific monitor and corner if you prefer. The cards pass clicks through to Dota.
 
-Three hotkeys (plain letter chords rather than function keys, which are Fn-shifted media keys on most laptops on both Windows and macOS): **Ctrl/⌘ + Shift + O** opens the overlay in interactive mode — edit draft picks before a hero is live, ask the AI assistant once it is; **Done**, **Esc**, or leaving the editor restores click-through. **Ctrl/⌘ + Shift + C** toggles Compact/Large card size. **Ctrl/⌘ + Shift + H** hides the overlay.
+Three hotkeys (plain letter chords rather than function keys, which are Fn-shifted media keys on most laptops on both Windows and macOS): **Ctrl/⌘ + Shift + O** opens the overlay in interactive mode — edit draft picks before a hero is live, ask the AI assistant once it is; **Done**, **Esc**, or leaving the editor restores click-through. **Ctrl/⌘ + Shift + C** toggles Compact/Large card size. **Ctrl/⌘ + Shift + H** shows or hides the overlay.
 
 The GSI receiver listens on `127.0.0.1:43182` and authenticates updates with a per-install token. Live updates are transient; raw packets are not retained. The app validates updates in the desktop process and only exposes allowlisted own-player data. Clearing local app data also rotates the token, so reinstall the generated config afterward. Spectator/replay contexts, unknown contexts, stale updates, and unsupported matches must not populate the live player card.
+
+## Draft suggestions for All Pick
+
+The shortlist updates as visible teammate and enemy picks are revealed in Ranked and Unranked All Pick. It uses your selected role, hero pool, known bans, team needs, and matchup or ability evidence. Picks that Dota still conceals are excluded. After you lock your hero, the overlay shows the revealed lineup and carries it into live coaching. Use **Ctrl/⌘ + Shift + O** to enter visible picks manually.
+
+On Windows, use **Borderless Windowed** or **Windowed** for Draft Vision. Keep Dota unminimized and run both apps at the same privilege level. If the game covers the overlay, choose **Companion** layout in **Live & Coach**.
 
 ## Puter AI and privacy
 
@@ -79,7 +85,7 @@ See [Privacy and fair-play boundaries](docs/privacy-and-safety.md) for the full 
 - **Dota GSI:** explicit local opt-in for player-visible game updates. GSI output varies by mode and phase; the application only uses verified, allowlisted fields.
 - **Manual picks:** the player may type picks that Dota has not exposed. The app does not infer or reveal unrevealed enemy picks.
 
-Recommendations are guidance, not predictions or instructions. Matchup sample sizes and data scope should be considered before drawing conclusions. The app makes no claim that an overlay is permitted in ranked play; ranked live coaching remains off pending feature- and platform-specific qualification.
+Recommendations are guidance, not predictions or instructions. Matchup sample sizes and data scope should be considered before drawing conclusions. Review the rules of your match or tournament before using an overlay.
 
 ## Development commands
 

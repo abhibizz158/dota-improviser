@@ -1,25 +1,51 @@
 #include <windows.h>
+#include <cstdint>
 #include "result.h"
 
-static napi_value ForegroundBounds(napi_env env, napi_callback_info) {
-  HWND window = GetForegroundWindow();
-  if (!window || !IsWindowVisible(window) || IsIconic(window)) return NoWindow(env);
+static bool IsDotaWindow(HWND window) {
+  if (!window || !IsWindowVisible(window) || IsIconic(window)) return false;
   DWORD pid = 0;
   GetWindowThreadProcessId(window, &pid);
-  if (!pid || pid == GetCurrentProcessId()) return NoWindow(env);
+  if (!pid || pid == GetCurrentProcessId()) return false;
 
-  // Limited access is only used to confirm the executable path. No process memory access.
   HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-  if (!process) return NoWindow(env);
+  if (!process) return false;
   wchar_t image[2048];
   DWORD length = ARRAYSIZE(image);
   const BOOL found = QueryFullProcessImageNameW(process, 0, image, &length);
   CloseHandle(process);
-  if (!found) return NoWindow(env);
   constexpr wchar_t suffix[] = L"\\game\\bin\\win64\\dota2.exe";
   constexpr int suffixLength = ARRAYSIZE(suffix) - 1;
-  if (length < suffixLength ||
-      CompareStringOrdinal(image + length - suffixLength, suffixLength, suffix, suffixLength, TRUE) != CSTR_EQUAL) return NoWindow(env);
+  return found && length >= suffixLength &&
+      CompareStringOrdinal(image + length - suffixLength, suffixLength, suffix, suffixLength, TRUE) == CSTR_EQUAL;
+}
+
+struct DotaWindow {
+  HWND handle;
+  long long area;
+};
+
+static BOOL CALLBACK FindDotaWindow(HWND window, LPARAM data) {
+  RECT client{};
+  if (GetWindow(window, GW_OWNER) || !GetClientRect(window, &client) || client.right < 320 || client.bottom < 240) return TRUE;
+  auto* best = reinterpret_cast<DotaWindow*>(data);
+  const auto area = static_cast<long long>(client.right) * client.bottom;
+  if (area > best->area && IsDotaWindow(window)) *best = {window, area};
+  return TRUE;
+}
+
+static napi_value DotaWindowID(napi_env env, napi_callback_info) {
+  DotaWindow best{};
+  EnumWindows(FindDotaWindow, reinterpret_cast<LPARAM>(&best));
+  if (!best.handle) return NoWindow(env);
+  napi_value value;
+  napi_create_double(env, static_cast<double>(reinterpret_cast<std::uintptr_t>(best.handle)), &value);
+  return value;
+}
+
+static napi_value ForegroundBounds(napi_env env, napi_callback_info) {
+  HWND window = GetForegroundWindow();
+  if (!IsDotaWindow(window)) return NoWindow(env);
 
   // Return the actual client area in physical pixels. Electron converts it to display coordinates.
   RECT client;
@@ -31,11 +57,8 @@ static napi_value ForegroundBounds(napi_env env, napi_callback_info) {
     RECT bounds = {origin.x, origin.y, origin.x + client.right, origin.y + client.bottom};
     MONITORINFO monitor{};
     monitor.cbSize = sizeof(monitor);
-    // Pick and clip in physical coordinates before conversion on mixed-DPI desktops.
     const HMONITOR target = MonitorFromRect(&bounds, MONITOR_DEFAULTTONULL);
-    if (target && GetMonitorInfoW(target, &monitor)) {
-      IntersectRect(&visible, &bounds, &monitor.rcMonitor);
-    }
+    if (target && GetMonitorInfoW(target, &monitor)) IntersectRect(&visible, &bounds, &monitor.rcMonitor);
   }
   if (previous) SetThreadDpiAwarenessContext(previous);
   if (IsRectEmpty(&visible)) return NoWindow(env);
@@ -46,5 +69,7 @@ NAPI_MODULE_INIT() {
   napi_value fn;
   napi_create_function(env, nullptr, 0, ForegroundBounds, nullptr, &fn);
   napi_set_named_property(env, exports, "foregroundBounds", fn);
+  napi_create_function(env, nullptr, 0, DotaWindowID, nullptr, &fn);
+  napi_set_named_property(env, exports, "dotaWindowID", fn);
   return exports;
 }

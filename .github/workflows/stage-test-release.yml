@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       tag:
-        description: Tag of the existing draft prerelease
+        description: Tag of the existing draft release
         required: true
         type: string
 
@@ -34,8 +34,8 @@ jobs:
           run=$(gh api "repos/$GH_REPO/actions/runs/$BUILD_RUN")
           jq -e --arg repo "$GH_REPO" '.conclusion == "success" and .path == ".github/workflows/test-release.yml" and .head_branch == "main" and .head_repository.full_name == $repo' <<< "$run"
           commit=$(jq -r .head_sha <<< "$run")
-          gh release view "$RELEASE_TAG" --json isDraft,isPrerelease,targetCommitish |
-            jq -e --arg commit "$commit" '.isDraft and .isPrerelease and .targetCommitish == $commit'
+          gh release view "$RELEASE_TAG" --json isDraft,targetCommitish |
+            jq -e --arg commit "$commit" '.isDraft and .targetCommitish == $commit'
       - name: Verify and attach packages
         shell: bash
         run: |

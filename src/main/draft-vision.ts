@@ -7,7 +7,7 @@ import type { Hero } from '../shared/model.js'
 type Slots = (number | null)[]
 export type VisionReveal = { radiant: Slots; dire: Slots }
 export type VisionTarget = {
-  windowID?: number | null; width: number; height: number; ownHero?: number | null; ownTeam?: 'Radiant' | 'Dire';
+  windowID?: number | null; requireWindowID?: boolean; width: number; height: number; ownHero?: number | null; ownTeam?: 'Radiant' | 'Dire';
   active: () => boolean; readSharedBar?: () => Buffer | null; learned?: PortraitMemory[]
 }
 export type VisionDebug = VisionReveal & { barWidth: number; barHeight: number; barPng: string; references: number; samples: (string | null)[] }
@@ -188,6 +188,7 @@ async function captureBar(target: VisionTarget) {
     if (!buffer) throw new DraftCaptureError('thumbnail')
     return checkedBar(nativeImage.createFromBuffer(buffer))
   }
+  if (target.requireWindowID && target.windowID == null) throw new DraftCaptureError('window')
   const scale = Math.min(1, 1600 / target.width, 1000 / target.height)
   if (pendingSources) throw new DraftCaptureError('timeout')
   const operation = desktopCapturer.getSources({
@@ -203,7 +204,7 @@ async function captureBar(target: VisionTarget) {
     })])
     if (!target.active()) return null
     const source = sources.find((candidate) => target.windowID != null
-      ? candidate.id === `window:${target.windowID}:0`
+      ? candidate.id.startsWith(`window:${target.windowID}:`)
       : /^(?:dota\s*2|dota2)(?:$|\s*[-–—:(])/i.test(candidate.name.trim()))
     if (!source) throw new DraftCaptureError('window')
     const full = source.thumbnail

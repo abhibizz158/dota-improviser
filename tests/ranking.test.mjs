@@ -66,3 +66,25 @@ test('team win estimate moves with the lineups and respects hero strength', () =
   assert.ok(good > 55 && bad < 45)
   assert.equal(teamWinProb([2], [77], idx, base), null)
 })
+
+test('Medusa triggers a role-appropriate mana counter even before public data loads', () => {
+  const antiMage = { ...hero(1), slug: 'antimage', name: 'Anti-Mage' }
+  const medusa = { ...hero(94), slug: 'medusa', name: 'Medusa' }
+  const roster = [hero(2), hero(3), antiMage, medusa]
+  const draft = { ...input, heroes: roster, seed: null, base: {}, enemy: [94] }
+  const out = suggest(draft)
+  assert.equal(out[0].heroId, 1)
+  assert.match(out[0].why[0].reason, /Mana Break.*Medusa/)
+  assert.equal(out[0].games, 0)
+  assert.ok(!suggest({ ...draft, banned: [1] }).some((item) => item.heroId === 1))
+  assert.ok(!suggest({ ...draft, allied: [1] }).some((item) => item.heroId === 1))
+  assert.equal(suggest({ ...draft, enemy: [3] })[0].why[0].reason, undefined)
+})
+
+test('ally-only draft gives a real combination before enemies are revealed', () => {
+  const lineup = { ...input, heroes: [hero(1), hero(7, ['Disabler']), hero(2, ['Durable'])], seed: null, base: {}, enemy: [], allied: [7] }
+  const [candidate] = suggest(lineup)
+  assert.equal(candidate.heroId, 1)
+  assert.match(candidate.synergy, /H7 can lock targets down/)
+  assert.equal(candidate.winRate, null)
+})

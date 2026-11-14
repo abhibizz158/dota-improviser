@@ -100,12 +100,12 @@ export function Draft({ api, catalog, sample, live, account, onMatch }: DraftPro
       {draft.activeTeam ? ' ' + draft.activeTeam + ' is picking' + (draft.timeLeft != null ? ' (' + Math.round(draft.timeLeft) + 's)' : '') + '.' : ''} Picks Dota reveals are added automatically; type any it hides.</span></div>}
     {draft.bans.length > 0 && <div className="team-row bans"><span className="team-label">Bans</span>{draft.bans.map((id) => <Portrait key={id} hero={catalog.heroes.find((h) => h.id === id)} />)}</div>}
     {draft.patchChanged && <Feedback message="Dota updated since last run. Cached matchups were dropped and will refresh as you draft." />}
-    {draft.stale && !draft.patchChanged && <Feedback message="Bundled counters predate this game build. Live data is blended in; run npm run seed to refresh the offline table." />}
+    {draft.stale && !draft.patchChanged && <Feedback message="Older matchup data may receive less weight. Live data updates as heroes are revealed." />}
     {tab === 'draft' ? <div className="detail-grid draft-grid">
       <section className="panel form-panel">
         <header className="panel-heading"><div><h2>Draft inputs</h2><p>Enter picks as they reveal. Overlay hotkey: Ctrl/⌘ + Shift + O.</p></div><Crosshair size={19} className="quiet-icon" /></header>
         <label className="field">Your hero <small>optional — locks automatically once Dota reveals it</small>
-          <select value={draft.ownHero ?? ''} onChange={(event) => set({ ownHero: event.target.value ? Number(event.target.value) : null })}>
+          <select disabled={draft.lockedHero != null} value={draft.ownHero ?? ''} onChange={(event) => set({ ownHero: event.target.value ? Number(event.target.value) : null })}>
             <option value="">Not picked yet</option>
             {catalog.heroes.filter((hero) => !draft.enemy.includes(hero.id) && !draft.allied.includes(hero.id)).map((hero) => <option value={hero.id} key={hero.id}>{hero.name}</option>)}
           </select></label>
@@ -140,7 +140,8 @@ export function Draft({ api, catalog, sample, live, account, onMatch }: DraftPro
                   <small>{item.edge != null && <span className={item.edge >= 0 ? 'positive' : 'negative'}>edge {item.edge >= 0 ? '+' : ''}{fmt(item.edge, 1)}</span>}{item.edge != null && ' · '}{item.base != null && 'base ' + fmt(item.base, 1) + '% · '}{item.fit ? 'fits ' + draft.role.toLowerCase() : 'off-role'}{item.comfort != null && ' · you ' + (item.comfort >= 0 ? '+' : '') + fmt(item.comfort, 0)}</small></span>
                 <span className="candidate-data"><strong>{item.winRate == null ? '—' : fmt(item.winRate, 1) + '%'}</strong><small>{item.teamWin != null ? 'lineup ' + fmt(item.teamWin, 1) + '%' : 'win vs lineup'}</small></span></summary>
               <div className="candidate-detail">
-                {item.why.map((why) => <p key={why.enemy}>vs {name(why.enemy)} · <b className={why.edge >= 0 ? 'positive' : 'negative'}>{fmt(why.rate * 100, 1)}%</b> <small>(edge {why.edge >= 0 ? '+' : ''}{fmt(why.edge, 1)} · {fmt(why.games)} games · {why.source})</small>
+                {item.synergy && <p>{item.synergy}</p>}
+                {item.why.map((why) => <p key={why.enemy}>vs {name(why.enemy)} · <b className={why.edge >= 0 ? 'positive' : 'negative'}>{fmt(why.rate * 100, 1)}%</b> <small>(edge {why.edge >= 0 ? '+' : ''}{fmt(why.edge, 1)} · {fmt(why.games)} games · {why.source})</small>{why.reason && <small> · {why.reason}</small>}
                   <button className="text-button" aria-label="Nudge up" onClick={() => void api.nudge(item.heroId, why.enemy, 1)}><ChevronUp size={14} /></button>
                   <button className="text-button" aria-label="Nudge down" onClick={() => void api.nudge(item.heroId, why.enemy, -1)}><ChevronDown size={14} /></button></p>)}
                 {item.mech && item.mech.parts.length > 0 && <div className="why-mech"><h3>Why, by the game's rules</h3>{item.mech.parts.map((p) => <p key={p.label}><span className={p.points >= 0 ? 'positive' : 'negative'}>{p.points >= 0 ? '+' : ''}{fmt(p.points, 1)}</span> {FEATURE_LABELS[p.label]}</p>)}</div>}
@@ -148,7 +149,7 @@ export function Draft({ api, catalog, sample, live, account, onMatch }: DraftPro
                   {(['early', 'mid', 'late'] as const).map((phase) => item.build![phase].length > 0 && <div key={phase}><h3>{phase} items</h3><div className="item-chips">{item.build![phase].map((k) => <span key={k}>{catalog.items[k] ?? k}</span>)}</div></div>)}</div>}
                 <button className="text-button" onClick={() => { chooseHero(item.heroId); setTab('build') }}>Open build planner <ArrowUpRight size={14} /></button>
               </div>
-            </details>)}</div> : <Empty title="No matching suggestions">Try a different position or pool.</Empty>}
+            </details>)}</div> : <Empty title={draft.lockedHero != null ? 'Hero locked' : 'No matching suggestions'}>{draft.lockedHero != null ? 'New reveals still update your lineup and live coach.' : 'Try a different position or pool.'}</Empty>}
             {draft.avoid.length > 0 && <div className="avoid"><h3>Avoid against this lineup</h3>{draft.avoid.map((item) => <div key={item.heroId}><Portrait hero={catalog.heroes.find((hero) => hero.id === item.heroId)} /><span>{name(item.heroId)}</span><b className="negative">{item.winRate == null ? '—' : fmt(item.winRate, 1) + '%'}</b><small>edge {fmt(item.edge ?? 0, 1)}</small></div>)}</div>}
             <p className="fine-print"><b>Win vs lineup</b> is the estimated win rate against these exact heroes. <b>Edge</b> is how much better or worse that is than the two heroes' overall strength predicts, so it isolates real counters from heroes that are simply strong. <b>Base</b> is the hero's overall win rate. Ranking weighs edge most, then position fit, team balance and your comfort. Sources: seed (patch {draft.seedPatch || 'n/a'}), live OpenDota, your matches. Self-learning: {draft.model.samples} matches fitted, comfort weight {draft.model.comfortWeight}. Nudges are ±2 points per click.</p>
           </>}
