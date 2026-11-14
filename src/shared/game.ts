@@ -2,7 +2,7 @@ import type { Frame } from './model.js'
 
 // Per-game dynamics from the player's OWN game feed only: your kill count, kill streak and the public team kill score.
 // Tower/Roshan state is not in that feed (spectator-only), so it is covered post-match from the parsed replay instead.
-export type GameEvent = { id: string; kind: 'first-blood' | 'multikill' | 'streak' | 'milestone' | 'item' | 'comeback' | 'alert'; label: string; sub?: string; epic?: boolean; at: number }
+export type GameEvent = { id: string; kind: 'first-blood' | 'multikill' | 'streak' | 'milestone' | 'item' | 'comeback' | 'alert' | 'summary'; label: string; sub?: string; epic?: boolean; at: number }
 export type GameTrack = {
   kills: number | null; killTimes: number[]; chain: number; lastScore: [number, number] | null
   firstBlood: { team: 'Radiant' | 'Dire'; clock: number; you: boolean } | null

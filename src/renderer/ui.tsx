@@ -188,7 +188,7 @@ const tone = (p: number | null) => p == null ? 'var(--dim)' : p >= 66 ? 'var(--g
 function Pace({ label, value, median, pct }: { label: string; value: string; median?: string; pct: number | null }) {
   return <div className="pace-row"><span>{label} <em>{value}{median ? ' / ' + median : ''}</em></span><div className="meter"><i style={{ width: (pct ?? 0) + '%', background: tone(pct) }} /></div><b>{pct == null ? '—' : Math.round(pct)}</b></div>
 }
-const toastIcon = (kind: string) => kind === 'first-blood' ? '🩸' : kind === 'multikill' ? '⚔' : kind === 'streak' ? '🔥' : (kind === 'item' || kind === 'comeback') ? '★' : kind === 'alert' ? '⚠' : '✓'
+const toastIcon = (kind: string) => kind === 'first-blood' ? '🩸' : kind === 'multikill' ? '⚔' : kind === 'streak' ? '🔥' : (kind === 'item' || kind === 'comeback') ? '★' : kind === 'alert' ? '⚠' : kind === 'summary' ? '🏁' : '✓'
 
 /** Animated achievement/alert banners. Each fades itself out via CSS; the overlay just stops receiving them once
  * TOAST_MS elapses. Several landing at once (a multikill plus a streak, say) stack instead of replacing each other. */

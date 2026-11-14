@@ -51,7 +51,7 @@ export type DataStatus = { state: 'idle' | 'updating' | 'ready' | 'error'; done:
 export const placements = ['Auto', 'Top left', 'Top right', 'Bottom left', 'Bottom right'] as const
 export type Placement = typeof placements[number]
 export type DisplayChoice = { id: string; name: string }
-export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'matchOutlook', 'coachTips', 'itemCoach', 'achievements', 'personal', 'performanceMeter', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision', 'backgroundTray'] as const
+export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'matchOutlook', 'coachTips', 'itemCoach', 'achievements', 'personal', 'performanceMeter', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision', 'backgroundTray', 'timingAlerts'] as const
 export type FeatureKey = typeof featureKeys[number]
 export type Features = Record<FeatureKey, boolean>
 export const defaultFeatures = Object.fromEntries(featureKeys.map((k) => [k, k !== 'achievementSound' && k !== 'draftVision'])) as Features
@@ -83,6 +83,7 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   patchAware: { group: 'Intelligence', label: 'Patch awareness', help: 'Trust old data less for heroes changed in recent patches.' },
   draftVision: { group: 'Intelligence', label: 'Draft vision', help: 'Match visible hero portraits during hero selection and strategy time. On Mac, allow Screen Recording for the app. On Windows, Borderless Windowed or Windowed mode is most reliable; exclusive Fullscreen falls back to a full-screen capture.' },
   backgroundTray: { group: 'Automation', label: 'Keep running in the background', help: 'Closing the window keeps the app running from the taskbar/menu-bar tray icon instead of quitting, so live coaching and the overlay keep working. Use "Quit" on the tray icon to actually exit. The dashboard window is fully unloaded while hidden, so it costs no CPU/GPU beyond the overlay and game feed themselves.' },
+  timingAlerts: { group: 'Overlay modules', label: 'Map timing alerts', help: 'A short banner for fixed map clock events: bounty runes (everyone), water/power runes and day/night (mid-focused for runes, everyone for day/night), and a 15-second stacking heads-up for supports. Pure clock math from public game rules, approximate like the Roshan/Aegis timer.' },
 }
 export type LiveSettings = {
   display: 'Overlay' | 'Companion'; size: 'Compact' | 'Large'; placement: Placement; monitor: string;

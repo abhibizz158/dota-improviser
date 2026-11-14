@@ -14,6 +14,7 @@ import type { AwardRecord } from '../shared/live-coach.js'
 import { momentum, newTrack, trackFrame } from '../shared/game.js'
 import { emptyRoshan } from '../shared/roshan.js'
 import type { RoshanState } from '../shared/roshan.js'
+import { dueMapTimers } from '../shared/map-timers.js'
 import type { GameEvent, GameTrack } from '../shared/game.js'
 import type { GameView, Toast } from '../shared/model.js'
 import { coach, coachPhase } from '../shared/coach.js'
@@ -381,6 +382,7 @@ function refreshDraftMatchups() {
 }
 
 const TOAST_MS = 2600
+const SUMMARY_TOAST_MS = 7000
 
 /** Record an achievement/event: toast for the overlay, career counter for the trophy case, and — for a per-hero
  * item/timing achievement — a per-hero award record (every hero's own data, never a fixed hero list). */
@@ -503,7 +505,29 @@ function finishGame() {
     const previous = record.matchId ? sessions.filter((entry) => entry.matchId !== record.matchId) : sessions
     store.set(profileKey('sessions'), [...previous, record].slice(-60))
   }
+  // Its own toast, not emit(): a match summary isn't a trophy, and career/award counters are keyed by event
+  // id, which here is unique per match forever — running it through emit() would silently bloat those counters.
+  if (sessionCompleted && settings.features.achievements && settings.features.toasts) {
+    toasts = [...toasts, { ...matchSummaryToast(record), shownAt: Date.now() }].slice(-6)
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => broadcast(), SUMMARY_TOAST_MS + 300)
+  }
   historyChangedAt = Date.now()
+}
+
+/** One line on what to work on next, from this match's own real benchmark percentiles — never a guess. */
+function matchSummaryToast(record: SessionRecord): GameEvent {
+  const pct = coachView
+  const weakest = pct && [['GPM', pct.gpmPct], ['XPM', pct.xpmPct], ['last hits', pct.lhPct]]
+    .filter((entry): entry is [string, number] => typeof entry[1] === 'number')
+    .sort((a, b) => a[1] - b[1])[0]
+  const focus = weakest && weakest[1] < 50 ? `Focus next: ${weakest[0]} (${Math.round(weakest[1])}th percentile for this hero)` :
+    'Solid pace across the board this game.'
+  return {
+    id: 'summary-' + (record.matchId ?? record.at), kind: 'summary',
+    label: (sessionWon == null ? 'Match ended' : sessionWon ? 'Victory' : 'Defeat') + ' · ' + [record.kills, record.deaths, record.assists].map((n) => n ?? 0).join('/'),
+    sub: `${record.gpm ?? 0} GPM · ${record.xpm ?? 0} XPM · ${focus}`, at: record.clock,
+  }
 }
 
 function state(): LiveState {
@@ -521,10 +545,10 @@ function state(): LiveState {
   }) : null
   return {
     view, interactive, draft: draftView(), pick, coach: coachView, data: dataStatus, support: supportView(), game: gameView(), career, recovery, awards, assistantShortcutAvailable,
-    toasts: toasts.filter((t) => Date.now() - t.shownAt < TOAST_MS),
+    toasts: toasts.filter((t) => Date.now() - t.shownAt < (t.kind === 'summary' ? SUMMARY_TOAST_MS : TOAST_MS)),
     status, lane, receivedAt, settings, armed, shortcutAvailable, checkpoints, roshan,
     open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
-    needsSessionInfo: view === 'setup' && Boolean(frame), confirmedKiller: deathCase?.killer ?? null, sessionInfo: { gameType: sessionGameType, lane: sessionLane },
+    needsSessionInfo: view === 'setup' && Boolean(frame || draftStarted), confirmedKiller: deathCase?.killer ?? null, sessionInfo: { gameType: sessionGameType, lane: sessionLane },
     sessionRevision, detectionAvailable: windowProbe !== null, performance: performanceView(), coaching, draftVisionActive, draftWindowShare: windowProbe?.draftWindowShareState?.(),
   }
 }
@@ -555,7 +579,8 @@ function achievementState(value: LiveState) {
 }
 
 function broadcast() {
-  if (!frame && (view === 'lane' || view === 'setup') && overlayRequested) hideOverlay()
+  if (!frame && view === 'lane' && overlayRequested) hideOverlay()
+  if (!frame && !draftStarted && view === 'setup' && overlayRequested) hideOverlay()
   lastBroadcast = Date.now()
   const value = state()
   dashboard?.webContents.send('live:update', value)
@@ -566,7 +591,7 @@ function broadcast() {
   // from ever updating again after its first snapshot.
   overlay?.webContents.send('live:update', value)
   const banners = settings.display === 'Overlay' && settings.features.toasts ? achievementState(value) : []
-  if (banners.length && (overlay?.isVisible() || banners.some((toast) => toast.kind === 'comeback')) && !clearTask) {
+  if (banners.length && (overlay?.isVisible() || banners.some((toast) => toast.kind === 'comeback' || toast.kind === 'summary')) && !clearTask) {
     const toastWindow = achievementWindow ?? makeAchievementWindow()
     placeAchievementWindow()
     toastWindow.webContents.send('live:update', value)
@@ -585,7 +610,12 @@ function resetSession(next: LiveState['status']) {
   finishGame()
   ++sessionRevision
   roshan = emptyRoshan
-  const resultToasts = showComeback ? toasts.filter((toast) => toast.kind === 'comeback' && Date.now() - toast.shownAt < TOAST_MS) : []
+  // The match-summary toast should reach you even if the overlay happened to be hidden when the game ended
+  // (same carve-out the achievement window already gives the comeback banner); a comeback toast still only
+  // survives the reset if the overlay was actually up to show it.
+  const resultToasts = toasts.filter((toast) =>
+    ((toast.kind === 'comeback' && showComeback) || toast.kind === 'summary') &&
+    Date.now() - toast.shownAt < (toast.kind === 'summary' ? SUMMARY_TOAST_MS : TOAST_MS))
   if (pick || view !== 'draft' || returnToLane) hideOverlay()
   track = newTrack(); awarded = new Set()
   toasts = resultToasts
@@ -624,7 +654,13 @@ function onPick(next: TeamPick | null) {
     draftStarted = true
     revealMeta = { activeTeam: null, timeLeft: null }
     seen = {}
-    if (settings.display === 'Overlay' && settings.features.autoOpen && !overlayRequested) {
+    // Ask the ranked/lane question as soon as hero selection opens, not after the match goes live — the
+    // bans are already up by then, and the app can carry the answer straight into live coaching with no
+    // extra prompt once the game actually starts (the live-frame path below skips it when already answered).
+    if (settings.display === 'Overlay' && settings.features.autoOpen && !sessionInfoDismissed) {
+      view = 'setup'
+      requestOverlay(false)
+    } else if (settings.display === 'Overlay' && settings.features.autoOpen && !overlayRequested) {
       view = 'draft'
       requestOverlay(false)
     }
@@ -919,6 +955,11 @@ function receive(value: unknown) {
         label: (result.lowPace === 'gpm' ? 'GPM' : 'XPM') + ' pace is dropping',
         sub: 'Below your own average on this hero and most players at this point', at: nextFrame.clock })
     } else if (!result?.lowPace) lowPaceAlerted = null
+    if (settings.features.timingAlerts && nextFrame && !nextFrame.paused && !newPractice) {
+      for (const timer of dueMapTimers(frameBefore?.clock ?? -1, nextFrame.clock, roleChoice().role, sessionGameType)) {
+        emitAlert({ id: timer.id, kind: 'alert', label: timer.label, sub: timer.sub, at: nextFrame.clock })
+      }
+    }
   }
   if (nextFrame && !nextFrame.alive && !deathCase && nextFrame.clock >= 0 && nextFrame.respawnSeconds !== 0) {
     deathCase = { frame: nextFrame, role: roleChoice().role, phase: coachView?.phase ?? 'Laning', killer: null, repeats: 0, threat: null }
@@ -1205,7 +1246,7 @@ function makeOverlay() {
   window.on('blur', () => { if (interactive) finishOverlayEditing() })
   window.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown' || input.key !== 'Escape') return
-    if (view === 'setup' && frame) { event.preventDefault(); finishSessionSetup() }
+    if (view === 'setup' && (frame || draftStarted)) { event.preventDefault(); finishSessionSetup() }
     else if (interactive) { event.preventDefault(); finishOverlayEditing() }
   })
   window.webContents.on('render-process-gone', () => { hideOverlay(); window.destroy(); broadcast() })
@@ -1284,19 +1325,23 @@ function finishOverlayEditing() {
 }
 
 function finishSessionSetup(gameType?: GameType, role?: Role) {
-  if (!frame) throw new Error('The match is no longer active.')
+  if (!frame && !draftStarted) throw new Error('The match is no longer active.')
   sessionGameType = gameType ?? null
   sessionLane = role ?? null
   sessionInfoDismissed = true
-  refreshCoachView()
-  updateMatchOutlook(frame)
-  if (deathCase) {
-    deathCase.role = roleChoice().role
-    deathCase.phase = coachView?.phase ?? deathCase.phase
-    updateDeathThreat()
+  if (frame) {
+    refreshCoachView()
+    updateMatchOutlook(frame)
+    if (deathCase) {
+      deathCase.role = roleChoice().role
+      deathCase.phase = coachView?.phase ?? deathCase.phase
+      updateDeathThreat()
+    }
   }
   if (view === 'setup') {
-    view = 'lane'
+    // Answered during the pick/ban phase (no live frame yet): fall back to the draft view, same as the
+    // auto-open path would have shown if the question hadn't taken its place.
+    view = frame ? 'lane' : 'draft'
     overlayHeight = null
     foregroundMisses = 0
     requestOverlay(false)
@@ -1870,7 +1915,7 @@ function handlers() {
     finishOverlayEditing()
   })
   ipcMain.handle('overlay:skip-session', (event: IpcMainInvokeEvent) => {
-    if (overlay && event.sender === overlay.webContents && event.senderFrame === overlay.webContents.mainFrame && view === 'setup' && frame && !clearTask) finishSessionSetup()
+    if (overlay && event.sender === overlay.webContents && event.senderFrame === overlay.webContents.mainFrame && view === 'setup' && (frame || draftStarted) && !clearTask) finishSessionSetup()
   })
   ipcMain.handle('overlay:ask', (event: IpcMainInvokeEvent, question: unknown) => {
     if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || !interactive || view !== 'assistant' || clearTask) {
@@ -1886,7 +1931,7 @@ function handlers() {
   }
   handle('live:session-info', saveSession)
   ipcMain.handle('overlay:session-info', (event: IpcMainInvokeEvent, gameType: unknown, lane: unknown) => {
-    if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || view !== 'setup' || !frame || clearTask) {
+    if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || view !== 'setup' || (!frame && !draftStarted) || clearTask) {
       throw new Error('The game setup prompt is no longer active.')
     }
     saveSession(gameType, lane)
