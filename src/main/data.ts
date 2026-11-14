@@ -37,7 +37,8 @@ export const itemInfo: Record<string, ItemInfo> = Object.fromEntries(Object.entr
     return [{ key: entry.key, label: entry.header?.trim() || title(entry.key), value }]
   })
   const fx = (Array.isArray(it.abilities) ? it.abilities as { type?: string; title?: string; description?: string }[] : []).filter((x) => x.title).map((x) => ({ t: x.type === 'active' ? 'active' as const : 'passive' as const, title: String(x.title), text: String(x.description ?? '').replace(/<[^>]+>/g, '') }))
-  return [[key, { n: it.dname, c: cost, q: String(it.qual ?? ''), a, attributes, p: Array.isArray(it.components) ? it.components.map(String) : [], fx, cd: numberOf(it.cd), mc: numberOf(it.mc), cooldown: it.cd === false ? null : String(it.cd ?? '') || null, manaCost: it.mc === false ? null : String(it.mc ?? '') || null }]]
+  const neutralTier = typeof it.tier === 'number' ? it.tier : numberOf(it.tier) ?? undefined
+  return [[key, { n: it.dname, c: cost, q: String(it.qual ?? ''), a, attributes, p: Array.isArray(it.components) ? it.components.map(String) : [], fx, cd: numberOf(it.cd), mc: numberOf(it.mc), cooldown: it.cd === false ? null : String(it.cd ?? '') || null, manaCost: it.mc === false ? null : String(it.mc ?? '') || null, neutralTier }]]
 }))
 
 const upgrades = Object.fromEntries((constants.aghs_desc ?? []).map((row) => [row.hero_id, {

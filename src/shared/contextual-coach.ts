@@ -33,6 +33,16 @@ export function knownThreat(opponents: CoachHero[], rows: Matchup[], killer: num
     magic: (entry.kit?.a.filter((a) => a.d === 2).length ?? 0) >= 2 } : null
 }
 
+// Neutral item tiers unlock on a fixed, Valve-set schedule (minutes into the game) — approximate, same caveat
+// as the map timing alerts and the Roshan/Aegis timer: Valve has moved these numbers across patches before.
+const NEUTRAL_TIER_MINUTES = [7, 17, 27, 37, 60]
+function neutralTierDue(frame: Frame, mode: GameType | null) {
+  const minutes = (frame.clock / 60) * (mode === 'Turbo' ? 1.35 : 1)
+  let tier = 0
+  for (const threshold of NEUTRAL_TIER_MINUTES) if (minutes >= threshold) tier++
+  return tier
+}
+
 const lanePlan: Record<Role, string> = {
   Carry: 'Keep the wave near your tower and reserve gold for regen if you are being pushed off last hits.',
   Mid: 'Secure the ranged creep and shove before leaving for a rune or a rotation.',
@@ -93,6 +103,13 @@ export function contextualCoach(input: {
   if (nextItem && phase !== 'Laning') {
     tips.splice(Math.min(3, tips.length), 0, { level: 'info', text: frame.gold != null && frame.gold >= nextItem.cost ? `You can afford ${nextItem.name} right now — buy it on your next trip back.` :
       `Check the remaining components for ${nextItem.name} before your next rotation.`, items: [nextItem.key] })
+  }
+  if (input.items) {
+    const dueTier = neutralTierDue(frame, mode)
+    const heldTier = Math.max(0, ...frame.items.map((key) => input.items![key]?.neutralTier ?? 0))
+    if (dueTier > heldTier) {
+      tips.push({ level: 'info', text: `Tier ${dueTier} neutral items are up — check the shrine on your next trip back${heldTier ? ` (you're still on tier ${heldTier})` : ''}.` })
+    }
   }
   const bracketIndex = input.bracket == null ? -1 : brackets.indexOf(input.bracket)
   const games = input.data?.pick[bracketIndex] ?? 0

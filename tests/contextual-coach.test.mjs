@@ -37,6 +37,16 @@ test('Ability Draft stays at role advice when native kit data may be wrong', () 
   assert.ok(!result.tips[0].text.includes('Hex'))
 })
 
+test('neutral item advice fires when a higher tier is live than what you hold, and stays quiet once you have it', () => {
+  const items = { chipped_vest: { neutralTier: 1 }, cloak_of_flames: { neutralTier: 3 } }
+  const behind = contextualCoach({ ...fixture, frame: { ...fixture.frame, clock: 18 * 60, items: ['chipped_vest'] }, items })
+  assert.ok(behind.tips.some((tip) => tip.text.includes('Tier 2 neutral items') && tip.text.includes('tier 1')))
+  const caughtUp = contextualCoach({ ...fixture, frame: { ...fixture.frame, clock: 18 * 60, items: ['cloak_of_flames'] }, items })
+  assert.ok(!caughtUp.tips.some((tip) => tip.text.includes('neutral item')))
+  const none = contextualCoach({ ...fixture, frame: { ...fixture.frame, clock: 8 * 60, items: [] }, items })
+  assert.ok(none.tips.some((tip) => tip.text.includes('Tier 1 neutral items') && !tip.text.includes('tier')))
+})
+
 test('coach pairs allied setup with own follow-up and keeps unknown lanes conditional', () => {
   const result = contextualCoach({ ...fixture, allies: [
     { hero: { id: 7, name: 'Earthshaker' }, kit: { a: [{ n: 'Fissure', p: false, c: ['stun'] }] } },

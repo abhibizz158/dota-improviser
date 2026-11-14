@@ -8,6 +8,8 @@ export type ItemInfo = {
   n: string; c: number; q: string; a: Record<string, number>; p: string[]
   fx: { t: 'active' | 'passive'; title: string; text: string }[]; cd: number | null; mc: number | null
   attributes?: { key: string; label: string; value: string }[]; cooldown?: string | null; manaCost?: string | null
+  /** Neutral item tier (1-5), from Valve's own item data. Undefined for every non-neutral item. */
+  neutralTier?: number
 }
 export type Gear = {
   hp: number; mana: number; armor: number; mr: number; aps: number; dmg: number; ms: number; dps: number; ehp: number; power: number
