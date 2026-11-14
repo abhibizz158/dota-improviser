@@ -9,6 +9,9 @@ export type VisionReveal = { radiant: Slots; dire: Slots }
 export type VisionTarget = {
   windowID?: number | null; requireWindowID?: boolean; width: number; height: number; ownHero?: number | null; ownTeam?: 'Radiant' | 'Dire';
   active: () => boolean; readSharedBar?: () => Buffer | null; learned?: PortraitMemory[]
+  /** The display Dota's window sits on. Windows can't produce a DWM thumbnail for an exclusive Fullscreen
+   * DirectX surface at all (it bypasses the compositor) — only the full-screen capture path below sees it. */
+  displayId?: number | null
 }
 export type VisionDebug = VisionReveal & { barWidth: number; barHeight: number; barPng: string; references: number; samples: (string | null)[] }
 export type PortraitMemory = { hero: number; sample: string }
@@ -182,6 +185,52 @@ function checkedBar(strip: NativeImage) {
   return strip
 }
 
+async function racedSources(types: ('window' | 'screen')[], width: number, height: number) {
+  if (pendingSources) throw new DraftCaptureError('timeout')
+  const operation = desktopCapturer.getSources({ types, thumbnailSize: { width, height } })
+  pendingSources = operation
+  const clearPending = () => { pendingSources = null }
+  void operation.then(clearPending, clearPending)
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([operation, new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => reject(new DraftCaptureError('timeout')), 6000)
+    })])
+  } finally { clearTimeout(timeout) }
+}
+
+async function captureWindowBar(target: VisionTarget) {
+  const scale = Math.min(1, 1600 / target.width, 1000 / target.height)
+  const sources = await racedSources(['window'], Math.round(target.width * scale), Math.round(target.height * scale))
+  if (!target.active()) return null
+  const source = sources.find((candidate) => target.windowID != null
+    ? candidate.id.startsWith(`window:${target.windowID}:`)
+    : /^(?:dota\s*2|dota2)(?:$|\s*[-–—:(])/i.test(candidate.name.trim()))
+  if (!source) throw new DraftCaptureError('window')
+  const full = source.thumbnail
+  const { width, height } = full.getSize()
+  if (full.isEmpty() || width < 2 || height < 2) throw new DraftCaptureError('thumbnail')
+  return checkedBar(full.crop({ x: 0, y: 0, width, height: Math.max(1, Math.round(height * BAR_HEIGHT_FRACTION)) }))
+}
+
+/** Windows-only fallback: an exclusive Fullscreen DirectX surface never reaches DWM, so the window-thumbnail
+ * path above always sees either no window source or a blank/black thumbnail for it (checkedBar's all-near-zero
+ * check catches that). The full-screen capture path reads the physical display buffer directly (desktop
+ * duplication), which does see an exclusive-fullscreen game, so it can recover the same pick-bar strip — Dota
+ * fills the whole monitor in that mode, so the crop fractions are identical to the window-thumbnail case. */
+async function captureScreenBar(target: VisionTarget) {
+  const scale = Math.min(1, 1600 / target.width, 1000 / target.height)
+  const sources = await racedSources(['screen'], Math.round(target.width * scale), Math.round(target.height * scale))
+  if (!target.active()) return null
+  const source = (target.displayId != null ? sources.find((candidate) => String(candidate.display_id) === String(target.displayId)) : null)
+    ?? (sources.length === 1 ? sources[0] : null)
+  if (!source) throw new DraftCaptureError('window')
+  const full = source.thumbnail
+  const { width, height } = full.getSize()
+  if (full.isEmpty() || width < 2 || height < 2) throw new DraftCaptureError('thumbnail')
+  return checkedBar(full.crop({ x: 0, y: 0, width, height: Math.max(1, Math.round(height * BAR_HEIGHT_FRACTION)) }))
+}
+
 async function captureBar(target: VisionTarget) {
   if (target.readSharedBar) {
     const buffer = target.readSharedBar()
@@ -189,29 +238,12 @@ async function captureBar(target: VisionTarget) {
     return checkedBar(nativeImage.createFromBuffer(buffer))
   }
   if (target.requireWindowID && target.windowID == null) throw new DraftCaptureError('window')
-  const scale = Math.min(1, 1600 / target.width, 1000 / target.height)
-  if (pendingSources) throw new DraftCaptureError('timeout')
-  const operation = desktopCapturer.getSources({
-    types: ['window'], thumbnailSize: { width: Math.round(target.width * scale), height: Math.round(target.height * scale) },
-  })
-  pendingSources = operation
-  const clearPending = () => { pendingSources = null }
-  void operation.then(clearPending, clearPending)
-  let timeout: ReturnType<typeof setTimeout> | undefined
   try {
-    const sources = await Promise.race([operation, new Promise<never>((_, reject) => {
-      timeout = setTimeout(() => reject(new DraftCaptureError('timeout')), 6000)
-    })])
-    if (!target.active()) return null
-    const source = sources.find((candidate) => target.windowID != null
-      ? candidate.id.startsWith(`window:${target.windowID}:`)
-      : /^(?:dota\s*2|dota2)(?:$|\s*[-–—:(])/i.test(candidate.name.trim()))
-    if (!source) throw new DraftCaptureError('window')
-    const full = source.thumbnail
-    const { width, height } = full.getSize()
-    if (full.isEmpty() || width < 2 || height < 2) throw new DraftCaptureError('thumbnail')
-    return checkedBar(full.crop({ x: 0, y: 0, width, height: Math.max(1, Math.round(height * BAR_HEIGHT_FRACTION)) }))
-  } finally { clearTimeout(timeout) }
+    return await captureWindowBar(target)
+  } catch (error) {
+    if (process.platform === 'win32' && error instanceof DraftCaptureError && error.reason !== 'timeout') return await captureScreenBar(target)
+    throw error
+  }
 }
 
 export async function captureDraftPicks(inPickPhase: boolean, target: VisionTarget): Promise<VisionReveal | null> {

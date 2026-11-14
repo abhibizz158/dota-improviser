@@ -1,7 +1,7 @@
 {
   "name": "dota-improviser",
   "productName": "Dota Improviser",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "description": "Local-first Dota 2 draft, match review and practice companion",
@@ -14,7 +14,6 @@
     "build": "npm run check && vite build && tsc -p tsconfig.main.json",
     "test": "npm run build && node --test tests/*.test.mjs",
     "package:mac": "npm run build && npm run build:overlay -- darwin arm64 && node scripts/package-app.mjs darwin arm64",
-    "package:mac-intel": "npm run build && npm run build:overlay -- darwin x64 && node scripts/package-app.mjs darwin x64",
     "package:win": "npm run build && npm run build:overlay -- win32 x64 && node scripts/package-app.mjs win32 x64",
     "seed": "node scripts/build-seed.mjs",
     "data": "node scripts/build-seed.mjs && node scripts/build-heroes.mjs && node scripts/build-kits.mjs && node scripts/build-timings.mjs",

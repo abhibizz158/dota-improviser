@@ -12,6 +12,7 @@ import type { Asset } from './release-selection.js'
 const repository = 'abhibizz158/dota-improviser'
 const api = 'https://api.github.com/repos/' + repository
 const downloadHosts = new Set(['release-assets.githubusercontent.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com'])
+const userAgent = 'Dota-Improviser-Updater'
 
 /** The repository is public: every request here is unauthenticated. GitHub's unauthenticated rate limit
  * (60 requests/hour) comfortably covers a check every few hours, so no token or credential store is involved. */
@@ -30,7 +31,10 @@ export class ReleaseUpdates {
     return this.info
   }
   private releases() {
-    return fetch(api + '/releases?per_page=20', { headers: { Accept: 'application/vnd.github+json' },
+    // GitHub's API rejects any request with no User-Agent header with a 403 ("blocked"), not a rate-limit
+    // message — Node/Electron's fetch sends none by default, unlike curl or a browser. Without this header
+    // every update check fails outright on every OS, not just the one it happened to be noticed on first.
+    return fetch(api + '/releases?per_page=20', { headers: { Accept: 'application/vnd.github+json', 'User-Agent': userAgent },
       redirect: 'error', signal: AbortSignal.timeout(15000) })
   }
   check() {
@@ -62,7 +66,7 @@ export class ReleaseUpdates {
     const file = path.join(directory, asset.name)
     const temp = file + '.' + process.pid + '.partial'
     const signal = AbortSignal.timeout(20 * 60000)
-    let response = await fetch(api + '/releases/assets/' + asset.id, { headers: { Accept: 'application/octet-stream' }, redirect: 'manual', signal })
+    let response = await fetch(api + '/releases/assets/' + asset.id, { headers: { Accept: 'application/octet-stream', 'User-Agent': userAgent }, redirect: 'manual', signal })
     if (response.status === 302) {
       const redirect = new URL(response.headers.get('location') ?? '')
       if (redirect.protocol !== 'https:' || redirect.username || redirect.password || redirect.port || !downloadHosts.has(redirect.hostname)) throw new Error('GitHub returned an unsupported download location.')

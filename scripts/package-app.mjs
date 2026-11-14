@@ -13,7 +13,7 @@ const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf
 const { productName, version, author } = manifest
 const [platform, arch, verifyPath] = process.argv.slice(2)
 const mac = platform === 'darwin'
-assert.ok(mac ? ['arm64', 'x64'].includes(arch) : platform === 'win32' && arch === 'x64', 'Unsupported package target')
+assert.ok(mac ? arch === 'arm64' : platform === 'win32' && arch === 'x64', 'Unsupported package target')
 
 const fuseSettings = {
   [FuseV1Options.RunAsNode]: false,
@@ -61,7 +61,8 @@ if (verifyPath) {
   const [output] = await packager({
     dir: root, out: path.join(root, 'release'), platform, arch, overwrite: true, asar: true,
     name: productName, appBundleId: 'com.dotaimproviser.app', appCopyright: 'Copyright © 2026 ' + author.name,
-    win32metadata: { CompanyName: author.name },
+    win32metadata: { CompanyName: author.name, FileDescription: productName, ProductName: productName,
+      OriginalFilename: productName + '.exe', InternalName: productName, LegalCopyright: 'Copyright © 2026 ' + author.name },
     extendInfo: { DotaImproviserPublisher: author.name, DotaImproviserRepository: manifest.repository.url,
       NSScreenCaptureUsageDescription: 'Draft Vision reads the Dota 2 portrait strip during hero selection and strategy time.' },
     icon: path.join(root, 'build', mac ? 'icon.icns' : 'icon.ico'),

@@ -51,7 +51,7 @@ export type DataStatus = { state: 'idle' | 'updating' | 'ready' | 'error'; done:
 export const placements = ['Auto', 'Top left', 'Top right', 'Bottom left', 'Bottom right'] as const
 export type Placement = typeof placements[number]
 export type DisplayChoice = { id: string; name: string }
-export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'matchOutlook', 'coachTips', 'itemCoach', 'achievements', 'personal', 'performanceMeter', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision'] as const
+export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'matchOutlook', 'coachTips', 'itemCoach', 'achievements', 'personal', 'performanceMeter', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision', 'backgroundTray'] as const
 export type FeatureKey = typeof featureKeys[number]
 export type Features = Record<FeatureKey, boolean>
 export const defaultFeatures = Object.fromEntries(featureKeys.map((k) => [k, k !== 'achievementSound' && k !== 'draftVision'])) as Features
@@ -81,7 +81,8 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   autoInstallApp: { group: 'Automation', label: 'Launch verified updates automatically', help: 'Once a GitHub release is downloaded and verified, launch its installer as soon as you are not mid-game, instead of waiting for you to click Install in Settings. You still click through the installer itself (and enter your password on macOS) — this app never launches other programs silently or in the background; that is a deliberate fair-play guardrail, not a missing feature.' },
   learning: { group: 'Intelligence', label: 'Learn from my matches', help: 'Use match history, saved coaching answers and repeated respawn scenarios to personalize advice.' },
   patchAware: { group: 'Intelligence', label: 'Patch awareness', help: 'Trust old data less for heroes changed in recent patches.' },
-  draftVision: { group: 'Intelligence', label: 'Draft vision', help: 'Match visible hero portraits during hero selection and strategy time. On Mac, allow Screen Recording for the app. On Windows, use Borderless Windowed or Windowed mode.' },
+  draftVision: { group: 'Intelligence', label: 'Draft vision', help: 'Match visible hero portraits during hero selection and strategy time. On Mac, allow Screen Recording for the app. On Windows, Borderless Windowed or Windowed mode is most reliable; exclusive Fullscreen falls back to a full-screen capture.' },
+  backgroundTray: { group: 'Automation', label: 'Keep running in the background', help: 'Closing the window keeps the app running from the taskbar/menu-bar tray icon instead of quitting, so live coaching and the overlay keep working. Use "Quit" on the tray icon to actually exit. The dashboard window is fully unloaded while hidden, so it costs no CPU/GPU beyond the overlay and game feed themselves.' },
 }
 export type LiveSettings = {
   display: 'Overlay' | 'Companion'; size: 'Compact' | 'Large'; placement: Placement; monitor: string;

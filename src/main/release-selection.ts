@@ -8,7 +8,7 @@ export function compareVersions(a: string, b: string) {
 
 export function installerName(v: string, platform: NodeJS.Platform, arch: string) {
   if (!version(v)) return null
-  if (platform === 'darwin' && ['arm64', 'x64'].includes(arch)) return `Dota-Improviser-${v}-macos-${arch}.pkg`
+  if (platform === 'darwin' && arch === 'arm64') return `Dota-Improviser-${v}-macos-arm64.pkg`
   if (platform === 'win32' && arch === 'x64') return `Dota-Improviser-${v}-windows-x64-setup.exe`
   return null
 }

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, safeStorage, screen, session, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, safeStorage, screen, session, shell, systemPreferences, Tray } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -135,6 +135,7 @@ async function launchDotaThroughSteam() {
 }
 let provider: OpenDota
 let dashboard: BrowserWindow | null = null
+let tray: Tray | null = null
 let overlay: BrowserWindow | null = null
 let overlayHeight: number | null = null
 let overlayRequested = false
@@ -641,7 +642,8 @@ function onPick(next: TeamPick | null) {
 function draftVisionTarget(active: () => boolean) {
   const bounds = detectDotaBounds() ?? gameBounds
   return { windowID: windowProbe?.dotaWindowID?.(), requireWindowID: process.platform === 'win32' && Boolean(windowProbe?.dotaWindowID), ownHero: pick?.heroId, ownTeam: pick?.team, learned: settings.features.learning ? portraitMemory : [],
-    readSharedBar: windowProbe?.draftWindowShareState?.() === 'sharing' ? windowProbe.readSharedDraftBar : undefined, width: bounds?.width ?? 1440, height: bounds?.height ?? 900, active }
+    readSharedBar: windowProbe?.draftWindowShareState?.() === 'sharing' ? windowProbe.readSharedDraftBar : undefined, width: bounds?.width ?? 1440, height: bounds?.height ?? 900, active,
+    displayId: bounds ? screen.getDisplayMatching(bounds).id : null }
 }
 
 function canReadDraft() {
@@ -969,6 +971,15 @@ function makeDashboard() {
   window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   window.webContents.session.setPermissionCheckHandler(() => false)
   window.once('ready-to-show', () => window.show())
+  // "Keep running in the background" (Settings, on by default): closing the window hides it instead of quitting,
+  // so GSI, the overlay and live coaching keep working — exactly like Discord/Steam's own tray behaviour, and
+  // undone instantly from "Quit" on the tray icon (which sets `quitting` first, so this guard then steps aside).
+  window.on('close', (event) => {
+    if (quitting || !settings.features.backgroundTray) return
+    event.preventDefault()
+    window.hide()
+    if (mac) app.dock?.hide()
+  })
   window.on('closed', () => {
     dashboard = null
     ++profileOperation
@@ -977,6 +988,23 @@ function makeDashboard() {
     overlay?.close()
   })
   void window.loadFile(ui)
+}
+
+function makeTray() {
+  if (tray) return
+  const image = nativeImage.createFromPath(path.join(dir, '../../ui/icon.png'))
+  tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image.resize({ width: 18, height: 18 }))
+  tray.setToolTip('Dota Improviser')
+  const showDashboard = () => {
+    if (process.platform === 'darwin') app.dock?.show()
+    if (dashboard) { dashboard.show(); dashboard.focus() } else makeDashboard()
+  }
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open Dota Improviser', click: showDashboard },
+    { type: 'separator' },
+    { label: 'Quit', click: () => { quitting = true; app.quit() } },
+  ]))
+  tray.on('click', showDashboard)
 }
 
 function displayList() {
@@ -2297,6 +2325,7 @@ else {
     screen.on('display-removed', reposition)
     screen.on('display-metrics-changed', reposition)
     makeDashboard()
+    makeTray()
     await Promise.all([initialData, initialDiscovery])
     // First launch (nothing bundled, nothing downloaded yet): start the download right away, not after the usual
     // 60s debounce — that delay exists to avoid re-checking on every ordinary launch, not to stall day one.
@@ -2322,6 +2351,7 @@ else {
   app.on('window-all-closed', () => app.quit())
   app.on('before-quit', () => {
     quitting = true
+    tray?.destroy()
     cancelPuterSignIn?.()
     updateDraftVision()
     clearInterval(hoverTimer)

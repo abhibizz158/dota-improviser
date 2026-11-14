@@ -9,8 +9,16 @@ export type LocalInfo = {
   steamAccount: string | null; gsiDir: string | null; gsiInstalled: boolean
 }
 
+// Steam is very commonly installed to a non-system drive (a dedicated games SSD), not under Program Files on
+// C:, which the env-var and C:\ guesses alone never find. Probe every drive letter's conventional Steam/Steam
+// library folder names too — cheap existsSync calls, no registry/native access needed.
 const steamRoots = () => process.platform === 'win32'
-  ? [...new Set([process.env['ProgramFiles(x86)'], process.env.ProgramFiles, process.env.ProgramW6432].flatMap((root) => root ? [path.join(root, 'Steam')] : []).concat(['C:/Program Files (x86)/Steam', 'C:/Program Files/Steam']))]
+  ? [...new Set([
+      ...[process.env['ProgramFiles(x86)'], process.env.ProgramFiles, process.env.ProgramW6432].flatMap((root) => root ? [path.join(root, 'Steam')] : []),
+      'C:/Program Files (x86)/Steam', 'C:/Program Files/Steam',
+      ...Array.from({ length: 23 }, (_, i) => String.fromCharCode(68 + i)).flatMap((letter) =>
+        ['Steam', 'SteamLibrary', 'Program Files (x86)/Steam', 'Program Files/Steam', 'Games/Steam'].map((suffix) => `${letter}:/${suffix}`)),
+    ])]
   : [path.join(os.homedir(), 'Library/Application Support/Steam')]
 
 export function steamLauncher() {
@@ -60,7 +68,12 @@ export async function discover(token?: string): Promise<LocalInfo> {
   const info: LocalInfo = { installDir: null, build: null, versionDate: null, localBuilds: 0, steamAccount: null, gsiDir: null, gsiInstalled: false }
   for (const root of steamRoots()) {
     if (!existsSync(root)) continue
-    try { info.steamAccount ??= parseLoginUsers(await readFile(path.join(root, 'config/loginusers.vdf'), 'utf8')) } catch { /* ignore */ }
+    // Steam briefly rewrites loginusers.vdf around sign-in/account-switch; a read that lands mid-write can fail
+    // or come back truncated while Steam is still open. One short retry covers that without masking a real miss.
+    for (let attempt = 0; attempt < 2 && info.steamAccount == null; attempt++) {
+      try { info.steamAccount = parseLoginUsers(await readFile(path.join(root, 'config/loginusers.vdf'), 'utf8')) }
+      catch { if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 150)) }
+    }
     for (const lib of await libraries(root)) {
       const dir = path.join(lib, 'steamapps/common/dota 2 beta')
       if (!existsSync(path.join(dir, 'game/dota'))) continue

@@ -21,10 +21,6 @@ jobs:
             runner: macos-15
             command: package:mac
             package-dir: Dota Improviser-darwin-arm64
-          - platform: macos-x64
-            runner: macos-15-intel
-            command: package:mac-intel
-            package-dir: Dota Improviser-darwin-x64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     env:
@@ -83,7 +79,8 @@ jobs:
           $output = "$PWD/artifacts/Dota-Improviser-$version-$env:PLATFORM-setup.exe"
           $source = (Resolve-Path $package).Path
           $license = (Resolve-Path LICENSE).Path
-          & $compiler "/DAPP_DIR=$source" "/DOUTPUT_FILE=$output" "/DLICENSE_FILE=$license" scripts/windows-installer.nsi
+          $icon = (Resolve-Path build/icon.ico).Path
+          & $compiler "/DAPP_DIR=$source" "/DOUTPUT_FILE=$output" "/DLICENSE_FILE=$license" "/DICON_FILE=$icon" "/DPRODUCT_VERSION=$version" scripts/windows-installer.nsi
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $installation = Start-Process -FilePath $output -ArgumentList '/S' -Wait -PassThru
           if ($installation.ExitCode -ne 0) { exit $installation.ExitCode }

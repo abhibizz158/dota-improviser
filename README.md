@@ -8,7 +8,7 @@ Dota Improviser combines public match aggregates, read-only local Steam/Dota dis
 
 > **Fair-play status:** Draft suggestions use picks visible to the player. Live coaching uses the linked player’s own feed in supported sessions. The app does not read game memory, inspect packets, or automate inputs. One opt-in, off-by-default feature ("Draft vision") reads a small strip of your own screen — the pick-bar hero portraits — to match them against Valve's own hero art, strictly while Dota reports pick/strategy phase and never once a game is live; see [AGENTS.md](AGENTS.md#draft-vision-the-one-screen-reading-exception) for the full scope and its real limitation. Outside that one exception, the app never reads your screen or reveals hidden information.
 
-**[⬇ Download the latest release](https://github.com/abhibizz158/dota-improviser/releases/latest)** — macOS (Apple Silicon or Intel `.pkg`) and Windows (x64 `.exe`).
+**[⬇ Download the latest release](https://github.com/abhibizz158/dota-improviser/releases/latest)** — macOS (Apple Silicon `.pkg`) and Windows (x64 `.exe`).
 
 On macOS, open the PKG for your chip. It installs or upgrades **Dota Improviser.app** in **Applications**. On Windows, run the x64 setup EXE. Quit Dota Improviser before upgrading. The installers leave your linked Dota account, settings, cached data, and saved Puter sign-in in the existing local profile. An ad hoc signed macOS update may require fresh Keychain or Screen Recording access.
 
@@ -107,7 +107,7 @@ Recommendations are guidance, not predictions or instructions. Matchup sample si
 | `npm run data` | Fetch/rebuild the generated public hero, matchup, kit, and timing datasets in `data/` |
 | `npm run seed` | Rebuild only the hero matchup seed |
 | `npm run package:local` | Package a local Apple Silicon macOS app |
-| `npm run package:mac` / `npm run package:mac-intel` | Package macOS Apple Silicon / Intel test builds |
+| `npm run package:mac` | Package macOS Apple Silicon test build |
 | `npm run package:win` | Package a Windows x64 test build |
 
 `npm run data` makes many public requests and can take several minutes; respect OpenDota rate limits. Generated `data/`, `dist/`, and `release/` artifacts are intentionally ignored by Git. The desktop app can refresh public datasets into its local application data folder. Use `npm test` before proposing changes to data parsing, GSI boundaries, draft scoring, or packaging.
