@@ -365,6 +365,16 @@ export function RecoveryCard({ recovery }: { recovery: Recovery }) {
   </article>
 }
 
+/** Shows the one screenshot captured the moment you died, for your own self-review. No analysis is run on the
+ * image (see captureDeathSnapshot in src/main/draft-vision.ts) — this is purely "here's what you saw." The main
+ * process clears live.deathSnapshot itself ~20s after capture, so this disappears on its own with no timer here. */
+export function DeathSnapshotCard({ deathSnapshot }: { deathSnapshot: { at: number; dataUrl: string } }) {
+  return <article className="death-snapshot-card">
+    <Head icon={<Clock3 size={13} />} tag="What you saw" sub="Closes on its own" />
+    <img src={deathSnapshot.dataUrl} alt="Your screen the moment you died" />
+  </article>
+}
+
 /** Floating assistant: ask Puter AI about the current draft or practice game. Opened with Ctrl/⌘+Shift+O once a game is live.
  * Rendered in the overlay's big, interactive, click-through-off window (same sizing as the draft editor). */
 export function AssistantCard({ ask, done }: { ask?: (question: string) => Promise<string>; done?: () => Promise<void> }) {

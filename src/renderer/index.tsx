@@ -5,7 +5,7 @@ import type { AppApi, Bootstrap, FeatureKey, LiveState, MatchSummary, PuterStatu
 import { featureInfo } from '../shared/model'
 import { browserApi, builtInCatalog, initialLive } from './demo'
 import { Overview } from './overview'
-import { AssistantCard, CoachCard, Dialog, DraftCard, Feedback, LaneCard, RecoveryCard, RoshanTimer, SessionPrompt, Toasts, clock } from './ui'
+import { AssistantCard, CoachCard, DeathSnapshotCard, Dialog, DraftCard, Feedback, LaneCard, RecoveryCard, RoshanTimer, SessionPrompt, Toasts, clock } from './ui'
 import { fairPlay } from '../shared/guard'
 import { playAchievementChime } from './sound'
 import '@fontsource-variable/inter/wght.css'
@@ -88,6 +88,7 @@ function Overlay() {
       : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={builtInCatalog.heroes} settings={live.settings} coaching={recovery ? undefined : live.coaching} performance={live.performance} compact={compact || Boolean(recovery)} recoveryMode={Boolean(recovery)} heroName={builtInCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
         : <LaneCard live={live} hero={hero} />}
     {recovery && <RecoveryCard recovery={recovery} />}
+    {live.settings.features.deathSnapshot && editorial && live.deathSnapshot && <DeathSnapshotCard deathSnapshot={live.deathSnapshot} />}
     {live.settings.features.roshanTimer && editorial && <RoshanTimer roshan={live.roshan} />}
     {!compact && live.settings.features.toasts && editorial && <Toasts toasts={live.toasts.filter((t) => t.kind === 'alert')} />}
   </div></div>

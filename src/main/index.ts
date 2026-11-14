@@ -38,7 +38,7 @@ import { configName, defaultBuilds, discover, steamLauncher } from './local.js'
 import type { LocalInfo } from './local.js'
 import { accountId, asRecord, catalog, itemInfo, matchId, steamId64, validHero } from './data.js'
 import { draftVisionPhase, gsiConfig, loadingDraft, parseCompletedOwnMatch, parseDraft, parseFrame, parsePick, parseResultFrame, redactedShape, startGsi, updateCheckpoints } from './gsi.js'
-import { BAR_HEIGHT_FRACTION, captureDraftPicks, confirmDraftPicks, debugCaptureDraftPicks, DraftCaptureError, loadReferencePortraits, rememberPortrait } from './draft-vision.js'
+import { BAR_HEIGHT_FRACTION, captureDeathSnapshot, captureDraftPicks, confirmDraftPicks, debugCaptureDraftPicks, DraftCaptureError, loadReferencePortraits, rememberPortrait } from './draft-vision.js'
 import type { PortraitMemory, VisionReveal } from './draft-vision.js'
 import { brackets, contextualCoach, knownThreat } from '../shared/contextual-coach.js'
 import type { Bracket, CoachHero } from '../shared/contextual-coach.js'
@@ -147,6 +147,9 @@ let draftVisionActive = false
 let visionInFlight = false
 let visionLastRead: VisionReveal | null = null
 let visionSamples: (string | null)[] = []
+let deathSnapshot: { at: number; dataUrl: string } | null = null
+let deathSnapshotInFlight = false
+const DEATH_SNAPSHOT_MS = 20000
 let portraitMemory: PortraitMemory[] = []
 let achievementWindow: BrowserWindow | null = null
 let achievementHeight: number | null = null
@@ -567,7 +570,7 @@ function state(): LiveState {
     priorCases: settings.features.learning ? deathCase?.repeats : undefined,
   }) : null
   return {
-    view, interactive, draft: draftView(), pick, coach: coachView, data: dataStatus, support: supportView(), game: gameView(), career, recovery, awards, vision: visionStats, assistantShortcutAvailable,
+    view, interactive, draft: draftView(), pick, coach: coachView, data: dataStatus, support: supportView(), game: gameView(), career, recovery, awards, vision: visionStats, assistantShortcutAvailable, deathSnapshot,
     toasts: toasts.filter((t) => Date.now() - t.shownAt < (t.kind === 'summary' ? SUMMARY_TOAST_MS : TOAST_MS)),
     status, lane, receivedAt, settings, armed, shortcutAvailable, checkpoints, roshan,
     open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
@@ -647,6 +650,7 @@ function resetSession(next: LiveState['status']) {
   coachView = null
   coaching = undefined
   deathCase = null
+  deathSnapshot = null
   seen = {}
   pick = null
   draftVisionActive = false
@@ -707,6 +711,27 @@ function draftVisionTarget(active: () => boolean) {
 
 function canReadDraft() {
   return draftVisionActive && Boolean(pick) && !frame && settings.features.draftVision && !quitting
+}
+
+/** Death snapshot: fires at most once per death (deathCase is cleared on the next life/game), never on a timer.
+ * Reuses the same no-OS-permission-needed window/screen capture Draft Vision already has, just without its
+ * pick-phase target fields (ownHero/ownTeam/learned/readSharedBar) — this isn't matching anything, just handing
+ * the raw frame back. Skips silently (no prompt) if Screen Recording was never granted, since firing a permission
+ * dialog mid-death would be a worse interruption than just not having the snapshot that one time. */
+function captureDeathSnapshotNow() {
+  if (!settings.features.deathSnapshot || deathSnapshotInFlight || quitting || screenAccessStatus() !== 'granted') return
+  const bounds = detectDotaBounds() ?? gameBounds
+  const target = { windowID: windowProbe?.dotaWindowID?.(), requireWindowID: false,
+    width: bounds?.width ?? 1440, height: bounds?.height ?? 900, active: () => !quitting,
+    displayId: bounds ? screen.getDisplayMatching(bounds).id : null }
+  deathSnapshotInFlight = true
+  void captureDeathSnapshot(true, target).then((dataUrl) => {
+    if (!dataUrl) return
+    const at = Date.now()
+    deathSnapshot = { at, dataUrl }
+    broadcastSoon()
+    setTimeout(() => { if (deathSnapshot?.at === at) { deathSnapshot = null; broadcastSoon() } }, DEATH_SNAPSHOT_MS)
+  }).catch(() => {}).finally(() => { deathSnapshotInFlight = false })
 }
 
 function updateDraftVision() {
@@ -987,6 +1012,7 @@ function receive(value: unknown) {
   if (nextFrame && !nextFrame.alive && !deathCase && nextFrame.clock >= 0 && nextFrame.respawnSeconds !== 0) {
     deathCase = { frame: nextFrame, role: roleChoice().role, phase: coachView?.phase ?? 'Laning', killer: null, repeats: 0, threat: null }
     updateDeathThreat()
+    captureDeathSnapshotNow()
   }
   const outlookChanged = nextFrame && updateMatchOutlook(nextFrame)
   const performanceCheckpoint = nextFrame && settings.features.performanceMeter && !newPractice

@@ -199,7 +199,7 @@ async function racedSources(types: ('window' | 'screen')[], width: number, heigh
   } finally { clearTimeout(timeout) }
 }
 
-async function captureWindowBar(target: VisionTarget) {
+async function captureWindowBar(target: VisionTarget, heightFraction: number) {
   const scale = Math.min(1, 1600 / target.width, 1000 / target.height)
   const sources = await racedSources(['window'], Math.round(target.width * scale), Math.round(target.height * scale))
   if (!target.active()) return null
@@ -210,7 +210,7 @@ async function captureWindowBar(target: VisionTarget) {
   const full = source.thumbnail
   const { width, height } = full.getSize()
   if (full.isEmpty() || width < 2 || height < 2) throw new DraftCaptureError('thumbnail')
-  return checkedBar(full.crop({ x: 0, y: 0, width, height: Math.max(1, Math.round(height * BAR_HEIGHT_FRACTION)) }))
+  return checkedBar(full.crop({ x: 0, y: 0, width, height: Math.max(1, Math.round(height * heightFraction)) }))
 }
 
 /** Windows-only fallback: an exclusive Fullscreen DirectX surface never reaches DWM, so the window-thumbnail
@@ -218,7 +218,7 @@ async function captureWindowBar(target: VisionTarget) {
  * check catches that). The full-screen capture path reads the physical display buffer directly (desktop
  * duplication), which does see an exclusive-fullscreen game, so it can recover the same pick-bar strip — Dota
  * fills the whole monitor in that mode, so the crop fractions are identical to the window-thumbnail case. */
-async function captureScreenBar(target: VisionTarget) {
+async function captureScreenBar(target: VisionTarget, heightFraction: number) {
   const scale = Math.min(1, 1600 / target.width, 1000 / target.height)
   const sources = await racedSources(['screen'], Math.round(target.width * scale), Math.round(target.height * scale))
   if (!target.active()) return null
@@ -228,10 +228,10 @@ async function captureScreenBar(target: VisionTarget) {
   const full = source.thumbnail
   const { width, height } = full.getSize()
   if (full.isEmpty() || width < 2 || height < 2) throw new DraftCaptureError('thumbnail')
-  return checkedBar(full.crop({ x: 0, y: 0, width, height: Math.max(1, Math.round(height * BAR_HEIGHT_FRACTION)) }))
+  return checkedBar(full.crop({ x: 0, y: 0, width, height: Math.max(1, Math.round(height * heightFraction)) }))
 }
 
-async function captureBar(target: VisionTarget) {
+async function captureBar(target: VisionTarget, heightFraction = BAR_HEIGHT_FRACTION) {
   if (target.readSharedBar) {
     const buffer = target.readSharedBar()
     if (!buffer) throw new DraftCaptureError('thumbnail')
@@ -239,9 +239,9 @@ async function captureBar(target: VisionTarget) {
   }
   if (target.requireWindowID && target.windowID == null) throw new DraftCaptureError('window')
   try {
-    return await captureWindowBar(target)
+    return await captureWindowBar(target, heightFraction)
   } catch (error) {
-    if (process.platform === 'win32' && error instanceof DraftCaptureError && error.reason !== 'timeout') return await captureScreenBar(target)
+    if (process.platform === 'win32' && error instanceof DraftCaptureError && error.reason !== 'timeout') return await captureScreenBar(target, heightFraction)
     throw error
   }
 }
@@ -262,4 +262,22 @@ export async function debugCaptureDraftPicks(inPickPhase: boolean, target: Visio
   if (!bar || !target.active()) return null
   const { width, height } = bar.getSize()
   return { ...readPickBar(bar, target, true), references: referenceCache.size, barWidth: width, barHeight: height, barPng: bar.toDataURL() }
+}
+
+/** Death snapshot: a single, one-off full-frame capture triggered only by your own GSI feed going alive->dead
+ * (the caller derives justDied the same way it derives inPickPhase for the draft capture above), never on a
+ * timer and never continuous. No analysis is attempted on the image — unlike the hero-portrait matching above,
+ * reliably reading arbitrary game state (map position, building icons) from a screenshot isn't something this
+ * can verify works, so rather than ship a guess, this just hands the player back exactly what their own screen
+ * showed right before the respawn timer started, for their own 10-20s self-review. Resized down before encoding
+ * (matches BAR_HEIGHT_FRACTION's own-resource-use philosophy): a full-resolution frame on every death would cost
+ * far more than the 2-3 per minute the draft capture costs during picks. */
+export async function captureDeathSnapshot(justDied: boolean, target: VisionTarget): Promise<string | null> {
+  if (!justDied) return null
+  if (!target.active()) return null
+  const frame = await captureBar(target, 1)
+  if (!frame || !target.active()) return null
+  const { width, height } = frame.getSize()
+  const scale = Math.min(1, 720 / width)
+  return (scale < 1 ? frame.resize({ width: Math.round(width * scale), height: Math.round(height * scale) }) : frame).toDataURL()
 }

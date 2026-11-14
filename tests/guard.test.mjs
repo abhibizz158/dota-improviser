@@ -35,6 +35,14 @@ test('draft vision gates every capture entry point on inPickPhase', () => {
   }
 })
 
+test('the death snapshot capture is gated on justDied the same way, and never analyzes the image', () => {
+  const source = readFileSync(visionFile, 'utf8')
+  const body = source.slice(source.indexOf('export async function captureDeathSnapshot'))
+  assert.match(body, /\(justDied: boolean,/, 'captureDeathSnapshot must take justDied as its first parameter')
+  assert.match(body.slice(0, 200), /if \(!justDied\) return null/, 'captureDeathSnapshot must bail out immediately when justDied is false')
+  assert.doesNotMatch(body.slice(0, body.indexOf('\n}')), /readPickBar|matchSlot|portraitDistance/, 'captureDeathSnapshot must not run portrait/map analysis on the frame')
+})
+
 test('macOS picker verifies the Dota window before capture and tears down outside the draft', () => {
   const native = readFileSync(pickerFile, 'utf8')
   assert.match(native, /allowedPickerModes = SCContentSharingPickerModeSingleWindow/)
