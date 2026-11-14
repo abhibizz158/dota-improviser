@@ -91,7 +91,12 @@ select:focus, input:focus { border-color: var(--gold); outline: 0; }
 .settings-dialog textarea { width: 100%; resize: vertical; padding: 10px; color: var(--text); background: var(--s2); border: 1px solid var(--line-strong); border-radius: 8px; font: inherit; }
 .settings-choice { display: flex; gap: 12px; align-items: center; text-align: left; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--s2); } .settings-choice:hover { border-color: var(--line-strong); }
 .settings-choice > span { flex: 1; } .settings-choice small { display: block; color: var(--muted); }
-.welcome-dialog { width: min(640px, 94vw); }
+/* The width rule has to target the actual <dialog> element, not this inner div — a child declared wider than
+   its containing block does not widen that container; it previously just overflowed the real (narrower) dialog
+   box, clipping the wizard's text instead of giving it the room this rule intended. */
+dialog.dialog:has(.welcome-dialog) { width: min(640px, 94vw); }
+.welcome-dialog { min-width: 0; }
+.welcome-dialog p, .welcome-dialog .fine-print { overflow-wrap: break-word; }
 .wizard-steps { display: flex; gap: 8px; margin-bottom: 4px; }
 .wizard-steps span { flex: 1; text-align: center; padding: 6px 4px; border-radius: 8px; background: var(--s2); color: var(--muted); font-size: 12px; font-weight: 600; }
 .wizard-steps span.active { background: var(--accent, var(--line-strong)); color: var(--text); }
