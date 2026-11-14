@@ -1169,7 +1169,12 @@ function checkedKnowledgeContext(value: unknown): KnowledgeContext {
   const enemyIds = Array.isArray(raw.enemyIds) ? [...new Set(raw.enemyIds.filter((id): id is number => typeof id === 'number' && catalog.heroes.some((hero) => hero.id === id)))].slice(0, 5) : []
   const itemKeys = Array.isArray(raw.itemKeys) ? [...new Set(raw.itemKeys.filter((key): key is string => typeof key === 'string' && Object.hasOwn(itemInfo, key)))].slice(0, 8) : []
   const bounded = (key: string, min: number, max: number) => typeof raw[key] === 'number' && Number.isFinite(raw[key]) ? Math.max(min, Math.min(max, raw[key] as number)) : undefined
-  return { heroId, enemyIds, itemKeys, clockSeconds: bounded('clockSeconds', 0, 7200), gpm: bounded('gpm', 0, 2500), gold: bounded('gold', 0, 10000) }
+  return {
+    heroId, enemyIds, itemKeys, clockSeconds: bounded('clockSeconds', 0, 7200), gpm: bounded('gpm', 0, 2500), gold: bounded('gold', 0, 10000),
+    xpm: bounded('xpm', 0, 2500), kills: bounded('kills', 0, 200), deaths: bounded('deaths', 0, 200), assists: bounded('assists', 0, 200),
+    lastHits: bounded('lastHits', 0, 2000), denies: bounded('denies', 0, 500), level: bounded('level', 1, 30), killStreak: bounded('killStreak', 0, 200),
+    teamScore: bounded('teamScore', 0, 500), enemyScore: bounded('enemyScore', 0, 500), alive: typeof raw.alive === 'boolean' ? raw.alive : undefined,
+  }
 }
 
 /** The local knowledge index is rebuilt only when the hero/item/patch data it's drawn from actually changes
@@ -1214,7 +1219,12 @@ function buildPuterPrompt(question: string, value: unknown, live?: LivePuterCont
     selectedHeroAbilities, recentPatchNotesForSelectedHero: recentPatchNotes, matchupEdgeVsKnownEnemies: matchupEdge,
     knownEnemies: context.enemyIds?.map(heroName) ?? [],
     selectedItems: itemData,
-    ownPracticeFeed: context.clockSeconds == null ? null : { clockSeconds: context.clockSeconds, gpm: context.gpm ?? null, unspentGold: context.gold ?? null },
+    ownPracticeFeed: context.clockSeconds == null ? null : {
+      clockSeconds: context.clockSeconds, gpm: context.gpm ?? null, xpm: context.xpm ?? null, unspentGold: context.gold ?? null,
+      level: context.level ?? null, kills: context.kills ?? null, deaths: context.deaths ?? null, assists: context.assists ?? null,
+      lastHits: context.lastHits ?? null, denies: context.denies ?? null, killStreak: context.killStreak ?? null, alive: context.alive ?? null,
+      teamScore: context.teamScore ?? null, enemyScore: context.enemyScore ?? null,
+    },
     liveCoach: live ? { ...live, teammates: live.teammates.map(heroName) } : undefined,
     personalMatchHistory: 'not sent', steamAccountId: 'not sent',
   }
@@ -1246,7 +1256,13 @@ async function askLiveCoach(question: unknown) {
   if (overlayAskPending) throw new Error('The previous answer is still loading.')
   const { ownHero, enemy, allied } = lineup()
   const current = frame
-  const context = { heroId: ownHero, enemyIds: enemy, itemKeys: current?.items, clockSeconds: current?.clock, gpm: current?.gpm, gold: current?.gold }
+  const context = {
+    heroId: ownHero, enemyIds: enemy, itemKeys: current?.items, clockSeconds: current?.clock, gpm: current?.gpm, gold: current?.gold,
+    xpm: current?.xpm, kills: current?.kills, deaths: current?.deaths, assists: current?.assists, lastHits: current?.lastHits,
+    denies: current?.denies, level: current?.level, killStreak: current?.killStreak, alive: current?.alive,
+    teamScore: current?.team === 'Dire' ? current.direScore ?? undefined : current?.radiantScore ?? undefined,
+    enemyScore: current?.team === 'Dire' ? current.radiantScore ?? undefined : current?.direScore ?? undefined,
+  }
   const live = { role: roleLabels[roleChoice().role], phase: current ? coachView?.phase ?? 'Practice' : 'Draft', alive: current?.alive ?? null,
     deaths: current?.deaths ?? null, respawnSeconds: current?.respawnSeconds ?? null, teammates: allied,
     buildPlan: ownHero == null ? [] : approvedBuild(ownHero).order.map((key) => itemInfo[key].n) }

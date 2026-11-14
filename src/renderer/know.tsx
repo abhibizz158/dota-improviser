@@ -59,13 +59,21 @@ export function Know({ api, catalog, live, puter }: Props) {
   async function ask() {
     setBusy(true); setError(''); setAnswer('')
     try {
+      const stats = liveOwn?.coach?.stats
       const result = await api.puterAsk(question, {
         heroId: ownHero?.id,
         enemyIds,
         itemKeys: counterItems.map(({ key }) => key),
         ...(liveOwn?.lane ? { clockSeconds: liveOwn.lane.clock } : {}),
         ...(liveOwn?.coach?.gpm != null ? { gpm: liveOwn.coach.gpm } : {}),
-        ...(liveOwn?.coach?.stats.gold != null ? { gold: liveOwn.coach.stats.gold } : {}),
+        ...(liveOwn?.coach?.xpm != null ? { xpm: liveOwn.coach.xpm } : {}),
+        ...(stats?.gold != null ? { gold: stats.gold } : {}),
+        ...(stats?.kills != null ? { kills: stats.kills } : {}),
+        ...(stats?.deaths != null ? { deaths: stats.deaths } : {}),
+        ...(stats?.assists != null ? { assists: stats.assists } : {}),
+        ...(stats?.lastHits != null ? { lastHits: stats.lastHits } : {}),
+        ...(stats?.denies != null ? { denies: stats.denies } : {}),
+        ...(stats?.level != null ? { level: stats.level } : {}),
       })
       setAnswer(result)
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Puter could not answer this question.') }

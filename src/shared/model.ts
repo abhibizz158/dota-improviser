@@ -105,7 +105,11 @@ export const emptyDraft: DraftView = {
 }
 export type LocalStatus = { installFound: boolean; gsiInstalled: boolean; steamFound: boolean; build: number | null; localBuilds: number }
 export type PuterStatus = { connected: boolean; saved: boolean; model: string }
-export type KnowledgeContext = { heroId?: number; enemyIds?: number[]; itemKeys?: string[]; clockSeconds?: number; gpm?: number; gold?: number }
+export type KnowledgeContext = {
+  heroId?: number; enemyIds?: number[]; itemKeys?: string[]; clockSeconds?: number; gpm?: number; gold?: number
+  xpm?: number; kills?: number; deaths?: number; assists?: number; lastHits?: number; denies?: number; level?: number
+  killStreak?: number; alive?: boolean; teamScore?: number; enemyScore?: number
+}
 export type UpdateInfo = { current: string; latest: string | null; state: 'idle' | 'checking' | 'downloading' | 'ready' | 'current' | 'error'; message: string }
 export type Frame = {
   clock: number; heroSlug: string; heroId: number | null; level: number | null; alive: boolean; gold: number | null
