@@ -5,7 +5,7 @@ import type { Hero } from '../shared/model.js'
 /**
  * STRICT GATE: this is the ONLY screen-reading code in the entire app, and every entry point into it takes an
  * explicit `inPickPhase` boolean that the caller must derive from Dota's own GSI game_state (hero selection,
- * strategy time, or the captains-mode draft) — never from guesswork, and never once a match is live. It reads a
+ * or strategy time) — never from guesswork, and never once a match is live. It reads a
  * single cropped strip at the top of the Dota window (the pick-bar portraits) and compares it against Valve's own
  * public hero art fetched from Steam's CDN; it never performs text OCR, never reads chat, the minimap, buildings,
  * or anything outside that one strip, and never runs once `inPickPhase` is false. See AGENTS.md's "Draft vision"
@@ -70,7 +70,9 @@ const MATCH_THRESHOLD = 42
 
 function matchSlot(crop: NativeImage): number | null {
   if (!referenceCache.size) return null
+  if (crop.isEmpty()) return null
   const bitmap = crop.resize({ width: THUMB, height: THUMB }).toBitmap()
+  if (bitmap.length !== THUMB * THUMB * 4) return null
   let best: number | null = null, bestScore = Infinity, secondScore = Infinity
   for (const [heroId, reference] of referenceCache) {
     const score = pixelDiff(bitmap, reference)
@@ -84,11 +86,17 @@ export class DraftCaptureError extends Error {
   constructor(readonly reason: 'window' | 'thumbnail' | 'timeout') { super(reason) }
 }
 
+let pendingSources: ReturnType<typeof desktopCapturer.getSources> | null = null
+
 async function captureBar(target: VisionTarget) {
   const scale = Math.min(1, 1600 / target.width, 1000 / target.height)
+  if (pendingSources) throw new DraftCaptureError('timeout')
   const operation = desktopCapturer.getSources({
     types: ['window'], thumbnailSize: { width: Math.round(target.width * scale), height: Math.round(target.height * scale) },
   })
+  pendingSources = operation
+  const clearPending = () => { pendingSources = null }
+  void operation.then(clearPending, clearPending)
   let timeout: ReturnType<typeof setTimeout> | undefined
   try {
     const sources = await Promise.race([operation, new Promise<never>((_, reject) => {

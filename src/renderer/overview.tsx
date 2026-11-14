@@ -9,14 +9,18 @@ import { ShareMatch } from './share-match'
 import { FeaturedStage, GuideSections, Insights, useFeatured } from './featured'
 
 type Props = {
-  api: AppApi; onUseHero: (id: number) => void; showStyle?: boolean; catalog: Catalog; history: SourceResult<MatchSummary[]> | null; loading: boolean; demo: boolean; account: string;
+  api: AppApi; onUseHero: (id: number) => void; showStyle?: boolean; catalog: Catalog; history: SourceResult<MatchSummary[]> | null; loading: boolean; demo: boolean; account: string; historyChangedAt?: number;
   onAccount: () => void; onRefresh: () => void; onMatch: (id: string) => void; onImport: () => void; onPrivateHistory: () => void; onDraft: () => void; onOpenGame: () => void; local: LocalStatus;
 }
 const base = import.meta.env.BASE_URL
 
-export function Overview({ api, onUseHero, showStyle = true, catalog, history, loading, demo, account, onAccount, onRefresh, onMatch, onImport, onPrivateHistory, onDraft, onOpenGame, local }: Props) {
+export function Overview({ api, onUseHero, showStyle = true, catalog, history, historyChangedAt, loading, demo, account, onAccount, onRefresh, onMatch, onImport, onPrivateHistory, onDraft, onOpenGame, local }: Props) {
   const [sessions, setSessions] = useState<SessionRecord[]>([])
-  useEffect(() => { void api.sessionHistory().then(setSessions).catch(() => {}) }, [api])
+  useEffect(() => {
+    let active = true
+    void api.sessionHistory().then((entries) => { if (active) setSessions(entries) }).catch(() => {})
+    return () => { active = false }
+  }, [api, historyChangedAt])
   const [parsing, setParsing] = useState<Set<string>>(new Set())
   useEffect(() => {
     let active = true

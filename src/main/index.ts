@@ -36,7 +36,7 @@ import type { DataStatus } from '../shared/model.js'
 import { configName, defaultBuilds, discover, steamLauncher } from './local.js'
 import type { LocalInfo } from './local.js'
 import { accountId, asRecord, catalog, itemInfo, matchId, steamId64, validHero } from './data.js'
-import { gsiConfig, hasOwnMatchResult, parseCompletedOwnMatch, parseDraft, parseFrame, parsePick, redactedShape, startGsi, updateCheckpoints } from './gsi.js'
+import { draftVisionPhase, gsiConfig, loadingDraft, parseCompletedOwnMatch, parseDraft, parseFrame, parsePick, parseResultFrame, redactedShape, startGsi, updateCheckpoints } from './gsi.js'
 import { captureDraftPicks, debugCaptureDraftPicks, DraftCaptureError, loadReferencePortraits } from './draft-vision.js'
 import { brackets, contextualCoach } from '../shared/contextual-coach.js'
 import type { Bracket } from '../shared/contextual-coach.js'
@@ -94,6 +94,7 @@ let releaseUpdates: ReleaseUpdates
 let appUpdateTimer: NodeJS.Timeout | undefined
 let gameLaunch: Promise<void> | undefined
 let historyChangedAt = 0
+let screenPrompt: AbortController | undefined
 let latestLocalMatch: { id: string; fields: number } | undefined
 let sessionGameType: GameType | null = null
 let sessionLane: Role | null = null
@@ -131,8 +132,8 @@ let overlayRequested = false
 let overlayTimer: NodeJS.Timeout | undefined
 let hoverTimer: NodeJS.Timeout | undefined
 let visionTimer: NodeJS.Timeout | undefined
+let draftVisionActive = false
 let visionInFlight = false
-let visionBlocked = false
 let visionLastRead: { radiant: number[]; dire: number[] } | null = null
 let achievementWindow: BrowserWindow | null = null
 let achievementHeight: number | null = null
@@ -351,17 +352,20 @@ const TOAST_MS = 2600
 
 /** Record an achievement/event: toast for the overlay, career counter for the trophy case, and — for a per-hero
  * item/timing achievement — a per-hero award record (every hero's own data, never a fixed hero list). */
-function emit(events: GameEvent[], award: { id: string; heroId: number; label: string; role: Role; at: number; elite: boolean } | null) {
+function emit(events: GameEvent[], earned: { id: string; heroId: number; label: string; role: Role; at: number; onTime: boolean }[]) {
   if (!events.length) return
   const now = Date.now()
   career = { ...career }
   for (const e of events) {
     career[e.id] = (career[e.id] ?? 0) + 1
   }
-  if (award) {
-    const old = awards[award.id]
-    awards = { ...awards, [award.id]: { heroId: award.heroId, label: award.label, role: award.role,
-      count: (old?.count ?? 0) + 1, onTime: (old?.onTime ?? 0) + Number(award.elite), best: Math.min(old?.best ?? award.at, award.at), last: award.at } }
+  if (earned.length) {
+    awards = { ...awards }
+    for (const award of earned) {
+      const old = awards[award.id]
+      awards[award.id] = { heroId: award.heroId, label: award.label, role: award.role, count: (old?.count ?? 0) + 1,
+        onTime: (old?.onTime ?? 0) + Number(award.onTime), best: Math.min(old?.best ?? award.at, award.at), last: award.at }
+    }
     store.set('item-awards', awards)
   }
   store.set('career', career)
@@ -416,20 +420,30 @@ function performanceView(): LiveState['performance'] {
 /** Records the session that's ending: 'completed' if the game's own POST_GAME packet confirmed a win/loss,
  * 'abandoned' if the app or the game closed, or the player left, before that (also called from before-quit). */
 function finishGame() {
-  if (!frame || (frame.clock < 300 && !performanceSamples.length)) return
+  if (!frame || frame.clock < 0 || (!sessionCompleted && frame.clock < 300)) return
   const sessions = store.get<SessionRecord[]>('sessions') ?? []
   const record: SessionRecord = {
-    at: Date.now(), hero: frame.heroSlug, heroId: frame.heroId, clock: frame.clock, kills: frame.kills, deaths: frame.deaths,
+    at: Date.now(), matchId: frame.matchId, hero: frame.heroSlug, heroId: frame.heroId, clock: frame.clock, kills: frame.kills, deaths: frame.deaths,
     assists: frame.assists, lastHits: frame.lastHits, gpm: frame.gpm, xpm: frame.xpm, best: track.best, firstBlood: track.firstBlood,
-    status: sessionCompleted ? 'completed' : 'abandoned', gameType: sessionGameType, lane: sessionLane,
+    status: sessionCompleted ? 'completed' : 'abandoned', gameType: sessionGameType, lane: roleChoice().role,
+    performance: performanceView()?.points.findLast((point) => point.score != null),
   }
   if (account && frame.heroId && performanceSamples.length > 0 && settings.features.performanceMeter && (!frame.matchmaking || sessionCompleted)) {
     const saved = store.get<PerformanceMatch[]>(performanceKey()) ?? []
     const entry = { id: frame.matchId ?? null, heroId: frame.heroId, role: roleChoice().role, mode: frame.matchmaking ? sessionGameType : 'Practice' as const, samples: performanceSamples }
+    const previous = entry.id == null ? undefined : saved.find((match) => match.id === entry.id)
+    if (previous) {
+      const samples = new Map(previous.samples.map((sample) => [sample.at, sample]))
+      for (const sample of entry.samples) samples.set(sample.at, sample)
+      entry.samples = [...samples.values()].sort((a, b) => a.at - b.at)
+    }
     store.set(performanceKey(), [entry, ...saved.filter((match) => entry.id == null || match.id !== entry.id)].slice(0, 200))
   }
-  sessions.push(record)
-  store.set('sessions', sessions.slice(-60))
+  const existing = record.matchId ? sessions.find((entry) => entry.matchId === record.matchId) : undefined
+  if (!existing || existing.status !== 'completed' || record.status === 'completed') {
+    const previous = record.matchId ? sessions.filter((entry) => entry.matchId !== record.matchId) : sessions
+    store.set('sessions', [...previous, record].slice(-60))
+  }
   historyChangedAt = Date.now()
 }
 
@@ -447,7 +461,7 @@ function state(): LiveState {
     status, lane, receivedAt, settings, armed, shortcutAvailable, checkpoints, roshan,
     open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
     needsSessionInfo: view === 'setup' && Boolean(frame), sessionInfo: { gameType: sessionGameType, lane: sessionLane },
-    detectionAvailable: windowProbe !== null, performance: performanceView(), coaching,
+    detectionAvailable: windowProbe !== null, performance: performanceView(), coaching, draftVisionActive,
   }
 }
 
@@ -492,6 +506,7 @@ function resetSession(next: LiveState['status']) {
   coaching = undefined
   seen = {}
   pick = null
+  draftVisionActive = false
   draftStarted = false
   draft = { ...emptyPicks, pool: draft.pool }
   revealMeta = { activeTeam: null, timeLeft: null }
@@ -537,20 +552,21 @@ function draftVisionTarget(active: () => boolean) {
 }
 
 function updateDraftVision() {
-  if (!pick || !settings.features.draftVision || quitting) {
+  if (!draftVisionActive || !pick || !settings.features.draftVision || quitting) {
+    screenPrompt?.abort()
     clearInterval(visionTimer)
     visionTimer = undefined
     visionLastRead = null
-    visionBlocked = false
     return
   }
   if (visionTimer) return
+  if (dashboard) void maybePromptScreenRecording(dashboard).catch(() => {})
   void loadReferencePortraits(catalog.heroes).catch(() => {})
   const same = (a: number[], b: number[]) => a.length === b.length && a.every((id, i) => id === b[i])
   const timer = setInterval(() => {
-    if (visionInFlight || visionBlocked) return
+    if (visionInFlight || screenPrompt || screenAccessStatus() !== 'granted') return
     visionInFlight = true
-    const active = () => visionTimer === timer && Boolean(pick) && !frame && settings.features.draftVision && !quitting
+    const active = () => visionTimer === timer && draftVisionActive && Boolean(pick) && !frame && settings.features.draftVision && !quitting
     void captureDraftPicks(active(), draftVisionTarget(active)).then((result) => {
       if (!active()) return
       if (!result) { visionLastRead = null; return }
@@ -562,7 +578,6 @@ function updateDraftVision() {
     }).catch(() => {
       if (!active()) return
       visionLastRead = null
-      visionBlocked = screenAccessStatus() === 'denied'
     }).finally(() => { visionInFlight = false })
   }, 2500)
   visionTimer = timer
@@ -650,11 +665,19 @@ function receive(value: unknown) {
   if (!armed) return
   const steamId = account ? steamId64(account) : ''
   const isPostGame = asRecord(asRecord(value).map).game_state === 'DOTA_GAMERULES_STATE_POST_GAME'
-  if (isPostGame && frame && hasOwnMatchResult(value, steamId)) sessionCompleted = true
+  const packetMatchId = String(asRecord(asRecord(value).map).matchid ?? '')
+  if (isPostGame && frame && (!frame.matchId || frame.matchId === packetMatchId)) {
+    const finalFrame = parseResultFrame(value, steamId)
+    if (finalFrame && finalFrame.heroSlug === frame.heroSlug) {
+      sessionCompleted = true
+      frame = { ...frame, ...finalFrame, clock: Math.max(frame.clock, finalFrame.clock),
+        kills: finalFrame.kills ?? frame.kills, deaths: finalFrame.deaths ?? frame.deaths, assists: finalFrame.assists ?? frame.assists,
+        gpm: finalFrame.gpm ?? frame.gpm, xpm: finalFrame.xpm ?? frame.xpm, lastHits: finalFrame.lastHits ?? frame.lastHits }
+    }
+  }
   if (settings.saveOwnMatches && isPostGame) {
     const completed = parseCompletedOwnMatch(value, steamId)
     if (completed) {
-      sessionCompleted = true
       const fields = [completed.kills, completed.deaths, completed.assists, completed.gpm, completed.xpm, completed.lastHits, completed.denies].filter((field) => field != null).length
       if (latestLocalMatch?.id !== completed.id || fields > latestLocalMatch.fields) {
         latestLocalMatch = { id: completed.id, fields }
@@ -665,6 +688,9 @@ function receive(value: unknown) {
   }
   const nextFrame = parseFrame(value, steamId, true)
   const nextPick = nextFrame ? null : parsePick(value, steamId)
+  const loading = !nextFrame && !nextPick && draftStarted && loadingDraft(value, steamId)
+  draftVisionActive = draftVisionPhase(value, nextPick)
+  if (!draftVisionActive) updateDraftVision()
   const next: Lane | null = nextFrame && {
     clock: nextFrame.clock, heroSlug: nextFrame.heroSlug, lastHits: nextFrame.lastHits,
     denies: nextFrame.denies, deaths: nextFrame.deaths, level: nextFrame.level, paused: nextFrame.paused,
@@ -687,13 +713,21 @@ function receive(value: unknown) {
     nextFrame.items.every((item, index) => item === previous.items[index])
   if (lastCoachAt && coachView?.role === roleChoice().role && previous && nextFrame && sameItems && nextStatus === status &&
     (Object.keys(nextFrame) as (keyof Frame)[]).every((key) => key === 'items' || nextFrame[key] === previous[key])) return
+  if (loading) {
+    if (pick) {
+      onPick(null)
+      if (view === 'draft' || view === 'assistant') hideOverlay()
+      broadcast()
+    }
+    return
+  }
   if (!nextFrame && !nextPick && nextStatus === status) return
   if (nextFrame || nextPick) dataCancel.stop = true
   const pickBefore = pick
   const laneBefore = lane
   const frameBefore = frame
   const newPractice = nextFrame && frameBefore && ((nextFrame.matchId && frameBefore.matchId && nextFrame.matchId !== frameBefore.matchId) || nextFrame.clock < frameBefore.clock - 5 || nextFrame.heroSlug !== frameBefore.heroSlug)
-  if (newPractice || (frameBefore && !nextFrame) || (pickBefore && !nextPick && !nextFrame)) {
+  if (newPractice || (frameBefore && !nextFrame) || (draftStarted && !nextPick && !nextFrame)) {
     resetSession(nextStatus)
     receivedAt = now
     timeout = setTimeout(() => { resetSession('Feed stale'); broadcast() }, 14000)
@@ -709,14 +743,14 @@ function receive(value: unknown) {
     nextFrame.alive !== frameBefore?.alive || coachView.role !== roleChoice().role || now - lastCoachAt >= 1000)
   const events = nextFrame && !nextFrame.paused ? trackFrame(track, nextFrame).filter((event) =>
     event.kind === 'milestone' ? settings.features.achievements : settings.features.multikills) : []
-  let award: { id: string; heroId: number; label: string; role: Role; at: number; elite: boolean } | null = null
+  const earned: Parameters<typeof emit>[1] = []
   if (refreshCoach) {
     const result = refreshCoachView()
     if (settings.features.achievements && nextFrame?.matchmaking && !nextFrame.paused && frameBefore && !newPractice && nextFrame.clock - frameBefore.clock <= 12) {
       for (const goal of result?.achievements ?? []) {
         const hit = observeAchievement(frameBefore, nextFrame, goal, awarded)
         if (!hit) continue
-        award = { id: hit.id, heroId: hit.heroId, label: goal.label, role: roleChoice().role, at: hit.at, elite: goal.elite }
+        earned.push({ id: hit.id, heroId: hit.heroId, label: goal.label, role: roleChoice().role, at: hit.at, onTime: goal.elite })
         events.push({ id: hit.id, kind: 'item', label: goal.label, sub: goal.elite ? 'Elite timing' : 'Goal reached', epic: goal.elite, at: hit.at })
       }
     }
@@ -734,7 +768,7 @@ function receive(value: unknown) {
   if (performanceCheckpoint != null && nextFrame && !performanceSamples.some((sample) => sample.at === performanceCheckpoint)) {
     performanceSamples = [...performanceSamples, livePerformanceSample(performanceCheckpoint, nextFrame, seen)]
   }
-  emit(events, award)
+  emit(events, earned)
   const statusChanged = status !== nextStatus
   status = nextStatus
   if (nextFrame && (!frameBefore || newPractice) && settings.display === 'Overlay') {
@@ -796,6 +830,39 @@ function displayList() {
 function screenAccessStatus(): 'granted' | 'denied' | 'not-determined' | 'restricted' | 'unknown' {
   if (process.platform !== 'darwin') return 'granted'
   try { return systemPreferences.getMediaAccessStatus('screen') } catch { return 'unknown' }
+}
+
+async function openScreenRecordingSettings() {
+  await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+}
+
+async function requestDraftScreenRecording() {
+  if (process.platform !== 'darwin') return false
+  if (!draftVisionActive || !pick || frame || !settings.features.draftVision || quitting) {
+    throw new Error('Request Screen Recording during Dota’s hero selection or strategy time.')
+  }
+  if (screenAccessStatus() === 'granted' || windowProbe?.requestScreenRecording?.()) return true
+  await openScreenRecordingSettings()
+  return false
+}
+
+async function maybePromptScreenRecording(window: BrowserWindow) {
+  if (process.platform !== 'darwin' || !app.isPackaged || !settings.features.draftVision || !draftVisionActive || !pick || frame || screenPrompt) return
+  const version = app.getVersion()
+  if (screenAccessStatus() === 'granted' || store.get<string>('screen-recording-prompt-version') === version) return
+  const prompt = new AbortController()
+  screenPrompt = prompt
+  try {
+    const { response } = await dialog.showMessageBox(window, {
+      signal: prompt.signal, type: 'info', title: 'Allow Screen Recording for Draft Vision',
+      message: 'Allow Screen Recording for this draft?',
+      detail: 'macOS may require a fresh grant after an update. Draft Vision only uses access during hero selection and strategy time.',
+      buttons: ['Request access', 'Later'], defaultId: 0, cancelId: 1, noLink: true,
+    })
+    if (prompt.signal.aborted) return
+    store.set('screen-recording-prompt-version', version)
+    if (response === 0 && draftVisionActive && pick && !frame && !quitting) await requestDraftScreenRecording()
+  } finally { if (screenPrompt === prompt) screenPrompt = undefined }
 }
 
 function detectDotaBounds() {
@@ -935,7 +1002,7 @@ function makeOverlay() {
   window.on('blur', () => { if (interactive) finishOverlayEditing() })
   window.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown' || input.key !== 'Escape') return
-    if (view === 'setup') { event.preventDefault(); finishSessionSetup() }
+    if (view === 'setup' && frame) { event.preventDefault(); finishSessionSetup() }
     else if (interactive) { event.preventDefault(); finishOverlayEditing() }
   })
   window.webContents.on('render-process-gone', () => { hideOverlay(); window.destroy(); broadcast() })
@@ -1014,15 +1081,17 @@ function finishOverlayEditing() {
 }
 
 function finishSessionSetup(gameType?: GameType, role?: Role) {
-  if (view !== 'setup' || !frame) return broadcast()
+  if (!frame) throw new Error('The match is no longer active.')
   sessionGameType = gameType ?? null
   sessionLane = role ?? null
   sessionInfoDismissed = true
-  view = 'lane'
-  overlayHeight = null
-  foregroundMisses = 0
   refreshCoachView()
-  requestOverlay(false)
+  if (view === 'setup') {
+    view = 'lane'
+    overlayHeight = null
+    foregroundMisses = 0
+    requestOverlay(false)
+  }
   return broadcast()
 }
 
@@ -1069,8 +1138,8 @@ function toggleOverlay() {
   if (overlayRequested) {
     hideOverlay()
   } else {
-    if (!frame) throw new Error('Join a match with the listener running before opening the overlay.')
-    view = 'lane'
+    if (!frame && !pick) throw new Error('Join a match with the listener running before opening the overlay.')
+    view = frame ? 'lane' : 'draft'
     requestOverlay(false)
   }
   return broadcast()
@@ -1194,11 +1263,11 @@ function scheduleAppUpdates(delay = 6 * 3600000) {
   clearTimeout(appUpdateTimer)
   appUpdateTimer = setTimeout(() => {
     if (quitting) return
-    if (frame || pick) { scheduleAppUpdates(60000); return }
+    if (frame || draftStarted) { scheduleAppUpdates(60000); return }
     void releaseUpdates.check().then((info) => {
       // Only once the download is verified (state 'ready'), and only if you're still not mid-game: the check
       // above can take a while, and a match may have started since.
-      if (info.state === 'ready' && settings.features.autoInstallApp && !frame && !pick && !quitting) void releaseUpdates.install().catch(() => {})
+      if (info.state === 'ready' && settings.features.autoInstallApp && !frame && !draftStarted && !quitting) void releaseUpdates.install().catch(() => {})
     }).finally(() => scheduleAppUpdates())
   }, delay)
   appUpdateTimer.unref()
@@ -1507,9 +1576,9 @@ function handlers() {
     })
   }
   ipcMain.handle('live:snapshot', (event: IpcMainInvokeEvent) => {
-    if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame) {
-      throw new Error('This action is only available in the overlay.')
-    }
+    const permitted = [overlay, achievementWindow].some((window) =>
+      window && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame)
+    if (!permitted) throw new Error('This action is only available in the overlay.')
     return state()
   })
   ipcMain.on('overlay:height', (event, value: unknown) => {
@@ -1535,7 +1604,7 @@ function handlers() {
     return finishOverlayEditing()
   })
   ipcMain.handle('overlay:skip-session', (event: IpcMainInvokeEvent) => {
-    if (overlay && event.sender === overlay.webContents && event.senderFrame === overlay.webContents.mainFrame && !clearTask) return finishSessionSetup()
+    if (overlay && event.sender === overlay.webContents && event.senderFrame === overlay.webContents.mainFrame && view === 'setup' && frame && !clearTask) return finishSessionSetup()
   })
   ipcMain.handle('overlay:ask', (event: IpcMainInvokeEvent, question: unknown) => {
     if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || !interactive || view !== 'assistant' || clearTask) {
@@ -1543,14 +1612,18 @@ function handlers() {
     }
     return askLiveCoach(question)
   })
+  const saveSession = (gameType: unknown, lane: unknown) => {
+    if (!gameTypes.includes(gameType as GameType) || !roles.includes(lane as Role)) {
+      throw new Error('Pick a lane and game type from the list.')
+    }
+    return finishSessionSetup(gameType as GameType, lane as Role)
+  }
+  handle('live:session-info', saveSession)
   ipcMain.handle('overlay:session-info', (event: IpcMainInvokeEvent, gameType: unknown, lane: unknown) => {
     if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || view !== 'setup' || !frame || clearTask) {
       throw new Error('The game setup prompt is no longer active.')
     }
-    if (!(gameTypes as readonly string[]).includes(gameType as string) || !(roles as readonly string[]).includes(lane as string)) {
-      throw new Error('Pick a lane and game type from the list.')
-    }
-    return finishSessionSetup(gameType as GameType, lane as Role)
+    return saveSession(gameType, lane)
   })
   handle('share:copy', (value) => {
     if (typeof value !== 'string' || !value.trim() || value.length > 4000) throw new Error('The match summary could not be copied.')
@@ -1634,29 +1707,47 @@ function handlers() {
   handle('app:updates', () => frame || pick ? releaseUpdates.status() : releaseUpdates.check())
   handle('updates:status', () => releaseUpdates.status())
   handle('updates:install', () => {
-    if (frame || pick) throw new Error('Finish the current game before installing the update.')
+    if (frame || draftStarted) throw new Error('Finish the current game before installing the update.')
     return releaseUpdates.install()
   })
   handle('live:install', async () => {
+    const operation = profileOperation
     if (!local.gsiDir) throw new Error('Dota 2 install not found. Use Save config instead.')
     await mkdir(local.gsiDir, { recursive: true })
     await writeFile(path.join(local.gsiDir, configName), gsiConfig(43182, token), { mode: 0o600 })
     local = { ...local, gsiInstalled: true }
+    if (account && !armed && operation === profileOperation) {
+      try {
+        await ensureReceiver()
+        if (operation === profileOperation) { armed = true; status = 'Waiting for Dota' }
+      } catch {
+        if (operation === profileOperation) status = 'Connection error'
+      }
+      broadcast()
+    }
     return 'Installed into your Dota folder. Add -gamestateintegration to Dota 2 launch options in Steam, then restart Dota.'
   })
-  handle('profile:save', (id) => {
+  handle('profile:save', async (id) => {
     const nextAccount = accountId(id)
     if (nextAccount === account) return account
     resetSession('Idle')
     account = nextAccount
     store.set('account', account)
-    ++profileOperation
+    const operation = ++profileOperation
     armed = false
     diagnostics = []
     latestLocalMatch = undefined
     paceMemo = null; profileMemo = null; weightsMemo = null
+    if (local.gsiInstalled) {
+      try {
+        await ensureReceiver()
+        if (operation === profileOperation) { armed = true; status = 'Waiting for Dota' }
+      } catch {
+        if (operation === profileOperation) status = 'Connection error'
+      }
+    }
     broadcast()
-    return account
+    return nextAccount
   })
   handle('history:get', async (id, refresh) => {
     const who = accountId(id)
@@ -1701,24 +1792,27 @@ function handlers() {
     return provider.matchups([...new Set(ids.map(validHero))])
   })
   handle('draft:build', (id) => provider.build(validHero(id)))
+  handle('draft:vision-permission', requestDraftScreenRecording)
   handle('draft:vision-debug', async () => {
     const timer = visionTimer
-    const active = () => Boolean(timer && visionTimer === timer && pick && !frame && settings.features.draftVision && !quitting)
+    const active = () => Boolean(timer && visionTimer === timer && draftVisionActive && pick && !frame && settings.features.draftVision && !quitting)
     if (!active()) throw new Error('Capture now is available during hero selection or strategy time, with the Dota feed connected.')
-    if (visionInFlight) throw new Error('A draft scan is running. Try again in a moment.')
+    if (visionInFlight || screenPrompt) throw new Error('Finish the current draft scan or permission prompt and try again.')
     visionInFlight = true
     let result
     try {
-      if (process.platform === 'darwin' && screenAccessStatus() !== 'granted') windowProbe?.requestScreenRecording?.()
+      if (screenAccessStatus() !== 'granted' && !await requestDraftScreenRecording()) {
+        throw new Error('Screen Recording permission is unavailable.')
+      }
+      if (!active()) throw new Error('Dota left the draft before the capture finished.')
       void loadReferencePortraits(catalog.heroes).catch(() => {})
       result = await debugCaptureDraftPicks(active(), draftVisionTarget(active))
       if (!result) throw new Error('Dota left the draft before the capture finished.')
-      visionBlocked = false
-    } catch (error) {
+      } catch (error) {
       if (!active()) throw new Error('Dota left the draft before the capture finished.')
       const access = screenAccessStatus()
       const reason = error instanceof DraftCaptureError ? error.reason : 'unavailable'
-      if (process.platform === 'darwin' && (access === 'denied' || access === 'restricted' || access === 'not-determined')) {
+      if (access !== 'granted') {
         throw new Error('macOS has not granted Screen Recording to this running app. In System Settings, remove and re-add the Dota Improviser app you are launching, allow access, then quit and reopen it. A new test build can require a fresh grant.')
       }
       if (reason === 'window') throw new Error('Dota’s window is unavailable. Keep Dota open and unminimized on the current desktop during the draft.')
@@ -1811,7 +1905,7 @@ function handlers() {
   })
   handle('app:external', (name) => {
     if (name === 'screenRecording') return process.platform === 'darwin'
-      ? shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+      ? openScreenRecordingSettings()
       : Promise.resolve()
     if (typeof name === 'string' && Object.hasOwn(publicLinks, name)) return shell.openExternal(publicLinks[name as keyof typeof publicLinks])
   })
@@ -1893,7 +1987,7 @@ else {
     setTimeout(() => { void refreshPatchNotes() }, 60000).unref()
     handlers()
     shortcutAvailable = globalShortcut.register(hideShortcut, () => {
-      if (overlayRequested) { hideOverlay(); view = 'lane'; broadcast() }
+      if (overlayRequested || frame || pick) toggleOverlay()
     })
     // One combined "overlay on" mode: edit draft picks before the game has a hero, ask the AI assistant once it does.
     assistantShortcutAvailable = globalShortcut.register(interactiveShortcut, () => { toggleOverlayInteractive() })

@@ -27,6 +27,7 @@ export type SessionRecord = {
   at: number; hero: string; heroId: number | null; clock: number; kills: number | null; deaths: number | null; assists: number | null
   lastHits: number | null; gpm: number | null; xpm: number | null; best: string | null; firstBlood: GameTrack['firstBlood']
   status: 'completed' | 'abandoned'; gameType: GameType | null; lane: Role | null
+  matchId?: string; performance?: PersonalPerformance['points'][number]
 }
 export type Minute = { time: number; gold: number | null; xp: number | null; lastHits: number | null; deaths: number | null }
 export type ReviewEvent = { time: number | null; label: string; kind: 'item' | 'vision' | 'objective' | 'death'; key?: string }
@@ -140,7 +141,7 @@ export type LiveState = {
   detectionAvailable: boolean
   historyChangedAt?: number
   /** True once a game is live but you haven't said this session's lane/role and game type yet — the overlay should prompt. */
-  performance?: PersonalPerformance; coaching?: CoachingContext;
+  performance?: PersonalPerformance; coaching?: CoachingContext; draftVisionActive?: boolean;
   needsSessionInfo: boolean; sessionInfo: { gameType: GameType | null; lane: Role | null }
 }
 export type MechRow = { heroId: number; edge: number; parts: { label: FeatureName; points: number }[] }
@@ -168,6 +169,7 @@ export interface AppApi {
   clearData(): Promise<Bootstrap>;
   liveSettings(settings: LiveSettings): Promise<LiveState>;
   practice(enabled: boolean): Promise<LiveState>;
+  setSessionInfo(gameType: GameType, lane: Role): Promise<LiveState>;
   toggleOverlay(): Promise<LiveState>;
   saveConfig(): Promise<boolean>;
   exportDiagnostics(): Promise<boolean>;
@@ -180,6 +182,7 @@ export interface AppApi {
   draft(input: DraftInput): Promise<LiveState>;
   nudge(mine: number, enemy: number, delta: number): Promise<LiveState>;
   defaultBuild(slug: string): Promise<Partial<Record<'starting' | 'early' | 'mid' | 'late', string[]>> | null>;
+  requestDraftScreenRecording(): Promise<boolean>;
   visionDebug(): Promise<{ barWidth: number; barHeight: number; barPng: string; radiant: (number | null)[]; dire: (number | null)[]; radiantNames: (string | null)[]; direNames: (string | null)[] }>;
   detectSteam(): Promise<string | null>;
   openGame(): Promise<void>;

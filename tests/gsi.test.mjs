@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { gsiConfig, parsePick, parsePracticeLane, redactedShape, startGsi, updateCheckpoints } from '../dist/main/main/gsi.js'
+import { draftVisionPhase, gsiConfig, loadingDraft, parseFrame, parsePick, parseResultFrame, parsePracticeLane, redactedShape, startGsi, updateCheckpoints } from '../dist/main/main/gsi.js'
 
 const steamId = '76561198047011640'
 const practice = {
@@ -87,4 +87,44 @@ test('pick phase exposes only own side and locked hero; never trusts draft paylo
   assert.equal(parsePick({ ...pickPacket, map: { game_state: 'DOTA_GAMERULES_STATE_GAME_IN_PROGRESS' } }, steamId), null)
   assert.equal(parsePick({ ...pickPacket, map: { ...pickPacket.map, spectating: true } }, steamId), null)
   assert.match(gsiConfig(1, 't'), /"draft" "1"/)
+})
+
+test('Draft Vision opens only for the verified player in hero selection and strategy time', () => {
+  const packet = (phase) => ({ ...practice, map: { ...practice.map, game_state: 'DOTA_GAMERULES_STATE_' + phase } })
+  const readsScreen = (value) => draftVisionPhase(value, parsePick(value, steamId))
+  assert.equal(readsScreen(packet('HERO_SELECTION')), true)
+  assert.equal(readsScreen(packet('STRATEGY_TIME')), true)
+  assert.ok(parsePick(packet('PLAYER_DRAFT'), steamId), 'player draft still supports feed and manual picks')
+  for (const phase of ['PLAYER_DRAFT', 'TEAM_SHOWCASE', 'WAIT_FOR_MAP_TO_LOAD', 'PRE_GAME', 'GAME_IN_PROGRESS', 'POST_GAME', 'UNKNOWN']) {
+    assert.equal(readsScreen(packet(phase)), false, phase)
+  }
+  const strategy = packet('STRATEGY_TIME')
+  assert.equal(readsScreen({ ...strategy, player: { ...strategy.player, steamid: '1' } }), false)
+  assert.equal(readsScreen({ ...strategy, map: { ...strategy.map, replay: true } }), false)
+  assert.equal(readsScreen({ ...strategy, map: { ...strategy.map, spectating: true } }), false)
+})
+
+test('draft lineup can survive showcase and loading for the same player', () => {
+  for (const phase of ['TEAM_SHOWCASE', 'WAIT_FOR_MAP_TO_LOAD']) {
+    const packet = { ...practice, map: { ...practice.map, game_state: 'DOTA_GAMERULES_STATE_' + phase } }
+    assert.equal(loadingDraft(packet, steamId), true)
+    assert.equal(loadingDraft({ ...packet, player: undefined }, steamId), true)
+    assert.equal(loadingDraft(packet, '1'), false)
+    assert.equal(loadingDraft({ ...packet, player: { ...packet.player, activity: 'spectating' } }, steamId), false)
+    assert.equal(loadingDraft({ ...packet, map: { ...packet.map, replay: true } }, steamId), false)
+  }
+  assert.equal(loadingDraft(practice, steamId), false)
+})
+
+test('validated post-game totals can be saved without treating the game as live', () => {
+  const result = {
+    ...practice,
+    map: { ...practice.map, game_state: 'DOTA_GAMERULES_STATE_POST_GAME', win_team: 'radiant' },
+    player: { ...practice.player, kills: 7 },
+  }
+  assert.equal(parseFrame(result, steamId, true), null)
+  assert.equal(parseResultFrame(result, steamId)?.kills, 7)
+  assert.equal(parseResultFrame(result, '1'), null)
+  assert.equal(parseResultFrame(practice, steamId), null)
+  assert.equal(parseResultFrame({ ...result, map: { ...result.map, win_team: undefined } }, steamId), null)
 })

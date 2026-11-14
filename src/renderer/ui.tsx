@@ -358,9 +358,12 @@ export function AssistantCard({ ask, done }: { ask?: (question: string) => Promi
 
 /** Shown once per game in the overlay's big interactive window: GSI never reliably reports lane or game type,
  * so the player picks both. Answering (or Escape to skip) returns the overlay to its normal compact size. */
-export function SessionPrompt({ onSubmit, onSkip }: { onSubmit?: (gameType: GameType, lane: Role) => Promise<unknown>; onSkip?: () => Promise<unknown> }) {
-  const [gameType, setGameType] = useState<GameType | null>(null)
-  const [lane, setLane] = useState<Role | null>(null)
+export function SessionPrompt({ onSubmit, onSkip, initial, submitLabel = 'Start coaching' }: {
+  onSubmit?: (gameType: GameType, lane: Role) => Promise<unknown>; onSkip?: () => Promise<unknown>;
+  initial?: LiveState['sessionInfo']; submitLabel?: string
+}) {
+  const [gameType, setGameType] = useState<GameType | null>(initial?.gameType ?? null)
+  const [lane, setLane] = useState<Role | null>(initial?.lane ?? null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const save = (action: () => Promise<unknown>) => {
@@ -385,7 +388,7 @@ export function SessionPrompt({ onSubmit, onSkip }: { onSubmit?: (gameType: Game
     <Feedback message={error} error />
     <div className="assistant-actions">
       <button type="button" className="button primary" disabled={!onSubmit || !gameType || !lane || busy}
-        onClick={() => { if (onSubmit && gameType && lane) save(() => onSubmit(gameType, lane)) }}>{busy ? 'Saving…' : 'Start coaching'}</button>
+        onClick={() => { if (onSubmit && gameType && lane) save(() => onSubmit(gameType, lane)) }}>{busy ? 'Saving…' : submitLabel}</button>
       {onSkip && <button type="button" className="button secondary" disabled={busy} onClick={() => save(onSkip)}>Skip</button>}
     </div>
   </article>

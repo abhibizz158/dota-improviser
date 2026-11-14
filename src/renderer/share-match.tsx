@@ -6,7 +6,7 @@ import { Dialog, Feedback, clock } from './ui'
 type ShareStats = {
   hero: string; at: number; status: string; role?: string | null; mode?: string | null;
   kills: number | null; deaths: number | null; assists: number | null; gpm: number | null; xpm: number | null; lastHits: number | null;
-  performance?: { score: number; at: number }
+  performance?: { score: number | null; at: number }
 }
 
 function summary(stats: ShareStats) {
@@ -20,7 +20,7 @@ function summary(stats: ShareStats) {
   return [
     [stats.hero, stats.role, stats.mode, stats.status, clock(stats.at)].filter(Boolean).join(' · '),
     metrics,
-    stats.performance && `Personal pace ${stats.performance.score}/100 at ${clock(stats.performance.at)}`,
+    stats.performance?.score != null && `Personal pace ${stats.performance.score}/100 at ${clock(stats.performance.at)}`,
   ].filter(Boolean).join('\n')
 }
 

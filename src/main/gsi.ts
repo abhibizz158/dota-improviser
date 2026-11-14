@@ -6,7 +6,23 @@ import type { Checkpoint, DraftReveal, Frame, Lane, MatchSummary, Pick } from '.
 import { allowedGsiSections } from '../shared/guard.js'
 
 const activePhases = new Set(['DOTA_GAMERULES_STATE_PRE_GAME', 'DOTA_GAMERULES_STATE_GAME_IN_PROGRESS'])
-export const pickPhases = new Set(['DOTA_GAMERULES_STATE_HERO_SELECTION', 'DOTA_GAMERULES_STATE_STRATEGY_TIME', 'DOTA_GAMERULES_STATE_PLAYER_DRAFT'])
+const visionPhases = new Set(['DOTA_GAMERULES_STATE_HERO_SELECTION', 'DOTA_GAMERULES_STATE_STRATEGY_TIME'])
+const pickPhases = new Set([...visionPhases, 'DOTA_GAMERULES_STATE_PLAYER_DRAFT'])
+const loadingPhases = new Set(['DOTA_GAMERULES_STATE_TEAM_SHOWCASE', 'DOTA_GAMERULES_STATE_WAIT_FOR_MAP_TO_LOAD'])
+
+export function draftVisionPhase(value: unknown, pick: Pick | null) {
+  return pick != null && visionPhases.has(String(asRecord(asRecord(value).map).game_state))
+}
+
+export function loadingDraft(value: unknown, expectedSteamId: string) {
+  const packet = asRecord(value)
+  const map = asRecord(packet.map)
+  const player = asRecord(packet.player)
+  return asRecord(packet.provider).appid === 570 && expectedSteamId !== '' &&
+    (player.steamid == null || player.steamid === expectedSteamId) && player.activity !== 'spectating' &&
+    map.spectating !== true && map.replay !== true &&
+    loadingPhases.has(String(map.game_state))
+}
 const practiceLobbyTypes = new Set([1, '1', 'DOTA_LOBBY_TYPE_PRACTICE'])
 const maxBody = 96 * 1024
 
@@ -35,10 +51,6 @@ function gate(value: unknown, expectedSteamId: string, matchmaking: boolean, pha
 }
 
 const completedPhases = new Set(['DOTA_GAMERULES_STATE_POST_GAME'])
-export function hasOwnMatchResult(value: unknown, expectedSteamId: string) {
-  const g = gate(value, expectedSteamId, true, completedPhases)
-  return g != null && ['radiant', 'dire'].includes(String(g.map.win_team).toLowerCase())
-}
 /** This projection is only used for local history, after a result is available. */
 export function parseCompletedOwnMatch(value: unknown, expectedSteamId: string, now = Date.now()): MatchSummary | null {
   const g = gate(value, expectedSteamId, true, completedPhases)
@@ -66,6 +78,15 @@ export function ownItems(value: unknown) {
 export function parseFrame(value: unknown, expectedSteamId: string, matchmaking: boolean): Frame | null {
   const g = gate(value, expectedSteamId, matchmaking)
   if (!g) return null
+  return projectFrame(g)
+}
+
+export function parseResultFrame(value: unknown, expectedSteamId: string) {
+  const result = gate(value, expectedSteamId, true, completedPhases)
+  return result && ['radiant', 'dire'].includes(String(result.map.win_team).toLowerCase()) ? projectFrame(result) : null
+}
+
+function projectFrame(g: NonNullable<ReturnType<typeof gate>>): Frame {
   const { packet, player, hero } = g
   return {
     matchId: /^[1-9]\d{5,14}$/.test(String(g.map.matchid ?? '')) ? String(g.map.matchid) : undefined,

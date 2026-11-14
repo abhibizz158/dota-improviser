@@ -155,8 +155,9 @@ function App() {
         const pending = request.current
         void api.cachedHistory().then((saved) => { if (saved && mounted && pending === request.current) setHistory(saved) }).catch(() => {})
       }
+      const sessionSaved = value.historyChangedAt !== latestLive.current.historyChangedAt
       latestLive.current = value
-      if (styleChanged || downloadChanged || currentPage.current === 'live' || currentPage.current === 'draft' || currentPage.current === 'heroes' || currentPage.current === 'know' || currentPage.current === 'achievements') setLive(value)
+      if (styleChanged || downloadChanged || sessionSaved || currentPage.current === 'live' || currentPage.current === 'draft' || currentPage.current === 'heroes' || currentPage.current === 'know' || currentPage.current === 'achievements') setLive(value)
     })
     void api.bootstrap().then((value) => {
       if (!mounted) return
@@ -364,7 +365,7 @@ function App() {
       <div className="content-scroll">
         <main key={page} className="content" id="main-content" tabIndex={-1}>
           {!sample && <Feedback message={error} error />}
-          {page === 'overview' && <Overview api={api} showStyle={live.settings.features.styleProfile} onUseHero={(id) => { void api.draft({ pool: [...new Set([...latestLive.current.draft.pool, id])] }); navigate('draft') }} catalog={context.catalog} account={context.accountId} loading={loading} demo={sample} history={rows}
+          {page === 'overview' && <Overview api={api} showStyle={live.settings.features.styleProfile} onUseHero={(id) => { void api.draft({ pool: [...new Set([...latestLive.current.draft.pool, id])] }); navigate('draft') }} catalog={context.catalog} account={context.accountId} loading={loading} demo={sample} history={rows} historyChangedAt={live.historyChangedAt}
             onAccount={() => showModal('account')} onRefresh={() => { setSample(false); void loadHistory(context.accountId, true) }}
             onMatch={(id) => openMatch(id, sample)} onImport={() => showModal('import')} onDraft={() => navigate('draft')}
             onPrivateHistory={() => showModal('privateHistory')} onOpenGame={() => { setError(''); void api.openGame().catch((reason: Error) => setError(reason.message)) }} local={context.local} />}
@@ -418,7 +419,7 @@ function App() {
         {welcomeStep === 3 && <>
           <p>Everything below is off until you choose it. Draft vision is the only feature that ever reads your screen, and only the pick-bar strip during hero selection — never once a match is live.</p>
           <label className="check-field"><input type="checkbox" checked={live.settings.features.draftVision} onChange={(event) => void toggleFeature('draftVision', event.target.checked)} /><span>{featureInfo.draftVision.label}<small>{featureInfo.draftVision.help}</small></span></label>
-          {live.settings.features.draftVision && /Mac/.test(navigator.platform) && <button className="text-button" type="button" onClick={() => void api.openExternal('screenRecording')}>Open Screen Recording settings</button>}
+          {live.settings.features.draftVision && /Mac/.test(navigator.platform) && <p className="fine-print">You can request Screen Recording when Dota enters hero selection or strategy time.</p>}
           {live.settings.features.draftVision && !/Mac/.test(navigator.platform) && <p className="fine-print">No OS permission needed on Windows — but Dota must be in Borderless Windowed or Windowed mode (Settings → Video) for this feature to see anything; an exclusive Fullscreen window can't be captured at all.</p>}
           <label className="check-field"><input type="checkbox" checked={live.settings.features.toasts} onChange={(event) => void toggleFeature('toasts', event.target.checked)} /><span>{featureInfo.toasts.label}<small>{featureInfo.toasts.help}</small></span></label>
           <p className="fine-print">"Save my completed match stats locally" lives on Live &amp; Coach once the listener is running — it records your own finished games automatically, nothing made public. Change any of this any time from Live &amp; Coach → Features, or Settings here.</p>

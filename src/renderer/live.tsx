@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowUpRight, CheckCircle2, CircleHelp, Download, FileDown, Layers3, Monitor, Radio, Shield, ShieldCheck } from 'lucide-react'
 import type { AppApi, Bootstrap, FeatureKey, LiveSettings, LiveState, Placement } from '../shared/model'
 import { featureInfo, featureKeys, placements, roleLabels, roles } from '../shared/model'
 import { brackets } from '../shared/contextual-coach'
 import { ShareMatch } from './share-match'
-import { CoachCard, Feedback, LaneCard, RoshanTimer, clock } from './ui'
+import { CoachCard, Dialog, Feedback, LaneCard, RoshanTimer, SessionPrompt, clock } from './ui'
 
 type Props = { api: AppApi; context: Bootstrap; live: LiveState; onState: (live: LiveState) => void; onAccount: () => void }
 
@@ -41,16 +41,21 @@ function RoshanPanel({ api, live, onState }: { api: AppApi; live: LiveState; onS
 
 export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
   const [busy, setBusy] = useState('')
+  const [editingSession, setEditingSession] = useState(false)
   const [installed, setInstalled] = useState(false)
   const [feedback, setFeedback] = useState({ message: '', error: false })
   const [visionBusy, setVisionBusy] = useState(false)
   const [visionResult, setVisionResult] = useState<Awaited<ReturnType<AppApi['visionDebug']>> | null>(null)
   const [visionError, setVisionError] = useState('')
+  useEffect(() => {
+    if (!live.draftVisionActive) setVisionResult(null)
+  }, [live.draftVisionActive])
   const hero = context.catalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
   const actual = live.armed || live.settings.display === 'Companion'
   const settings = live.settings
   const latestScore = live.performance?.points.findLast((point) => point.score != null)
   const active = live.status === 'Live' || live.status === 'Paused'
+  useEffect(() => { if (!active) setEditingSession(false) }, [active])
 
   async function act(label: string, operation: () => Promise<string | void>) {
     setBusy(label)
@@ -96,8 +101,13 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
         <header className="panel-heading"><div><h2>{settings.display === 'Companion' ? 'Companion window' : actual ? 'Live coach' : 'Overlay preview'}</h2>
           <p>{actual ? 'Own-player stats from the local feed' : 'Example lane card at 7:13'}</p></div><Monitor size={19} className="quiet-icon" /></header>
         <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={context.catalog.heroes} settings={settings} coaching={live.coaching} performance={live.performance} heroName={hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} compact={settings.size === 'Compact'} /> : <LaneCard live={live} preview={!actual} hero={hero} />}</div>
-        <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay' || (!active && !live.open)} onClick={() =>
+        <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay' || (!active && !live.pick && !live.open)} onClick={() =>
           void act('overlay', async () => { onState(await api.toggleOverlay()) })}><Layers3 size={16} />{live.open ? 'Hide overlay' : 'Show overlay'}</button>
+        {live.coach && <button className="button secondary" type="button" onClick={() => setEditingSession(true)}>Game type and lane</button>}
+        {editingSession && live.coach && <Dialog title="Edit this match" onClose={() => setEditingSession(false)}>
+          <SessionPrompt initial={{ gameType: live.sessionInfo.gameType, lane: live.sessionInfo.lane ?? live.coach.role }}
+            submitLabel="Save changes" onSubmit={async (mode, role) => { onState(await api.setSessionInfo(mode, role)); setEditingSession(false) }} />
+        </Dialog>}
         {live.coach && live.lane && <ShareMatch api={api} stats={{
           ...live.coach.stats, hero: hero?.name ?? 'My hero', at: live.lane.clock, status: live.lane.paused ? 'Paused' : 'In progress',
           mode: live.sessionInfo.gameType ?? (live.coach.matchmaking ? null : 'Practice'), role: roleLabels[live.coach.role],
@@ -108,7 +118,7 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
         <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay'} onClick={() =>
           void act('draftOverlay', async () => { onState(await api.toggleDraftOverlay()) })}><Layers3 size={16} />Edit draft overlay · Ctrl/⌘ + Shift + O</button>
         <p className="fine-print">Choose the game type and lane directly on the overlay. During play, use the shortcut to open controls. Use Borderless or Companion if fullscreen covers the overlay.</p>
-        <p className="fine-print">{live.shortcutAvailable ? 'Hide shortcut · Ctrl/⌘ + Shift + H' : 'The hide shortcut is unavailable. Use this window to hide the overlay.'}</p>
+        <p className="fine-print">{live.shortcutAvailable ? 'Show or hide shortcut · Ctrl/⌘ + Shift + H' : 'The hide shortcut is unavailable. Use this window to hide the overlay.'}</p>
         <p className="fine-print">Compact/large overlay · Ctrl/⌘ + Shift + C</p>
         {settings.features.overlayAssistant && <p className="fine-print">{live.assistantShortcutAvailable ? 'Overlay on (edit draft, or ask the AI assistant once a game is live) · Ctrl/⌘ + Shift + O' : 'The overlay-on shortcut is unavailable on this device.'}</p>}
       </section>
@@ -155,14 +165,18 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
     {settings.features.draftVision && <section className="panel form-panel reveal">
       <header className="panel-heading"><div><h2>Test draft vision</h2><p>Check the portrait strip and recognized heroes during hero selection or strategy time.</p></div></header>
       <div className="actions">
-        <button className="button secondary" disabled={visionBusy || !context.desktop} onClick={() => {
+        <button className="button secondary" disabled={visionBusy || !context.desktop || !live.draftVisionActive} onClick={() => {
           setVisionBusy(true); setVisionError(''); setVisionResult(null)
           void api.visionDebug().then(setVisionResult).catch((error: Error) => setVisionError(error.message.replace(/^Error invoking remote method '[^']+': Error: /, ''))).finally(() => setVisionBusy(false))
         }}>{visionBusy ? 'Capturing…' : 'Capture now'}</button>
-        {/Mac/.test(navigator.platform) && <button className="text-button" type="button" onClick={() => void api.openExternal('screenRecording')}>Open Screen Recording settings <ArrowUpRight size={14} /></button>}
+        {/Mac/.test(navigator.platform) && <>
+          <button className="button secondary" type="button" disabled={!!busy || !live.draftVisionActive || !context.desktop} onClick={() => void act('vision', async () =>
+            await api.requestDraftScreenRecording() ? 'Screen Recording access is available.' : 'Allow access in System Settings and reopen Dota Improviser if macOS asks.')}>Request Screen Recording</button>
+          <button className="text-button" type="button" onClick={() => void act('vision', () => api.openExternal('screenRecording'))}>Open Screen Recording settings <ArrowUpRight size={14} /></button>
+        </>}
       </div>
       <Feedback message={visionError} error />
-      {visionResult && <div className="vision-debug">
+      {live.draftVisionActive && visionResult && <div className="vision-debug">
         <img src={visionResult.barPng} alt="Captured pick-bar strip" />
         <div className="vision-rows"><p><strong>Radiant:</strong> {visionResult.radiantNames.map((n) => n ?? '—').join(', ') || 'none matched'}</p>
           <p><strong>Dire:</strong> {visionResult.direNames.map((n) => n ?? '—').join(', ') || 'none matched'}</p></div>

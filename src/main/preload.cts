@@ -7,10 +7,17 @@ const onLive = (callback: (value: LiveState) => void) => {
   return () => ipcRenderer.removeListener('live:update', listener)
 }
 
-if (location.hash === '#overlay') {
+const overlayState = {
+  state: () => ipcRenderer.invoke('live:snapshot'),
+  height: (value: number) => ipcRenderer.send('overlay:height', value),
+  onLive,
+}
+
+if (location.hash === '#achievements') {
+  contextBridge.exposeInMainWorld('overlayApi', overlayState)
+} else if (location.hash === '#overlay') {
   contextBridge.exposeInMainWorld('overlayApi', {
-    state: () => ipcRenderer.invoke('live:snapshot'),
-    height: (value: number) => ipcRenderer.send('overlay:height', value),
+    ...overlayState,
     draft: (input: unknown) => ipcRenderer.invoke('overlay:draft', input),
     done: () => ipcRenderer.invoke('overlay:done'),
     ask: (question: string) => ipcRenderer.invoke('overlay:ask', question),
@@ -21,7 +28,6 @@ if (location.hash === '#overlay') {
       ipcRenderer.on('achievement:sound', listener)
       return () => ipcRenderer.removeListener('achievement:sound', listener)
     },
-    onLive,
   })
 } else {
   const api: AppApi = {
@@ -36,6 +42,7 @@ if (location.hash === '#overlay') {
     clearData: () => ipcRenderer.invoke('app:clear'),
     liveSettings: (settings) => ipcRenderer.invoke('live:settings', settings),
     practice: (enabled) => ipcRenderer.invoke('live:practice', enabled),
+    setSessionInfo: (gameType, lane) => ipcRenderer.invoke('live:session-info', gameType, lane),
     toggleOverlay: () => ipcRenderer.invoke('live:toggle'),
     saveConfig: () => ipcRenderer.invoke('live:config'),
     exportDiagnostics: () => ipcRenderer.invoke('live:export'),
@@ -47,6 +54,7 @@ if (location.hash === '#overlay') {
     draft: (input) => ipcRenderer.invoke('draft:set', input),
     nudge: (mine, enemy, delta) => ipcRenderer.invoke('draft:nudge', mine, enemy, delta),
     defaultBuild: (slug) => ipcRenderer.invoke('draft:default-build', slug),
+    requestDraftScreenRecording: () => ipcRenderer.invoke('draft:vision-permission'),
     visionDebug: () => ipcRenderer.invoke('draft:vision-debug'),
     detectSteam: () => ipcRenderer.invoke('profile:steam'),
     openGame: () => ipcRenderer.invoke('app:open-game'),
