@@ -16,7 +16,7 @@ import { emptyRoshan } from '../shared/roshan.js'
 import type { RoshanState } from '../shared/roshan.js'
 import type { GameEvent, GameTrack } from '../shared/game.js'
 import type { GameView, Toast } from '../shared/model.js'
-import { coach } from '../shared/coach.js'
+import { coach, coachPhase } from '../shared/coach.js'
 import type { CoachView, HeroData, HeroDb, TimingsDb } from '../shared/coach.js'
 import { hostAllowed } from '../shared/guard.js'
 import type { DraftReveal, Frame, HeroDetail } from '../shared/model.js'
@@ -829,7 +829,10 @@ function receive(value: unknown) {
   }
   if (!nextFrame) { coachView = null; coaching = undefined }
   const refreshCoach = nextFrame && (!coachView || !sameItems || nextStatus !== status ||
-    nextFrame.alive !== frameBefore?.alive || coachView.role !== roleChoice().role || now - lastCoachAt >= 1000)
+    nextFrame.alive !== frameBefore?.alive || nextFrame.level !== frameBefore?.level ||
+    nextFrame.itemsObserved !== frameBefore?.itemsObserved || (nextFrame.clock >= 0 && (frameBefore?.clock ?? 0) < 0) ||
+    coachView.phase !== coachPhase(nextFrame.clock, sessionGameType === 'Turbo') ||
+    coachView.role !== roleChoice().role || now - lastCoachAt >= 1000)
   const events = nextFrame && !nextFrame.paused ? trackFrame(track, nextFrame).filter((event) =>
     event.kind === 'milestone' ? settings.features.achievements : settings.features.multikills) : []
   const earned: Parameters<typeof emit>[1] = []

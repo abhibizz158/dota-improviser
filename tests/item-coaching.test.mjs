@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { coachPhase } from '../dist/main/shared/coach.js'
 import { counterItems } from '../dist/main/shared/item-coaching.js'
 import { itemInfo } from '../dist/main/main/data.js'
 
@@ -34,4 +35,13 @@ test('late matchup advice is conditional, takes components and inventory into ac
   assert.match(counterItems(late,'Carry','Late game',medusa,null,itemInfo)[0].timing,/buyback/)
   assert.deepEqual(counterItems({ ...late, heroSlug: 'antimage' },'Carry','Late game',medusa,null,itemInfo),[])
   assert.deepEqual(counterItems({ ...late, items: ['disperser'] },'Carry','Late game',medusa,null,itemInfo),[])
+})
+
+test('normal and Turbo item timing changes at the phase boundaries', () => {
+  assert.equal(coachPhase(599), 'Laning')
+  assert.equal(coachPhase(600), 'Mid game')
+  assert.equal(coachPhase(1500), 'Late game')
+  assert.equal(coachPhase(419, true), 'Laning')
+  assert.equal(coachPhase(420, true), 'Mid game')
+  assert.equal(coachPhase(1080, true), 'Late game')
 })

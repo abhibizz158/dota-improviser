@@ -12,6 +12,10 @@ export type Achievement = { id: string; label: string; par: number; got: number 
 /** item -> [bucket seconds, games, wins] from OpenDota scenarios/itemTimings for one hero. */
 export type Timings = Record<string, [number, number, number][]>
 export type TimingsDb = { builtAt: number; heroes: Record<number, Timings> }
+export function coachPhase(clock: number, turbo = false): 'Laning' | 'Mid game' | 'Late game' {
+  return clock < (turbo ? 420 : 600) ? 'Laning' : clock < (turbo ? 1080 : 1500) ? 'Mid game' : 'Late game'
+}
+
 export type CoachView = {
   benchmarkLabel?: string
   heroId: number | null; score: number | null; gpm: number | null; xpm: number | null; lhpm: number | null
@@ -130,7 +134,7 @@ export function coach(frame: Frame, data: HeroData | undefined, percentiles: num
     achievements.push({ id: 'lh10', label: `${target} last hits by 10:00`, par: 600, got, state: frame.clock >= 600 ? (hit ? 'done' : 'missed') : 'live', elite: false })
   }
   return { heroId: frame.heroId, score, gpm: frame.gpm, xpm: frame.xpm, lhpm, gpmPct, xpmPct, lhPct, deaths, tips: tips.slice(0, 3), achievements, benchmarkAvailable: Boolean(data),
-    role, phase: frame.clock < 600 ? 'Laning' : frame.clock < 1500 ? 'Mid game' : 'Late game', matchmaking: frame.matchmaking,
+    role, phase: coachPhase(frame.clock), matchmaking: frame.matchmaking,
     nextGoal: (() => { const g = achievements.filter((a) => a.state === 'live' && a.par > frame.clock).sort((a, b) => a.par - b.par)[0]; return g ? { label: g.label, left: g.par - frame.clock } : null })(),
     stats: { kills: frame.kills, deaths: frame.deaths, assists: frame.assists, lastHits: frame.lastHits, denies: frame.denies, level: frame.level, gold: frame.gold },
     medians: { gpm: data?.bench.gpm[2] ?? null, xpm: data?.bench.xpm[2] ?? null, lhpm: data?.bench.lhpm[2] ?? null },

@@ -1,3 +1,4 @@
+import { coachPhase } from './coach.js'
 import type { CoachView, HeroData, Tip } from './coach.js'
 import type { Matchup } from './guide.js'
 import { counterItems } from './item-coaching.js'
@@ -46,7 +47,7 @@ export function contextualCoach(input: {
   seen: Record<string, number>; baseline: CoachView
 }): CoachingContext {
   const { frame, role, mode, kit, opponents, rows, baseline } = input
-  const phase = mode === 'Turbo' ? frame.clock < 420 ? 'Laning' : frame.clock < 1080 ? 'Mid game' : 'Late game' : baseline.phase
+  const phase = mode === 'Turbo' ? coachPhase(frame.clock, true) : baseline.phase
   const worst = rows.find((row) => row.games >= 60 && row.rate < 48)
   const difficult = opponents.find(({ hero }) => hero.id === worst?.enemy)
   const threat = knownThreat(opponents, rows)
