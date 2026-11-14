@@ -1,7 +1,7 @@
 {
   "name": "dota-improviser",
   "productName": "Dota Improviser",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "type": "module",
   "description": "Local-first Dota 2 draft, match review and practice companion",

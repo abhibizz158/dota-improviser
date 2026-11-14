@@ -1559,8 +1559,8 @@ function handlers() {
   handle('draft:vision-debug', async () => {
     if (!settings.features.draftVision) throw new Error('Turn on Draft vision in Settings first.')
     await loadReferencePortraits(catalog.heroes)
-    const bounds = gameBounds ?? (overlay && !overlay.isDestroyed() ? overlay.getBounds() : null)
-    if (!bounds) throw new Error('No Dota window bounds available yet — open the overlay during pick phase first.')
+    const bounds = gameBounds ?? (overlay && !overlay.isDestroyed() ? overlay.getBounds() : null) ?? detectDotaBounds()
+    if (!bounds) throw new Error('Could not find the Dota window — make sure Dota 2 is running and in the foreground.')
     const result = await debugCaptureDraftPicks(true, bounds)
     if (!result) throw new Error('Could not find the Dota window to capture.')
     const heroName = (id: number | null) => id == null ? null : catalog.heroes.find((h) => h.id === id)?.name ?? null
