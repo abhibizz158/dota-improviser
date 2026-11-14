@@ -1,3 +1,4 @@
+import type { Bracket, CoachingContext } from './contextual-coach.js'
 import type { PersonalPerformance } from './personal-performance.js'
 import type { Suggestion } from './brain.js'
 import type { CoachView, HeroData } from './coach.js'
@@ -80,7 +81,7 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
 }
 export type LiveSettings = {
   display: 'Overlay' | 'Companion'; size: 'Compact' | 'Large'; placement: Placement; monitor: string;
-  role: Role; heroRoles: Record<number, Role>; cues: boolean; coach: boolean; opacity: number; detailed: boolean; saveOwnMatches: boolean; features: Features
+  role: Role; coachingBracket?: Bracket; heroRoles: Record<number, Role>; cues: boolean; coach: boolean; opacity: number; detailed: boolean; saveOwnMatches: boolean; features: Features
 }
 export const defaultLiveSettings: LiveSettings = {
   display: 'Overlay', size: 'Compact', placement: 'Auto', monitor: 'auto', role: 'Carry', heroRoles: {}, cues: false, coach: false, opacity: 0.94, detailed: true, saveOwnMatches: false, features: defaultFeatures,
@@ -139,7 +140,7 @@ export type LiveState = {
   detectionAvailable: boolean
   historyChangedAt?: number
   /** True once a game is live but you haven't said this session's lane/role and game type yet — the overlay should prompt. */
-  performance?: PersonalPerformance;
+  performance?: PersonalPerformance; coaching?: CoachingContext;
   needsSessionInfo: boolean; sessionInfo: { gameType: GameType | null; lane: Role | null }
 }
 export type MechRow = { heroId: number; edge: number; parts: { label: FeatureName; points: number }[] }
@@ -188,6 +189,8 @@ export interface AppApi {
   parsingMatches(): Promise<string[]>;
   puterStatus(): Promise<PuterStatus>;
   puterSignIn(): Promise<PuterStatus>;
+  puterCancelSignIn(): Promise<void>;
+  copyShareText(text: string): Promise<void>;
   puterSignOut(): Promise<PuterStatus>;
   puterSetModel(model: string): Promise<PuterStatus>;
   puterAsk(question: string, context?: KnowledgeContext): Promise<string>;

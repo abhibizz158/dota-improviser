@@ -84,7 +84,7 @@ function Overlay() {
       ? <AssistantCard ask={window.overlayApi?.ask} done={window.overlayApi?.done} />
       : live.view === 'draft'
       ? <DraftCard live={live} heroes={demoCatalog.heroes} send={window.overlayApi?.draft} done={window.overlayApi?.done} />
-      : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={demoCatalog.heroes} settings={live.settings} performance={live.performance} compact={compact} heroName={demoCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
+      : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={demoCatalog.heroes} settings={live.settings} coaching={live.coaching} performance={live.performance} compact={compact} heroName={demoCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
         : <LaneCard live={live} hero={hero} />}
     {live.settings.features.deathAdvice && live.recovery && editorial && <RecoveryCard recovery={live.recovery} />}
     {live.settings.features.roshanTimer && editorial && <RoshanTimer roshan={live.roshan} />}
@@ -121,6 +121,7 @@ function App() {
   const [formError, setFormError] = useState('')
   const [formBusy, setFormBusy] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [signingIn, setSigningIn] = useState(false)
   const [puter, setPuter] = useState<PuterStatus>({ connected: false, saved: false, model: 'gpt-5.4-nano' })
   const [puterModelDraft, setPuterModelDraft] = useState('gpt-5.4-nano')
   const [appUpdate, setAppUpdate] = useState<UpdateInfo | null>(null)
@@ -214,24 +215,27 @@ function App() {
       openMatch(value, false)
       return
     }
-    if (!/^\d{1,17}$/.test(value)) { setFormError('Enter a numeric Dota account ID or SteamID64.'); return }
+    await linkAccount(value)
+  }
+
+  async function linkAccount(value?: string) {
+    setFormError('')
     setFormBusy(true)
     try {
-      const id = await api.saveAccount(value)
-      setContext((value) => ({ ...value, accountId: id }))
+      const candidate = value ?? await api.detectSteam()
+      if (!candidate) throw new Error('No active Steam account was found. Sign in to Steam or enter your Dota account ID.')
+      if (!/^\d{1,17}$/.test(candidate)) throw new Error('Enter a numeric Dota account ID or SteamID64.')
+      const id = await api.saveAccount(candidate)
+      setContext((previous) => ({ ...previous, accountId: id }))
       setHistory(null)
       setSelection({ id: '', sample: false })
       setSample(false)
       markOnboarded()
       if (modal === 'welcome') setWelcomeStep(1); else setModal(null)
       void loadHistory(id, true)
-    } catch (reason) { setFormError(reason instanceof Error ? reason.message : 'This account could not be added.') }
-    finally { setFormBusy(false) }
-  }
-
-  async function detectSteam() {
-    const id = await api.detectSteam().catch(() => null)
-    if (id) setInput(id); else setFormError('No signed-in Steam user found on this computer.')
+    } catch (reason) {
+      setFormError(reason instanceof Error ? reason.message.replace(/^Error invoking remote method '[^']+': Error: /, '') : 'This account could not be added.')
+    } finally { setFormBusy(false) }
   }
 
   async function installGsiNow() {
@@ -272,10 +276,19 @@ function App() {
   }
 
   async function connectPuter() {
-    setFormError(''); setFormBusy(true)
+    setFormError(''); setSigningIn(true)
     try { const status = await api.puterSignIn(); setPuter(status); setPuterModelDraft(status.model) }
-    catch (reason) { setFormError(reason instanceof Error ? reason.message : 'Puter sign-in did not complete.') }
-    finally { setFormBusy(false) }
+    catch (reason) {
+      const message = reason instanceof Error ? reason.message.replace(/^Error invoking remote method '[^']+': Error: /, '') : 'Puter sign-in did not complete.'
+      if (message !== 'Puter sign-in cancelled.') setFormError(message)
+    } finally { setSigningIn(false) }
+  }
+
+  function dismissModal() {
+    if (formBusy) return
+    if (signingIn) void api.puterCancelSignIn().catch(() => {})
+    markOnboarded()
+    setModal(null)
   }
 
   async function disconnectPuter() {
@@ -368,7 +381,7 @@ function App() {
       </div>
     </div>
     {modal && <Dialog title={modal === 'account' ? 'Dota account' : modal === 'import' ? 'Open match by ID' : modal === 'fair' ? 'Fair-play guardrails' : modal === 'puter' ? 'Puter AI connection' : modal === 'updates' ? 'App updates' : modal === 'privateHistory' ? 'Import your own matches' : modal === 'welcome' ? 'Set up Dota Improviser' : 'Workspace settings'}
-      onClose={() => { if (!formBusy) { markOnboarded(); setModal(null) } }}>
+      onClose={dismissModal}>
       {modal === 'welcome' ? <div className="settings-dialog welcome-dialog">
         <div className="wizard-steps"><span className={welcomeStep === 0 ? 'active' : ''}>1. Account</span><span className={welcomeStep === 1 ? 'active' : ''}>2. Live feed</span><span className={welcomeStep === 2 ? 'active' : ''}>3. AI coach</span><span className={welcomeStep === 3 ? 'active' : ''}>4. Features</span></div>
         {welcomeStep === 0 && <>
@@ -378,7 +391,7 @@ function App() {
             <Feedback message={formError} error />
             <div className="actions">
               <button className="button primary" type="submit" disabled={formBusy || !input.trim() || !context.desktop}>{formBusy ? 'Saving…' : 'Load match history'} <ArrowRight size={16} /></button>
-              {context.local.steamFound && <button className="text-button" type="button" onClick={() => void detectSteam()}>Use my Steam account</button>}
+              {context.local.steamFound && <button className="text-button" type="button" disabled={formBusy} onClick={() => void linkAccount()}>Use my Steam account</button>}
             </div>
           </form>
           <p className="fine-print">Match history needs Dota's own "Expose Public Match Data" setting on (Dota Settings → General). OpenDota can take a few minutes to notice after you turn it on.</p>
@@ -397,8 +410,8 @@ function App() {
         {welcomeStep === 2 && <>
           <p>Optional: sign in with Puter to ask an AI coach about your draft or practice game. Puter opens its own browser sign-in; the AI only ever receives your question, the selected hero/picks/items, and derived facts this app already computed — never your Steam ID or match history.</p>
           <div className="puter-connection"><i className={puter.connected || puter.saved ? 'ready' : ''} /><span><strong>{puter.connected ? 'Connected' : puter.saved ? 'Saved sign-in' : 'Not connected'}</strong><small>{puter.saved ? 'Encrypted on this device. The system may ask to unlock it after an update.' : puter.connected ? 'Session only' : 'No Puter session stored'}</small></span></div>
-          <div className="actions"><button className="button primary" disabled={formBusy} onClick={() => void connectPuter()}>{formBusy ? 'Waiting for browser…' : puter.connected ? 'Switch Puter account' : 'Sign in with Puter'}</button>
-            {(puter.connected || puter.saved) && <button className="button" disabled={formBusy} onClick={() => void disconnectPuter()}>Disconnect</button>}</div>
+          <div className="actions"><button className="button primary" disabled={formBusy || signingIn} onClick={() => void connectPuter()}>{signingIn ? 'Waiting for browser…' : puter.connected ? 'Switch Puter account' : 'Sign in with Puter'}</button>
+            {signingIn ? <button className="button secondary" onClick={() => void api.puterCancelSignIn()}>Cancel sign-in</button> : (puter.connected || puter.saved) && <button className="button" disabled={formBusy} onClick={() => void disconnectPuter()}>Disconnect</button>}</div>
           <Feedback message={formError} error />
           <p className="fine-print">Skip this if you don't want AI coaching — everything else in the app works without it, and you can connect it later from Settings → Puter AI.</p>
         </>}
@@ -450,8 +463,8 @@ function App() {
         <div className="puter-connection"><i className={puter.connected || puter.saved ? 'ready' : ''} /><span><strong>{puter.connected ? 'Connected' : puter.saved ? 'Saved sign-in' : 'Not connected'}</strong><small>{puter.saved ? 'Encrypted on this device. The system may ask to unlock it after an update.' : puter.connected ? 'Session only' : 'No Puter session stored'}</small></span></div>
         <label className="field">Puter model identifier<input value={puterModelDraft} maxLength={80} onChange={(event) => setPuterModelDraft(event.target.value)} placeholder="gpt-5.4-nano" /></label>
         <button className="button secondary" disabled={formBusy || !puterModelDraft.trim()} onClick={() => void savePuterModel()}>Save model choice</button>
-        <div className="actions"><button className="button primary" disabled={formBusy} onClick={() => void connectPuter()}>{formBusy ? 'Waiting for browser…' : puter.connected ? 'Switch Puter account' : 'Sign in with Puter'}</button>
-          {(puter.connected || puter.saved) && <button className="button" disabled={formBusy} onClick={() => void disconnectPuter()}>Disconnect</button>}</div>
+        <div className="actions"><button className="button primary" disabled={formBusy || signingIn} onClick={() => void connectPuter()}>{signingIn ? 'Waiting for browser…' : puter.connected ? 'Switch Puter account' : 'Sign in with Puter'}</button>
+          {signingIn ? <button className="button secondary" onClick={() => void api.puterCancelSignIn()}>Cancel sign-in</button> : (puter.connected || puter.saved) && <button className="button" disabled={formBusy} onClick={() => void disconnectPuter()}>Disconnect</button>}</div>
         <p className="fine-print">AI requests send your question and the selected hero/picks/items plus optional own-player practice clock, GPM and unspent gold. Steam ID and match history are not sent. Sign out clears the encrypted local token.</p>
         <Feedback message={formError} error />
       </div> : <form onSubmit={(event) => void submit(event)} className="modal-form">
@@ -462,7 +475,7 @@ function App() {
         <Feedback message={formError} error />
         <div className="actions">
           <button className="button primary" type="submit" disabled={formBusy || !input.trim() || !context.desktop}>{formBusy ? 'Saving…' : modal === 'account' ? 'Load match history' : 'Open match'} <ArrowRight size={16} /></button>
-          {modal === 'account' && context.local.steamFound && <button className="text-button" type="button" onClick={() => void detectSteam()}>Use my Steam account</button>}
+          {modal === 'account' && context.local.steamFound && <button className="text-button" type="button" disabled={formBusy} onClick={() => void linkAccount()}>Use my Steam account</button>}
           {modal === 'account' && <button className="text-button" type="button" onClick={() => void api.openExternal('privacy')}>Match data privacy</button>}
         </div>
         {!context.desktop && <p className="fine-print">Account and match imports are available in the desktop app.</p>}

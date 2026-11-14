@@ -1,4 +1,5 @@
 import type { Build, MatchPlayer, MatchReview, MatchSummary, Matchups, ParseProgress, SourceResult } from '../shared/model.js'
+import type { HeroData } from '../shared/coach.js'
 import { comparable, practicePace } from '../shared/analysis.js'
 import { asRecord, normalizeBuild, normalizeHistory, normalizeMatch, normalizeMatchups } from './data.js'
 import { Store } from './store.js'
@@ -128,6 +129,21 @@ export class OpenDota {
       data: Object.fromEntries(ids.map((id, index) => [id, result[index].data])),
       updatedAt: Math.min(...result.map((response) => response.updatedAt)), stale: result.some((response) => response.stale),
     }
+  }
+
+  coachingBenchmarks(hero: number, bracket: number, role: 'core' | 'support', percentiles: number[]) {
+    const key = '/benchmarks?' + new URLSearchParams({ hero_id: String(hero), bracket: String(bracket), role })
+    return this.load(key, 24 * hour, (raw) => asRecord(asRecord(raw).result)).then(({ data }) => {
+      const metrics = { gpm: 'gold_per_min', xpm: 'xp_per_min', lhpm: 'last_hits_per_min', kpm: 'kills_per_min', dpm: 'hero_damage_per_min' } as const
+      const bench = Object.fromEntries(Object.entries(metrics).map(([key, metric]) => {
+        const points = Array.isArray(data[metric]) ? data[metric].map(asRecord) : []
+        return [key, percentiles.map((p) => {
+          const value = points.find((point) => typeof point.percentile === 'number' && Math.abs(point.percentile - p) < 0.001)?.value
+          return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
+        })]
+      })) as HeroData['bench']
+      return bench.gpm.filter((value) => value != null).length >= 3 && bench.xpm.filter((value) => value != null).length >= 3 ? bench : null
+    })
   }
 
   cachedBuild(id: number) {

@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { ArrowUpRight, CheckCircle2, CircleHelp, Download, FileDown, Layers3, Monitor, Radio, Shield, ShieldCheck } from 'lucide-react'
 import type { AppApi, Bootstrap, FeatureKey, LiveSettings, LiveState, Placement } from '../shared/model'
-import { featureInfo, featureKeys, placements, roles } from '../shared/model'
+import { featureInfo, featureKeys, placements, roleLabels, roles } from '../shared/model'
+import { brackets } from '../shared/contextual-coach'
+import { ShareMatch } from './share-match'
 import { CoachCard, Feedback, LaneCard, RoshanTimer, clock } from './ui'
 
 type Props = { api: AppApi; context: Bootstrap; live: LiveState; onState: (live: LiveState) => void; onAccount: () => void }
@@ -47,6 +49,7 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
   const hero = context.catalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
   const actual = live.armed || live.settings.display === 'Companion'
   const settings = live.settings
+  const latestScore = live.performance?.points.findLast((point) => point.score != null)
   const active = live.status === 'Live' || live.status === 'Paused'
 
   async function act(label: string, operation: () => Promise<string | void>) {
@@ -92,9 +95,15 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
       <section className="panel overlay-preview">
         <header className="panel-heading"><div><h2>{settings.display === 'Companion' ? 'Companion window' : actual ? 'Live coach' : 'Overlay preview'}</h2>
           <p>{actual ? 'Own-player stats from the local feed' : 'Example lane card at 7:13'}</p></div><Monitor size={19} className="quiet-icon" /></header>
-        <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={context.catalog.heroes} settings={settings} performance={live.performance} heroName={hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} compact={settings.size === 'Compact'} /> : <LaneCard live={live} preview={!actual} hero={hero} />}</div>
+        <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={context.catalog.heroes} settings={settings} coaching={live.coaching} performance={live.performance} heroName={hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} compact={settings.size === 'Compact'} /> : <LaneCard live={live} preview={!actual} hero={hero} />}</div>
         <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay' || (!active && !live.open)} onClick={() =>
           void act('overlay', async () => { onState(await api.toggleOverlay()) })}><Layers3 size={16} />{live.open ? 'Hide overlay' : 'Show overlay'}</button>
+        {live.coach && live.lane && <ShareMatch api={api} stats={{
+          ...live.coach.stats, hero: hero?.name ?? 'My hero', at: live.lane.clock, status: live.lane.paused ? 'Paused' : 'In progress',
+          mode: live.sessionInfo.gameType ?? (live.coach.matchmaking ? null : 'Practice'), role: roleLabels[live.coach.role],
+          gpm: live.coach.gpm, xpm: live.coach.xpm,
+          performance: latestScore?.score == null ? undefined : { score: latestScore.score, at: latestScore.at },
+        }} />}
         {!active && settings.display === 'Overlay' && <p className="fine-print">Connect a supported game (practice, normal or ranked) to show the overlay.</p>}
         <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay'} onClick={() =>
           void act('draftOverlay', async () => { onState(await api.toggleDraftOverlay()) })}><Layers3 size={16} />Edit draft overlay · Ctrl/⌘ + Shift + O</button>
@@ -113,6 +122,9 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
           {(live.displays ?? context.displays).map((display) => <option key={display.id} value={display.id}>{display.name}</option>)}</select></label>
         <label className="field">Placement<select disabled={!!busy || settings.display === 'Companion'} value={settings.placement} onChange={(event) => setting('placement', event.target.value as Placement)}>{placements.map((position) => <option key={position} value={position}>{position === 'Auto' ? 'Auto · draft left, lane right' : position}</option>)}</select></label>
         <label className="field">Card size<select disabled={!!busy} value={settings.size} onChange={(event) => setting('size', event.target.value as LiveSettings['size'])}><option>Compact</option><option>Large</option></select></label>
+        <label className="field">Ranked coaching bracket<select disabled={!!busy} value={settings.coachingBracket ?? ''} onChange={(event) => setting('coachingBracket', (event.target.value || undefined) as LiveSettings['coachingBracket'])}>
+          <option value="">Any rank</option>{brackets.map((bracket) => <option key={bracket}>{bracket}</option>)}
+        </select></label>
         <label className="field">Practice role<select disabled={!!busy} value={settings.role} onChange={(event) => setting('role', event.target.value as LiveSettings['role'])}>{roles.map((role) => <option key={role}>{role}</option>)}</select></label>
       </div>
       {settings.display === 'Overlay' && settings.monitor === 'auto' && (

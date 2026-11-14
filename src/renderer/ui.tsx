@@ -5,6 +5,7 @@ import type { DraftInput, GameType, GameView, Hero, LiveSettings, LiveState, Rol
 import { gameTypes, roleLabels, roles } from '../shared/model.js'
 import { aegisView, clockText as roshanClock, roshanView } from '../shared/roshan.js'
 import type { RoshanState } from '../shared/roshan.js'
+import type { CoachingContext } from '../shared/contextual-coach.js'
 import type { Metric, PersonalPerformance } from '../shared/personal-performance.js'
 import type { CoachView } from '../shared/coach.js'
 import type { Support } from '../shared/guide.js'
@@ -261,12 +262,14 @@ function PerformanceMeter({ performance, detailed }: { performance: PersonalPerf
 }
 
 /** Live coach: percentile score vs this hero's benchmarks, goals, tips, achievements. Own-player GSI data only. Detail mode (Settings) adds stats and medians. */
-export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, performance, compact = false }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; performance?: PersonalPerformance; compact?: boolean }) {
+export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, performance, coaching, compact = false }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; performance?: PersonalPerformance; coaching?: CoachingContext; compact?: boolean }) {
   const f = settings.features, s = coach.stats
   // Phase-adaptive layout: laning = lane tools, mid game = goals + momentum, late game = essentials only.
   const adaptive = f.phaseAdaptive, late = adaptive && coach.phase === 'Late game', laning = !adaptive || coach.phase === 'Laning'
   const detailed = settings.detailed && !late
-  const primaryTip = [...(f.coachTips ? coach.tips : []), ...(f.laneWatch ? support?.tips ?? [] : [])][0]
+  const contextualTips = coaching?.tips ?? coach.tips
+  const primaryTip = (f.coachTips ? contextualTips.find((tip) => tip.level === 'warn') ?? contextualTips[0] : undefined) ??
+    (f.laneWatch ? support?.tips[0] : undefined)
   const med = (v: number | null, d = 0) => v == null ? undefined : fmt(v, d)
   if (compact) return <article className="coach-card compact-coach">
     <Head icon={<Trophy size={13} />} tag={heroName} sub={clockText} />
@@ -276,6 +279,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
       <span><b>{fmt(s.level)}</b><small>Level</small></span><span><b>{fmt(coach.gpm)}</b><small>GPM</small></span>
     </div>
     {detailed && primaryTip && <div className="tips">{renderTip(primaryTip)}</div>}
+    {detailed && coach.benchmarkLabel && <small className="draft-note">{coach.benchmarkLabel} · {coach.role.includes('support') ? 'support' : 'core'} benchmarks</small>}
     {detailed && !primaryTip && coach.nextGoal && f.achievements && <div className="next-goal"><b>{coach.nextGoal.label}</b><em>{mmss(coach.nextGoal.left)} left</em></div>}
   </article>
   return <article className="coach-card">
@@ -288,6 +292,13 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
         <Pace label="XPM" value={fmt(coach.xpm)} median={detailed ? med(coach.medians.xpm) : undefined} pct={coach.xpmPct} />
         <Pace label="LH/m" value={fmt(coach.lhpm, 1)} median={detailed ? med(coach.medians.lhpm, 1) : undefined} pct={coach.lhPct} /></div>
     </div>
+    {f.coachTips && coaching && <div className="coach-context">
+      <div className="coach-context-stats">
+        {coaching.bracket && <small title={coaching.bracket.games.toLocaleString() + ' public games'}>{coaching.bracket.name} · {coaching.bracket.rate}% overall</small>}
+        {coaching.matchup && <small title={coaching.matchup.games.toLocaleString() + ' public games'}>vs. {coaching.matchup.name} · {coaching.matchup.rate}%</small>}
+      </div>
+      <div className="tips">{coaching.tips.slice(0, detailed ? 4 : 1).map(renderTip)}</div>
+    </div>}
     {game && <GameStrip game={game} />}
     {f.momentum && game && game.momentum.length > 1 && (!adaptive || coach.phase !== 'Laning' || game.momentum.length > 4) && <MomentumGraph points={game.momentum} />}
     {detailed && <div className="stat-row">
@@ -302,11 +313,11 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
     {f.laneWatch && laning && support && support.matchups.length > 0 && <div className="lane-watch"><small>LANE WATCH · you vs revealed enemies</small>
       <div>{support.matchups.map((m) => <span key={m.enemy} className={m.rate >= 52 ? 'good' : m.rate < 48 ? 'bad' : ''} title={heroes.find((h) => h.id === m.enemy)?.name}><Portrait hero={heroes.find((h) => h.id === m.enemy)} />{fmt(m.rate, 0)}%</span>)}</div></div>}
     {f.laneWatch && support && support.tips.length > 0 && <div className="tips">{support.tips.slice(0, detailed ? 3 : 1).map(renderTip)}</div>}
-    {f.coachTips && coach.tips.length > 0 && <div className="tips">{coach.tips.slice(0, detailed ? 3 : 1).map(renderTip)}</div>}
+    {f.coachTips && !coaching && coach.tips.length > 0 && <div className="tips">{coach.tips.slice(0, detailed ? 3 : 1).map(renderTip)}</div>}
     {f.achievements && !late && coach.achievements.length > 0 && <div className="ach">{coach.achievements.map((a) => <span key={a.id} className={a.state}>{a.elite ? '★' : a.state === 'done' ? '✓' : a.state === 'late-done' ? '•' : a.state === 'live' ? '◔' : '×'} {a.label}</span>)}</div>}
     {f.personal && coach.personal && <small className="draft-note">Your avg on this hero: {coach.personal.gpm} GPM · {coach.personal.xpm} XPM ({coach.personal.n} games, patch-weighted)</small>}
     {!coach.benchmarkAvailable && <small className="draft-note">No benchmark data for this hero yet. Open Heroes → Update data now.</small>}
-    {f.hints && <Foot>Score = percentile vs this hero's benchmarks · <kbd>{mod}C</kbd> compact · <kbd>{mod}H</kbd> hide</Foot>}
+    {f.hints && <Foot>{coach.benchmarkLabel ? `Public benchmark · ${coach.benchmarkLabel} ${coach.role.includes('support') ? 'supports' : 'cores'}` : 'Public hero benchmark'} · <kbd>{mod}C</kbd> compact · <kbd>{mod}H</kbd> hide</Foot>}
   </article>
 }
 

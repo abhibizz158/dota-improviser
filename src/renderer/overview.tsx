@@ -5,6 +5,7 @@ import { roleLabels, roles } from '../shared/model'
 import { available, summarize } from '../shared/analysis'
 import { day, HistoryChart, rollingWins, Sparkline } from './charts'
 import { clock, Empty, fmt, Portrait, Trend } from './ui'
+import { ShareMatch } from './share-match'
 import { FeaturedStage, GuideSections, Insights, useFeatured } from './featured'
 
 type Props = {
@@ -92,7 +93,7 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, l
       </div>
     </section>
 
-    <SessionHistory sessions={sessions} byId={byId} publicGpm={total.gpm} publicXpm={total.xpm} />
+    <SessionHistory api={api} sessions={sessions} byId={byId} publicGpm={total.gpm} publicXpm={total.xpm} />
 
     <Insights f={f} catalog={catalog} matches={matches} showStyle={showStyle} />
 
@@ -152,7 +153,7 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, l
 /** Every own-feed game recorded locally while the listener was running (practice, normal or ranked alike), tagged
  * completed or abandoned (AGENTS.md's half-recorded rule: app/game closed or you left = abandoned, ancient fell = completed),
  * plus what those sessions say about your real pace next to your public match history. */
-function SessionHistory({ sessions, byId, publicGpm, publicXpm }: { sessions: SessionRecord[]; byId: Map<number, Catalog['heroes'][number]>; publicGpm: number | null; publicXpm: number | null }) {
+function SessionHistory({ api, sessions, byId, publicGpm, publicXpm }: { api: AppApi; sessions: SessionRecord[]; byId: Map<number, Catalog['heroes'][number]>; publicGpm: number | null; publicXpm: number | null }) {
   if (!sessions.length) return null
   const completed = sessions.filter((s) => s.status === 'completed')
   const abandoned = sessions.length - completed.length
@@ -173,13 +174,15 @@ function SessionHistory({ sessions, byId, publicGpm, publicXpm }: { sessions: Se
       {gpmDelta != null && Math.abs(gpmDelta) >= 15 ? (gpmDelta > 0 ? ' — noticeably faster lately.' : ' — noticeably slower lately.') : ' — consistent with your usual pace.'}
     </p>}
     <div className="match-table-wrap"><table className="match-table">
-      <thead><tr><th>Hero</th><th>Status</th><th>K / D / A</th><th>GPM</th><th>XPM</th><th>Lane / type</th><th>Duration</th><th>Recorded</th></tr></thead>
+      <thead><tr><th>Hero</th><th>Status</th><th>K / D / A</th><th>GPM</th><th>XPM</th><th>Lane / type</th><th>Duration</th><th>Recorded</th><th>Share</th></tr></thead>
       <tbody>{sessions.slice().reverse().slice(0, 8).map((session) => <tr key={session.at}>
         <td><button className="match-name"><Portrait hero={session.heroId != null ? byId.get(session.heroId) : undefined} /><span><strong>{byId.get(session.heroId ?? -1)?.name ?? session.hero.replace(/_/g, ' ')}</strong></span></button></td>
         <td><span className={'status-tag ' + session.status}>{session.status === 'completed' ? <CheckCircle2 size={13} /> : <XCircle size={13} />} {session.status === 'completed' ? 'Completed' : 'Abandoned'}</span></td>
         <td>{[session.kills, session.deaths, session.assists].map((n) => fmt(n)).join(' / ')}</td><td>{fmt(session.gpm)}</td><td>{fmt(session.xpm)}</td>
         <td>{[session.lane && roleLabels[session.lane], session.gameType].filter(Boolean).join(' · ') || 'Not set'}</td>
         <td>{clock(session.clock || null)}</td><td>{day(Math.floor(session.at / 1000))}</td>
+        <td><ShareMatch api={api} compact stats={{ ...session, at: session.clock, role: session.lane && roleLabels[session.lane], mode: session.gameType,
+          hero: byId.get(session.heroId ?? -1)?.name ?? session.hero.replaceAll('_', ' '), status: session.status === 'completed' ? 'Completed' : 'Abandoned' }} /></td>
       </tr>)}</tbody>
     </table></div>
   </section>

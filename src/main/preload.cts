@@ -56,6 +56,8 @@ if (location.hash === '#overlay') {
     parsingMatches: () => ipcRenderer.invoke('history:parsing'),
     puterStatus: () => ipcRenderer.invoke('puter:status'),
     puterSignIn: () => ipcRenderer.invoke('puter:sign-in'),
+    puterCancelSignIn: () => ipcRenderer.invoke('puter:cancel'),
+    copyShareText: (text) => ipcRenderer.invoke('share:copy', text),
     puterSignOut: () => ipcRenderer.invoke('puter:sign-out'),
     puterSetModel: (model) => ipcRenderer.invoke('puter:model', model),
     puterAsk: (question, context) => ipcRenderer.invoke('puter:ask', question, context),

@@ -1,3 +1,5 @@
+import { ShareMatch } from './share-match'
+import { roleLabels } from '../shared/model'
 import { useEffect, useState } from 'react'
 import { ArrowLeft, ArrowRight, Clock3, FileSearch, Flag, ListFilter, RefreshCw, Target } from 'lucide-react'
 import type { AppApi, Catalog, MatchPlayer, MatchReview, MatchSummary, ReviewEvent, SourceResult } from '../shared/model'
@@ -176,6 +178,10 @@ export function Review({ api, catalog, account, id, sample, history, onImport, o
         {match.players.length > 1 && <select aria-label="Player perspective" value={player.slot} onChange={(event) => {
           setSlot(Number(event.target.value)); setBaseline(null); setBaselineMessage('')
         }}>{match.players.map((entry) => <option key={entry.slot} value={entry.slot}>{catalog.heroes.find((hero) => hero.id === entry.heroId)?.name ?? 'Unknown hero'} · {entry.side}{entry.accountId && entry.accountId === account ? ' (you)' : ''}</option>)}</select>}
+        {!sample && account && player.accountId === account && <ShareMatch api={api} compact stats={{
+          ...player, at: player.duration, hero: hero?.name ?? 'My hero', role: player.role && roleLabels[player.role],
+          status: player.won == null ? 'Completed' : player.won ? 'Victory' : 'Defeat',
+        }} />}
         {!sample && <button className="icon-button" aria-label="Refresh match" onClick={() => setRefresh((value) => value + 1)} disabled={loading}><RefreshCw size={18} className={loading ? 'spin' : ''} /></button>}
       </section>
       {result.stale && <Feedback message={'Showing cached match data from ' + new Date(result.updatedAt).toLocaleString()} />}

@@ -153,6 +153,8 @@ export const browserApi: AppApi = {
   async sessionHistory() { return [] },
   async parsingMatches() { return [] },
   async puterStatus() { return { connected: false, saved: false, model: 'gpt-5.4-nano' } },
+  async puterCancelSignIn() {},
+  async copyShareText(text) { await navigator.clipboard.writeText(text) },
   async puterSignIn() { throw new Error('Open the desktop app to connect Puter AI.') },
   async puterSignOut() { return { connected: false, saved: false, model: 'gpt-5.4-nano' } },
   async puterSetModel(model) { return { connected: false, saved: false, model } },

@@ -608,3 +608,9 @@ body { font-size: clamp(13px, 0.22vw + 11.2px, 16px); }
 .sidebar { background: #12151d; }
 .topbar { background: #151821; }
 .overlay-view .meter i { animation: none; transition: none; }
+
+.share-preview { margin: 0; padding: 12px; border-radius: 8px; background: var(--s2); color: var(--text); font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.coach-context { display: grid; gap: 5px; }
+.coach-context-stats { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--muted); }
+.coach-context-stats:empty { display: none; }
+.overlay-preview > .button + .button { margin-left: 6px; }

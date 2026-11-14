@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Database, Search } from 'lucide-react'
 import type { AppApi, Catalog, HeroDetail, LiveState } from '../shared/model'
+import { brackets } from '../shared/contextual-coach'
 import { FEATURE_LABELS, GLOSSARY, atLevel } from '../shared/mechanics'
 import { Dialog, Empty, Feedback, fmt, Portrait } from './ui'
 
-const brackets = ['Herald', 'Guardian', 'Crusader', 'Archon', 'Legend', 'Ancient', 'Divine', 'Immortal']
+
 const metrics = [['gpm', 'GPM'], ['xpm', 'XPM'], ['lhpm', 'Last hits/min'], ['kpm', 'Kills/min'], ['dpm', 'Hero dmg/min']] as const
 const attrName = ['Strength', 'Agility', 'Intelligence', 'Universal']
 const dmgName: Record<number, string> = { 1: 'physical', 2: 'magical', 4: 'pure' }

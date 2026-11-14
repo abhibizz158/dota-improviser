@@ -13,6 +13,7 @@ export type Achievement = { id: string; label: string; par: number; got: number 
 export type Timings = Record<string, [number, number, number][]>
 export type TimingsDb = { builtAt: number; heroes: Record<number, Timings> }
 export type CoachView = {
+  benchmarkLabel?: string
   heroId: number | null; score: number | null; gpm: number | null; xpm: number | null; lhpm: number | null
   gpmPct: number | null; xpmPct: number | null; lhPct: number | null; deaths: number | null
   tips: Tip[]; achievements: Achievement[]; benchmarkAvailable: boolean
