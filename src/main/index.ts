@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, safeStorage, screen, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, safeStorage, screen, session, shell, systemPreferences } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -692,6 +692,14 @@ function displayList() {
   return [{ id: 'auto', name: 'Follow Dota' }, { id: 'primary', name: 'Primary display' }, ...displays.map((display, index) => ({
     id: String(display.id), name: display.label || 'Display ' + (index + 1),
   }))]
+}
+
+/** macOS only re-evaluates a Screen Recording grant for a process that's already running after a full quit and
+ * relaunch — granting it in System Settings while the app stays open leaves this reporting the old (denied)
+ * status, which is why draft vision can look broken right after the user just turned the permission on. */
+function screenAccessStatus(): 'granted' | 'denied' | 'not-determined' | 'restricted' | 'unknown' {
+  if (process.platform !== 'darwin') return 'granted'
+  try { return systemPreferences.getMediaAccessStatus('screen') } catch { return 'unknown' }
 }
 
 function detectDotaBounds() {
@@ -1558,11 +1566,15 @@ function handlers() {
   handle('draft:build', (id) => provider.build(validHero(id)))
   handle('draft:vision-debug', async () => {
     if (!settings.features.draftVision) throw new Error('Turn on Draft vision in Settings first.')
+    const access = screenAccessStatus()
+    if (access !== 'granted') throw new Error(access === 'not-determined'
+      ? 'macOS hasn’t asked for Screen Recording permission yet — click Capture now again to trigger the prompt.'
+      : 'Screen Recording permission isn’t active for this app yet. If you already turned it on in System Settings, macOS only applies that after a full quit and reopen — not just this click. Use "Open Screen Recording settings" below, enable Dota Improviser, then quit and reopen the app.')
     await loadReferencePortraits(catalog.heroes)
     const bounds = gameBounds ?? (overlay && !overlay.isDestroyed() ? overlay.getBounds() : null) ?? detectDotaBounds()
     if (!bounds) throw new Error('Could not find the Dota window — make sure Dota 2 is running and in the foreground.')
     const result = await debugCaptureDraftPicks(true, bounds)
-    if (!result) throw new Error('Could not find the Dota window to capture.')
+    if (!result) throw new Error('Found the Dota window but not a window source for it to capture — make sure Dota 2 isn’t minimized, and that it is named "Dota 2" in the Dock (not renamed).')
     const heroName = (id: number | null) => id == null ? null : catalog.heroes.find((h) => h.id === id)?.name ?? null
     return { ...result, radiantNames: result.radiant.map(heroName), direNames: result.dire.map(heroName) }
   })
@@ -1648,6 +1660,9 @@ function handlers() {
     return true
   })
   handle('app:external', (name) => {
+    if (name === 'screenRecording') return process.platform === 'darwin'
+      ? shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+      : Promise.resolve()
     if (typeof name === 'string' && Object.hasOwn(publicLinks, name)) return shell.openExternal(publicLinks[name as keyof typeof publicLinks])
   })
   handle('app:open-game', () => {

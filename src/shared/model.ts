@@ -167,7 +167,7 @@ export interface AppApi {
   toggleOverlay(): Promise<LiveState>;
   saveConfig(): Promise<boolean>;
   exportDiagnostics(): Promise<boolean>;
-  openExternal(target: 'guides' | 'patches' | 'privacy' | 'gsi' | 'personal' | 'releases'): Promise<void>;
+  openExternal(target: 'guides' | 'patches' | 'privacy' | 'gsi' | 'personal' | 'releases' | 'screenRecording'): Promise<void>;
   updateData(): Promise<LiveState>;
   heroGuide(id: number): Promise<HeroGuide>;
   itemLearn(heroId: number, sync?: boolean): Promise<import('./items.js').ItemLearning>;

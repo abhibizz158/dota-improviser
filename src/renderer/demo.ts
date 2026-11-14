@@ -118,6 +118,7 @@ export const browserApi: AppApi = {
     const links = { guides: 'https://www.dota2.com/workshop/builds/overview', patches: 'https://www.dota2.com/patches/',
       privacy: 'https://blog.opendota.com/2014/08/01/faq/', gsi: 'https://support.overwolf.com/support/solutions/articles/9000212745-how-to-enable-game-state-integration-for-dota-2',
       personal: 'https://steamcommunity.com/my/gcpd/570/', releases: 'https://github.com/abhibizz158/dota-improviser/releases' }
+    if (target === 'screenRecording') return
     window.open(links[target], '_blank', 'noopener,noreferrer')
   },
   async draft(input: DraftInput) {

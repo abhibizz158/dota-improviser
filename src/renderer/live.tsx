@@ -143,8 +143,10 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
           setVisionBusy(true); setVisionError(''); setVisionResult(null)
           void api.visionDebug().then(setVisionResult).catch((error: Error) => setVisionError(error.message)).finally(() => setVisionBusy(false))
         }}>{visionBusy ? 'Capturing…' : 'Capture now'}</button>
+        <button className="text-button" type="button" onClick={() => void api.openExternal('screenRecording')}>Open Screen Recording settings <ArrowUpRight size={14} /></button>
       </div>
       <Feedback message={visionError} error />
+      {visionError && <p className="fine-print">After enabling it there, fully quit Dota Improviser (not just close the window) and reopen it — macOS only applies a permission change on the next launch.</p>}
       {visionResult && <div className="vision-debug">
         <img src={visionResult.barPng} alt="Captured pick-bar strip" />
         <div className="vision-rows"><p><strong>Radiant:</strong> {visionResult.radiantNames.map((n) => n ?? '—').join(', ') || 'none matched'}</p>

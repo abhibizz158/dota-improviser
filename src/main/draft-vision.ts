@@ -82,7 +82,13 @@ async function captureBar(dotaBounds: { width: number; height: number }) {
   const sources = await desktopCapturer.getSources({
     types: ['window'], thumbnailSize: { width: Math.min(1920, Math.max(1, dotaBounds.width)), height: Math.min(1080, Math.max(1, dotaBounds.height)) },
   })
-  const source = sources.find((s) => s.name === 'Dota 2')
+  // Match case-insensitively and tolerate a trailing build/branch suffix some platforms add to the window
+  // title (e.g. "Dota 2 - 7.39"); explicitly exclude names containing "improviser" so this can never match one
+  // of this app's own windows, which desktopCapturer enumerates right alongside every other open window.
+  const source = sources.find((s) => {
+    const name = s.name.trim().toLowerCase()
+    return name.startsWith('dota 2') && !name.includes('improviser')
+  })
   if (!source) return null
   const full = source.thumbnail
   const { width, height } = full.getSize()

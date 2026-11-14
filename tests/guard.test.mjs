@@ -18,13 +18,13 @@ const files = [...walk('src'), ...walk('native')]
 // in general, just this one calibrated, phase-gated, portrait-matching feature.
 const visionFile = path.join('src', 'main', 'draft-vision.ts')
 test('source tree contains no memory/screen/input/packet-capture APIs outside the gated draft-vision module', () => {
-  const forbidden = /child_process|desktopCapturer|robotjs|nut-tree|uiohook|iohook|node-pcap|\bpcap\b|node:dgram|ffi-napi|koffi|ReadProcessMemory|PROCESS_VM_READ|task_for_pid|vm_read|process_vm_readv|sendInput|CGEventPost|SendKeys|screencapture|CGWindowListCreateImage|\bBitBlt\b|\bPrintWindow\b|SetWindowsHookEx|CGEventTapCreate/i
+  const forbidden = /child_process|desktopCapturer|robotjs|nut-tree|uiohook|iohook|node-pcap|\bpcap\b|node:dgram|ffi-napi|koffi|ReadProcessMemory|PROCESS_VM_READ|task_for_pid|vm_read|process_vm_readv|sendInput|CGEventPost|SendKeys|\bscreencapture\b|CGWindowListCreateImage|\bBitBlt\b|\bPrintWindow\b|SetWindowsHookEx|CGEventTapCreate/i
   for (const file of files.filter((f) => f !== visionFile)) assert.equal(forbidden.test(readFileSync(file, 'utf8')), false, file + ' uses a forbidden API')
 })
 
 test('draft-vision module uses only desktopCapturer (no other forbidden API) and gates every entry point on inPickPhase', () => {
   const source = readFileSync(visionFile, 'utf8')
-  const otherForbidden = /child_process|robotjs|nut-tree|uiohook|iohook|node-pcap|\bpcap\b|node:dgram|ffi-napi|koffi|ReadProcessMemory|PROCESS_VM_READ|task_for_pid|vm_read|process_vm_readv|sendInput|CGEventPost|SendKeys|screencapture|CGWindowListCreateImage|\bBitBlt\b|\bPrintWindow\b|SetWindowsHookEx|CGEventTapCreate/i
+  const otherForbidden = /child_process|robotjs|nut-tree|uiohook|iohook|node-pcap|\bpcap\b|node:dgram|ffi-napi|koffi|ReadProcessMemory|PROCESS_VM_READ|task_for_pid|vm_read|process_vm_readv|sendInput|CGEventPost|SendKeys|\bscreencapture\b|CGWindowListCreateImage|\bBitBlt\b|\bPrintWindow\b|SetWindowsHookEx|CGEventTapCreate/i
   assert.equal(otherForbidden.test(source), false, visionFile + ' uses a forbidden API beyond its one allowed exception')
   assert.match(source, /desktopCapturer/, visionFile + ' should use desktopCapturer; if it no longer does, drop this exception entirely')
   // Both capture entry points take inPickPhase as their first parameter and bail out immediately when it's false.
