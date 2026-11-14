@@ -8,10 +8,11 @@ const asset = (version, platform = 'macos-arm64.pkg') => ({
   id: 10, name: `Dota-Improviser-${version}-${platform}`, digest: 'sha256:' + 'a'.repeat(64), size: 100, state: 'uploaded',
 })
 
-test('updater rejects drafts, downgrades, wrong architectures and assets without digests', () => {
-  const release = (v, a, draft = false) => ({ tag_name: 'v' + v, draft, assets: [a] })
+test('updater rejects drafts, prereleases, downgrades, wrong architectures and assets without digests', () => {
+  const release = (v, a, draft = false, prerelease = false) => ({ tag_name: 'v' + v, draft, prerelease, assets: [a] })
   const values = [
     release('2.0.0', asset('2.0.0'), true),
+    release('1.5.0', asset('1.5.0'), false, true),
     release('1.0.0', asset('1.0.0', 'macos-x64.pkg')),
     release('0.3.0', { ...asset('0.3.0'), digest: undefined }),
     release('0.1.9', asset('0.1.9')), release('0.1.10', asset('0.1.10')),

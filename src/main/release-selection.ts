@@ -17,7 +17,7 @@ export function selectRelease(value: unknown, current: string, platform: NodeJS.
   if (!Array.isArray(value) || !version(current)) return null
   return value.flatMap((release) => {
     const next = version(release?.tag_name)
-    if (!next || release.draft !== false || compareVersions(next, current) <= 0) return []
+    if (!next || release.draft !== false || release.prerelease === true || compareVersions(next, current) <= 0) return []
     const name = installerName(next, platform, arch)
     const asset = (Array.isArray(release.assets) ? release.assets : []).find((item: Asset & { state?: string }) => item?.name === name && item.state === 'uploaded' &&
       Number.isSafeInteger(item.id) && item.id > 0 && Number.isSafeInteger(item.size) && item.size > 0 && item.size <= 512 * 1024 * 1024 &&
