@@ -1192,7 +1192,9 @@ function makeOverlay() {
   overlay = window
   overlayHeight = null
   windowGuard(window)
-  // A high window level keeps the overlay above borderless games. Exclusive fullscreen uses the companion view.
+  // A high window level keeps the overlay above borderless games. An exclusive Fullscreen game can still cover
+  // it entirely on Windows (that mode bypasses the desktop compositor) — Borderless Windowed/Windowed mode, or
+  // switching Display to "Companion" in Settings, is the real workaround; there's no window level that fixes it.
   window.setAlwaysOnTop(true, 'floating')
   // forward:true keeps mousemove events reaching the renderer so hover/leave still fire; without it the OS can
   // leave the game's cursor stuck on whatever it showed when the pointer last crossed the (invisible) overlay.
@@ -1335,7 +1337,10 @@ function toggleOverlayInteractive() {
 function toggleAssistant() {
   if (view === 'setup' || !settings.features.overlayAssistant || settings.display !== 'Overlay' || (!pick && !frame)) return broadcast()
   if (interactive) return finishOverlayEditing()
-  assistantReturn = { view: frame ? 'lane' : 'draft', open: overlayRequested }
+  // Asking the assistant also turns the overlay on for good, same as the draft-editing hotkey already does —
+  // it used to record whether the overlay was showing *before* and hide it again afterward if it wasn't,
+  // which is exactly "comes up for editing, then disappears" when the overlay had been off during a live game.
+  assistantReturn = { view: frame ? 'lane' : 'draft', open: true }
   view = 'assistant'
   requestOverlay(true)
   return broadcast()

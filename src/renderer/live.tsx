@@ -164,6 +164,7 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
       <header className="panel-heading"><div><h2>Display preferences</h2><p>Choose the screen and placement for windowed or borderless play.</p></div></header>
       <div className="settings-grid">
         <label className="field">Layout<select disabled={!!busy} value={settings.display} onChange={(event) => setting('display', event.target.value as LiveSettings['display'])}><option>Overlay</option><option>Companion</option></select></label>
+        {settings.display === 'Overlay' && !/Mac/.test(navigator.platform) && <p className="fine-print">On Windows, an exclusive Fullscreen Dota window can cover the overlay entirely — Borderless Windowed or Windowed mode (Settings → Video → Display Mode in Dota) keeps it visible. If you need exclusive Fullscreen, use "Companion" here instead.</p>}
         <label className="field">Monitor<select disabled={!!busy || settings.display === 'Companion'} value={settings.monitor} onChange={(event) => setting('monitor', event.target.value)}>
           {!(live.displays ?? context.displays).some(({ id }) => id === settings.monitor) && <option value={settings.monitor}>{settings.monitor === 'auto' ? 'Follow Dota' : 'Saved display unavailable'}</option>}
           {(live.displays ?? context.displays).map((display) => <option key={display.id} value={display.id}>{display.name}</option>)}</select></label>
