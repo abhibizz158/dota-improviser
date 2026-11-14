@@ -1,3 +1,4 @@
+import type { ItemRecommendation } from './item-coaching.js'
 import type { knownThreat } from './contextual-coach.js'
 import { positionFit } from './brain.js'
 import { roles } from './model.js'
@@ -51,10 +52,10 @@ export function observeAchievement(previous: Frame | null, next: Frame, achievem
 export type Recovery = { seconds: number | null; title: string; tip: string; followUp?: string; threat?: string; repeats?: number }
 
 export function recoveryAdvice(frame: Frame, role: Role, view: CoachView | null, options: {
-  threat?: ReturnType<typeof knownThreat>; nextItem?: { name: string; cost: number }; priorCases?: number;
+  threat?: ReturnType<typeof knownThreat>; nextItem?: { name: string; cost: number }; priorCases?: number; counterItem?: ItemRecommendation;
 } = {}): Recovery | null {
   if (frame.alive || frame.clock < 0 || frame.respawnSeconds === 0) return null
-  const { threat, nextItem, priorCases } = options
+  const { threat, nextItem, priorCases, counterItem } = options
   const support = role === 'Hard support' || role === 'Soft support'
   const lane = view?.phase === 'Laning' || (view == null && frame.clock < 600)
   const owned = frame.items
@@ -69,6 +70,7 @@ export function recoveryAdvice(frame: Frame, role: Role, view: CoachView | null,
     : null
   const followUp = defensiveTool ?? (nextItem && frame.gold != null && frame.gold >= nextItem.cost
     ? `${nextItem.name} fits your current gold. Check buyback before buying it.`
+    : counterItem ? `${counterItem.name} · ${counterItem.reason}`
     : threat?.magic && !owned.includes('glimmer_cape') && support && !lane ? 'Consider Glimmer Cape if you need a save against their magic damage.' : undefined)
   const evidence = threat?.confirmed ? `Killer you confirmed · ${threat.name}` : threat?.ability ? `Lineup threat · ${threat.name}` : undefined
   const detail = { seconds, threat: evidence, repeats: priorCases, followUp }

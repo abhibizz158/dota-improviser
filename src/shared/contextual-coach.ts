@@ -1,7 +1,10 @@
 import type { CoachView, HeroData, Tip } from './coach.js'
 import type { Matchup } from './guide.js'
+import { counterItems } from './item-coaching.js'
+import type { ItemRecommendation } from './item-coaching.js'
+import type { ItemInfo } from './items.js'
 import type { Kit, KitsDb } from './mechanics.js'
-import { CONTROL, rectify, teamProfile } from './mechanics.js'
+import { CONTROL, teamProfile } from './mechanics.js'
 import type { Frame, GameType, Hero, Role } from './model.js'
 
 export const brackets = ['Herald', 'Guardian', 'Crusader', 'Archon', 'Legend', 'Ancient', 'Divine', 'Immortal'] as const
@@ -11,6 +14,7 @@ export type CoachingContext = {
   matchup: { name: string; rate: number; games: number } | null
   bracket: { name: Bracket; rate: number; games: number } | null
   tips: Tip[]
+  items?: ItemRecommendation[]
 }
 
 export type CoachHero = { hero: Hero; kit?: Kit }
@@ -37,7 +41,7 @@ const lanePlan: Record<Role, string> = {
 }
 
 export function contextualCoach(input: {
-  frame: Frame; role: Role; mode: GameType | null; kit?: Kit; opponents: CoachHero[]; allies?: CoachHero[]; kits?: KitsDb | null; availableItems?: ReadonlySet<string>
+  frame: Frame; role: Role; mode: GameType | null; kit?: Kit; opponents: CoachHero[]; allies?: CoachHero[]; kits?: KitsDb | null; items?: Record<string, ItemInfo>
   rows: Matchup[]; bracket: Bracket | null; data?: HeroData; plan: { key: string; name: string; cost: number }[]
   seen: Record<string, number>; baseline: CoachView
 }): CoachingContext {
@@ -50,9 +54,6 @@ export function contextualCoach(input: {
   const partners = (input.allies ?? []).map((ally) => ({ name: ally.hero.name, setup: control(ally.kit), save: followUp(ally.kit) }))
   const partner = partners.find((ally) => ownControl ? ally.setup : ally.save || ally.setup)
   const enemyProfile = teamProfile(opponents.map(({ hero }) => hero.id), input.kits ?? null)
-  const allyProfile = teamProfile([...(frame.heroId == null ? [] : [frame.heroId]), ...(input.allies ?? []).map(({ hero }) => hero.id)], input.kits ?? null)
-  const draftFix = rectify(enemyProfile, allyProfile).find((fix) => fix.id !== 'nocarry' &&
-    (fix.items.length === 0 || fix.items.some((key) => input.availableItems?.has(key) && !frame.items.includes(key))))
   const ultimate = kit?.a.find((ability) => ability.u && !ability.p)
   const nextItem = input.plan.find((item) => input.seen[item.key] == null && !frame.items.includes(item.key))
   const support = role === 'Soft support' || role === 'Hard support'
@@ -88,14 +89,6 @@ export function contextualCoach(input: {
       : `Fight within range of ${partner.name}’s ${setup?.n} so they can ${setup === partner.save ? 'cover your retreat' : 'set up your damage'}.`
     tips.splice(Math.min(1, tips.length), 0, { level: 'info', text: phase === 'Laning' ? `If you lane with ${partner.name}, ${action[0].toLowerCase() + action.slice(1)}` : action })
   }
-  if (draftFix && phase !== 'Laning') {
-    const items = draftFix.items.filter((key) => input.availableItems?.has(key) && !frame.items.includes(key)).slice(0, 2)
-    const text = draftFix.id === 'pierce' ? 'Leave space to escape their piercing disables and be ready to help the hero they catch.'
-      : draftFix.id === 'magic' ? 'Consider magic resistance or a team barrier against their spell damage.'
-      : draftFix.id === 'physical' ? 'Consider armor or an escape item against their physical damage.'
-      : draftFix.title
-    tips.splice(Math.min(3, tips.length), 0, { level: 'info', text, items })
-  }
   if (nextItem && phase !== 'Laning') {
     tips.splice(Math.min(3, tips.length), 0, { level: 'info', text: frame.gold != null && frame.gold >= nextItem.cost ? `${nextItem.name} is affordable from your current gold. Check buyback before committing.` :
       `Check the remaining components for ${nextItem.name} before your next rotation.`, items: [nextItem.key] })
@@ -107,5 +100,6 @@ export function contextualCoach(input: {
     phase, matchup: worst && difficult ? { name: difficult.hero.name, rate: Math.round(worst.rate), games: worst.games } : null,
     bracket: mode === 'Ranked' && input.bracket && games >= 100 && wins <= games ? { name: input.bracket, rate: Math.round(100 * wins / games), games } : null,
     tips: tips.slice(0, 4),
+    items: input.items ? counterItems(frame, role, phase, opponents, enemyProfile, input.items) : undefined,
   }
 }

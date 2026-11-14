@@ -50,7 +50,7 @@ export type DataStatus = { state: 'idle' | 'updating' | 'ready' | 'error'; done:
 export const placements = ['Auto', 'Top left', 'Top right', 'Bottom left', 'Bottom right'] as const
 export type Placement = typeof placements[number]
 export type DisplayChoice = { id: string; name: string }
-export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'coachTips', 'achievements', 'personal', 'performanceMeter', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision'] as const
+export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'coachTips', 'itemCoach', 'achievements', 'personal', 'performanceMeter', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision'] as const
 export type FeatureKey = typeof featureKeys[number]
 export type Features = Record<FeatureKey, boolean>
 export const defaultFeatures = Object.fromEntries(featureKeys.map((k) => [k, k !== 'achievementSound' && k !== 'draftVision'])) as Features
@@ -59,6 +59,7 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   roshanTimer: { group: 'Overlay modules', label: 'Roshan / Aegis timer', help: 'A stopwatch you start yourself (hotkey or button) when Roshan dies. Reads nothing from the game.' },
   bans: { group: 'Overlay modules', label: 'Show bans', help: 'Banned heroes row in the draft overlay.' },
   laneWatch: { group: 'Overlay modules', label: 'Lane watch', help: 'Your win rate vs each revealed enemy, plus lineup advice.' },
+  itemCoach: { group: 'Overlay modules', label: 'Matchup item recommendations', help: 'Adjust purchases to visible opponents, your own inventory and the game phase.' },
   coachTips: { group: 'Overlay modules', label: 'Coach tips', help: 'Live tips: farm, unspent gold, deaths.' },
   achievements: { group: 'Overlay modules', label: 'Track practice achievements', help: 'Record hero and role item milestones and timed goals.' },
   performanceMeter: { group: 'Overlay modules', label: 'Personal performance meter', help: 'Compare your pace with previous matches every five minutes.' },

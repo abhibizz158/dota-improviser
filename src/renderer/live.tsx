@@ -42,6 +42,8 @@ function RoshanPanel({ api, live, onState }: { api: AppApi; live: LiveState; onS
 export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
   const [busy, setBusy] = useState('')
   const [editingSession, setEditingSession] = useState(false)
+  const [itemAnswer, setItemAnswer] = useState<{ context: string; answer: string } | null>(null)
+  const itemContext = [live.lane?.heroSlug, live.coaching?.phase, live.coach?.role, live.coaching?.items?.map(({ key }) => key).join(',')].join(':')
   const [installed, setInstalled] = useState(false)
   const [feedback, setFeedback] = useState({ message: '', error: false })
   const [visionBusy, setVisionBusy] = useState(false)
@@ -71,7 +73,7 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
     : share === 'unavailable' ? 'macOS could not share the Dota window. Keep Dota visible and try again.'
     : share === 'stopped' ? 'Window sharing stopped. Choose the Dota window again to resume.' : '')
   const active = live.status === 'Live' || live.status === 'Paused'
-  useEffect(() => { if (!active) setEditingSession(false) }, [active])
+  useEffect(() => { if (!active) { setEditingSession(false); setItemAnswer(null) } }, [active])
 
   async function act(label: string, operation: () => Promise<string | void>) {
     setBusy(label)
@@ -117,6 +119,14 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
         <header className="panel-heading"><div><h2>{settings.display === 'Companion' ? 'Companion window' : actual ? 'Live coach' : 'Overlay preview'}</h2>
           <p>{actual ? 'Own-player stats from the local feed' : 'Example lane card at 7:13'}</p></div><Monitor size={19} className="quiet-icon" /></header>
         <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={context.catalog.heroes} settings={settings} coaching={live.coaching} performance={live.performance} heroName={hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} compact={settings.size === 'Compact'} /> : <LaneCard live={live} preview={!actual} hero={hero} />}</div>
+        {!!live.coaching?.items?.length && settings.features.overlayAssistant && !live.recovery && <div className="live-item-ai">
+          <button className="button secondary slim" type="button" disabled={!!busy} onClick={() =>
+            void act('item-ai', async () => {
+              const answer = await api.askLiveCoach('Which of the suggested items should I prioritize for the next objective, and why?')
+              setItemAnswer({ context: itemContext, answer })
+            })}>{busy === 'item-ai' ? 'Asking Puter…' : 'Ask Puter about these items'}</button>
+          {itemAnswer?.context === itemContext && <p className="fine-print">{itemAnswer.answer}</p>}
+        </div>}
         {live.recovery && <RecoveryCard recovery={live.recovery} />}
         {live.recovery && live.draft.enemy.length > 0 && <label className="field">Who killed you?
           <select disabled={!!busy} value={live.confirmedKiller ?? ''} onChange={(event) => {

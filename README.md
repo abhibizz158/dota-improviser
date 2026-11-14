@@ -68,9 +68,13 @@ The shortlist updates as visible teammate and enemy picks are revealed in Ranked
 
 On Windows, use **Borderless Windowed** or **Windowed** for Draft Vision. Keep Dota unminimized and run both apps at the same privilege level. If the game covers the overlay, choose **Companion** layout in **Live & Coach**.
 
+## Live item recommendations
+
+The live overlay suggests one matchup item in Compact mode and up to two in Large mode. Suggestions consider your role, hero level, game phase, owned items, gold and current GPM. They use the known enemy lineup and update as you buy items. The displayed purchase time is an estimate. You can turn the card off under **Live & Coach → Features → Matchup item recommendations**.
+
 ## Puter AI and privacy
 
-Puter is optional. Open **Settings → Puter AI → Sign in with Puter** to use the browser-based login. The app stores the session using Electron's OS-backed secure storage when available; otherwise, it keeps the session for the current run. You can disconnect Puter or clear the app's local data in Settings.
+Puter is optional and runs only when asked. Live questions use a compact context and short answers. Learn from my matches can reuse earlier answers in matching situations. Open **Settings → Puter AI → Sign in with Puter** to use the browser-based login. The app stores the session using Electron's OS-backed secure storage when available; otherwise, it keeps the session for the current run. You can disconnect Puter or clear the app's local data in Settings.
 
 When you ask a question, the app may send the question, selected hero and picks, selected item data, relevant local hero/patch/matchup references, and supported own-player practice values such as clock, GPM, and unspent gold. It does **not** send Steam account IDs or personal match history to Puter. Review each prompt before submitting it. Puter usage is governed by your Puter account and its current plan.
 

@@ -10,6 +10,7 @@ import type { Metric, PersonalPerformance } from '../shared/personal-performance
 import type { CoachView } from '../shared/coach.js'
 import type { Support } from '../shared/guide.js'
 import type { Tip } from '../shared/coach.js'
+import type { ItemRecommendation } from '../shared/item-coaching.js'
 import type { ItemInfo } from '../shared/items.js'
 import type { Recovery } from '../shared/live-coach.js'
 import itemCatalog from 'virtual:dota-items'
@@ -267,6 +268,15 @@ function PerformanceMeter({ performance, detailed }: { performance: PersonalPerf
   </section>
 }
 
+function MatchItems({ items, compact }: { items: ItemRecommendation[]; compact?: boolean }) {
+  return <section className="match-items" aria-label="Matchup items">
+    {items.slice(0, compact ? 1 : 2).map((item) => <div key={item.key}>
+      <header><b>{item.name}</b><small>{item.timing}</small></header>
+      <p>{item.reason}</p><small>{item.goal}</small>
+    </div>)}
+  </section>
+}
+
 /** Live coach: percentile score vs this hero's benchmarks, goals, tips, achievements. Own-player GSI data only. Detail mode (Settings) adds stats and medians. */
 export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, performance, coaching, compact = false, recoveryMode = false }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; performance?: PersonalPerformance; coaching?: CoachingContext; compact?: boolean; recoveryMode?: boolean }) {
   const f = settings.features, s = coach.stats
@@ -274,6 +284,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
   const adaptive = f.phaseAdaptive, late = adaptive && coach.phase === 'Late game', laning = !adaptive || coach.phase === 'Laning'
   const detailed = settings.detailed && !late
   const contextualTips = coaching?.tips ?? coach.tips
+  const items = !recoveryMode && f.itemCoach ? coaching?.items ?? [] : []
   const primaryTip = (f.coachTips ? contextualTips.find((tip) => tip.level === 'warn') ?? contextualTips[0] : undefined) ??
     (f.laneWatch ? support?.tips[0] : undefined)
   const med = (v: number | null, d = 0) => v == null ? undefined : fmt(v, d)
@@ -284,7 +295,8 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
       <span><b>{fmt(s.lastHits)}/{fmt(s.denies)}</b><small>LH/DN</small></span><span><b>{fmt(s.deaths)}</b><small>Deaths</small></span>
       <span><b>{fmt(s.level)}</b><small>Level</small></span><span><b>{fmt(coach.gpm)}</b><small>GPM</small></span>
     </div>
-    {detailed && primaryTip && <div className="tips">{renderTip(primaryTip)}</div>}
+    {items.length > 0 && <MatchItems items={items} compact />}
+    {detailed && primaryTip && (!items.length || primaryTip.level === 'warn') && <div className="tips">{renderTip(primaryTip)}</div>}
     {detailed && coach.benchmarkLabel && <small className="draft-note">{coach.benchmarkLabel} · {coach.role.includes('support') ? 'support' : 'core'} benchmarks</small>}
     {detailed && !primaryTip && coach.nextGoal && f.achievements && <div className="next-goal"><b>{coach.nextGoal.label}</b><em>{mmss(coach.nextGoal.left)} left</em></div>}
   </article>
@@ -305,6 +317,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
       </div>
       <div className="tips">{coaching.tips.slice(0, detailed ? 4 : 2).map(renderTip)}</div>
     </div>}
+    {items.length > 0 && <MatchItems items={items} />}
     {!recoveryMode && game && <GameStrip game={game} />}
     {!recoveryMode && f.momentum && game && game.momentum.length > 1 && (!adaptive || coach.phase !== 'Laning' || game.momentum.length > 4) && <MomentumGraph points={game.momentum} />}
     {detailed && <div className="stat-row">

@@ -622,3 +622,10 @@ body { font-size: clamp(13px, 0.22vw + 11.2px, 16px); }
 .coach-context-stats { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--muted); }
 .coach-context-stats:empty { display: none; }
 .overlay-preview > .button + .button { margin-left: 6px; }
+
+.match-items { display: grid; gap: 4px; }
+.match-items > div { min-width: 0; padding: 5px 7px; border-left: 2px solid var(--gold); border-radius: 4px; background: var(--s1); }
+.match-items header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 7px; }
+.match-items p { margin: 2px 0 0; font-size: 11px; line-height: 1.32; }
+.match-items small { color: var(--muted); font-size: 10px; }
+.live-item-ai { margin-block: 8px; }
