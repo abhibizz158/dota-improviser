@@ -6,7 +6,7 @@
 
 Dota Improviser combines public match aggregates, read-only local Steam/Dota discovery, user-entered picks, and Dota's opt-in Game State Integration (GSI) feed. The dashboard and overlay are designed for Windows and macOS.
 
-> **Fair-play status:** live overlay coaching is currently restricted to supported local practice sessions. Ranked live coaching is disabled. The app does not read game memory, capture the screen, inspect packets, automate inputs, or reveal hidden information.
+> **Fair-play status:** live overlay coaching is currently restricted to supported local practice sessions. Ranked live coaching is disabled. The app does not read game memory, inspect packets, or automate inputs. One opt-in, off-by-default feature ("Draft vision") reads a small strip of your own screen — the pick-bar hero portraits — to match them against Valve's own hero art, strictly while Dota reports pick/strategy phase and never once a game is live; see [AGENTS.md](AGENTS.md#draft-vision-the-one-screen-reading-exception) for the full scope and its real limitation. Outside that one exception, the app never reads your screen or reveals hidden information.
 
 **[⬇ Download the latest release](https://github.com/abhibizz158/dota-improviser/releases/latest)** — macOS (Apple Silicon or Intel `.pkg`) and Windows (x64 `.exe`).
 

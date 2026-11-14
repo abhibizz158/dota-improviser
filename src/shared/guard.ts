@@ -19,8 +19,9 @@ export const fairPlay = [
   'Reads only what Dota sends through its official Game State Integration, which is limited to your own client.',
   'Uses public OpenDota aggregates and read-only local files (steam.inf, itembuilds, Steam login list).',
   'Optional Puter AI uses the signed-in user account and only receives the question plus explicitly selected hero/pick and own-player lane fields.',
-  'Never reads game memory, captures the screen, injects input, or inspects network traffic.',
-  'Never shows hidden information: enemy picks appear only when Dota reveals them or you type them.',
+  'Never reads game memory, injects input, or inspects network traffic.',
+  'One opt-in, off-by-default exception reads a small strip of your own screen (pick-bar hero portraits) to match them against Valve\'s hero art, and only while Dota reports pick/strategy phase; see "Draft vision" in Settings and in AGENTS.md for the full scope.',
+  'Outside that one exception, enemy picks appear only when Dota reveals them or you type them.',
   'Overlay is click-through during play and makes no moves for you.',
   'Network access is limited to a fixed list of hosts; everything else is blocked.',
 ] as const

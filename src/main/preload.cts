@@ -46,6 +46,7 @@ if (location.hash === '#overlay') {
     draft: (input) => ipcRenderer.invoke('draft:set', input),
     nudge: (mine, enemy, delta) => ipcRenderer.invoke('draft:nudge', mine, enemy, delta),
     defaultBuild: (slug) => ipcRenderer.invoke('draft:default-build', slug),
+    visionDebug: () => ipcRenderer.invoke('draft:vision-debug'),
     detectSteam: () => ipcRenderer.invoke('profile:steam'),
     openGame: () => ipcRenderer.invoke('app:open-game'),
     importHistory: (value) => ipcRenderer.invoke('history:import-local', value),

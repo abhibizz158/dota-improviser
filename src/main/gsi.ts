@@ -6,7 +6,7 @@ import type { Checkpoint, DraftReveal, Frame, Lane, MatchSummary, Pick } from '.
 import { allowedGsiSections } from '../shared/guard.js'
 
 const activePhases = new Set(['DOTA_GAMERULES_STATE_PRE_GAME', 'DOTA_GAMERULES_STATE_GAME_IN_PROGRESS'])
-const pickPhases = new Set(['DOTA_GAMERULES_STATE_HERO_SELECTION', 'DOTA_GAMERULES_STATE_STRATEGY_TIME', 'DOTA_GAMERULES_STATE_PLAYER_DRAFT'])
+export const pickPhases = new Set(['DOTA_GAMERULES_STATE_HERO_SELECTION', 'DOTA_GAMERULES_STATE_STRATEGY_TIME', 'DOTA_GAMERULES_STATE_PLAYER_DRAFT'])
 const practiceLobbyTypes = new Set([1, '1', 'DOTA_LOBBY_TYPE_PRACTICE'])
 const maxBody = 96 * 1024
 

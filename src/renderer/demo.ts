@@ -144,6 +144,7 @@ export const browserApi: AppApi = {
   async heroGuide(id: number) { return { id, info: null, lanes: [], durations: [], patches: [] } },
   async heroDetail(id: number, full = true) { const { seed, db, kits, base, mech } = await webData(); return heroDetailFrom(id, seedIndex(seed), db, base, kits, full ? mech : null) },
   async defaultBuild() { return null },
+  async visionDebug() { throw new Error('Open the desktop app to test draft vision.') },
   async detectSteam() { return null },
   async openGame() { throw new Error('Open the desktop app to launch Dota 2.') },
   async importHistory() { throw new Error('Open the desktop app to import matches.') },

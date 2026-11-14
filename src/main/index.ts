@@ -37,6 +37,7 @@ import { configName, defaultBuilds, discover, steamLauncher } from './local.js'
 import type { LocalInfo } from './local.js'
 import { accountId, asRecord, catalog, itemInfo, matchId, steamId64, validHero } from './data.js'
 import { gsiConfig, parseCompletedOwnMatch, parseDraft, parseFrame, parsePick, redactedShape, startGsi, updateCheckpoints } from './gsi.js'
+import { captureDraftPicks, debugCaptureDraftPicks, loadReferencePortraits } from './draft-vision.js'
 import { OpenDota } from './opendota.js'
 import { Store } from './store.js'
 import { ReleaseUpdates } from './release-updates.js'
@@ -121,6 +122,7 @@ let overlayHeight: number | null = null
 let overlayRequested = false
 let overlayTimer: NodeJS.Timeout | undefined
 let hoverTimer: NodeJS.Timeout | undefined
+let visionTimer: NodeJS.Timeout | undefined
 let achievementWindow: BrowserWindow | null = null
 let achievementHeight: number | null = null
 let editFocusTimer: NodeJS.Timeout | undefined
@@ -481,6 +483,24 @@ function onPick(next: Pick | null) {
   }
   if (next?.heroId && next.heroId !== draft.lockedHero) draft = { ...draft, lockedHero: next.heroId }
   pick = next
+  updateDraftVision()
+}
+
+function updateDraftVision() {
+  clearInterval(visionTimer)
+  visionTimer = undefined
+  if (!pick || !settings.features.draftVision) return
+  void loadReferencePortraits(catalog.heroes).catch(() => {})
+  visionTimer = setInterval(() => {
+    const bounds = gameBounds ?? (overlay && !overlay.isDestroyed() ? overlay.getBounds() : null)
+    if (!bounds) return
+    void captureDraftPicks(Boolean(pick), bounds).then((result) => {
+      if (!result || !pick) return
+      applyReveal({ radiant: { picks: result.radiant, bans: [] }, dire: { picks: result.dire, bans: [] }, activeTeam: revealMeta.activeTeam, timeLeft: revealMeta.timeLeft })
+      broadcastSoon()
+    }).catch(() => {})
+  }, 2500)
+  visionTimer.unref()
 }
 
 /** Dota reveals picks in waves (2 / 2 / 2 / 1 in captains-style, all at once in Turbo). Merge whatever it sends; typed picks stay. */
@@ -1527,6 +1547,16 @@ function handlers() {
     return provider.matchups([...new Set(ids.map(validHero))])
   })
   handle('draft:build', (id) => provider.build(validHero(id)))
+  handle('draft:vision-debug', async () => {
+    if (!settings.features.draftVision) throw new Error('Turn on Draft vision in Settings first.')
+    await loadReferencePortraits(catalog.heroes)
+    const bounds = gameBounds ?? (overlay && !overlay.isDestroyed() ? overlay.getBounds() : null)
+    if (!bounds) throw new Error('No Dota window bounds available yet — open the overlay during pick phase first.')
+    const result = await debugCaptureDraftPicks(true, bounds)
+    if (!result) throw new Error('Could not find the Dota window to capture.')
+    const heroName = (id: number | null) => id == null ? null : catalog.heroes.find((h) => h.id === id)?.name ?? null
+    return { ...result, radiantNames: result.radiant.map(heroName), direNames: result.dire.map(heroName) }
+  })
   handle('app:clear', () => {
     clearTask ??= clearData().finally(() => { clearTask = null })
     return clearTask
@@ -1537,6 +1567,7 @@ function handlers() {
     settings = readSettings(value)
     if (!settings.features.overlayAssistant && view === 'assistant') finishOverlayEditing()
     if (!settings.features.toasts) toasts = []
+    updateDraftVision()
     if (autoUpdate !== settings.features.autoUpdate) {
       if (!settings.features.autoUpdate) dataCancel.stop = true
       scheduleDataRefresh()

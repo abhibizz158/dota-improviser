@@ -41,6 +41,9 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
   const [busy, setBusy] = useState('')
   const [installed, setInstalled] = useState(false)
   const [feedback, setFeedback] = useState({ message: '', error: false })
+  const [visionBusy, setVisionBusy] = useState(false)
+  const [visionResult, setVisionResult] = useState<Awaited<ReturnType<AppApi['visionDebug']>> | null>(null)
+  const [visionError, setVisionError] = useState('')
   const hero = context.catalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
   const actual = live.armed || live.settings.display === 'Companion'
   const settings = live.settings
@@ -133,6 +136,21 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
           <input type="checkbox" checked={settings.features[k]} disabled={!!busy} onChange={(event) => setting('features', { ...settings.features, [k]: event.target.checked })} />
           <span>{featureInfo[k].label} <small>{featureInfo[k].help}</small></span></label>)}</div>)}</div>
     </section>
+    {settings.features.draftVision && <section className="panel form-panel reveal">
+      <header className="panel-heading"><div><h2>Test draft vision</h2><p>During pick/strategy phase, captures and shows exactly what the app sees, so you can tell whether the slot positions match your resolution.</p></div></header>
+      <div className="actions">
+        <button className="button secondary" disabled={visionBusy} onClick={() => {
+          setVisionBusy(true); setVisionError(''); setVisionResult(null)
+          void api.visionDebug().then(setVisionResult).catch((error: Error) => setVisionError(error.message)).finally(() => setVisionBusy(false))
+        }}>{visionBusy ? 'Capturing…' : 'Capture now'}</button>
+      </div>
+      <Feedback message={visionError} error />
+      {visionResult && <div className="vision-debug">
+        <img src={visionResult.barPng} alt="Captured pick-bar strip" />
+        <div className="vision-rows"><p><strong>Radiant:</strong> {visionResult.radiantNames.map((n) => n ?? '—').join(', ') || 'none matched'}</p>
+          <p><strong>Dire:</strong> {visionResult.direNames.map((n) => n ?? '—').join(', ') || 'none matched'}</p></div>
+      </div>}
+    </section>}
     <div className="detail-grid live-grid">
       <section className="panel form-panel policy-panel">
         <header className="panel-heading"><div><h2>Session availability</h2><p>Live mode eligibility</p></div><ShieldCheck size={19} className="quiet-icon" /></header>

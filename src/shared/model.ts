@@ -47,10 +47,10 @@ export type DataStatus = { state: 'idle' | 'updating' | 'ready' | 'error'; done:
 export const placements = ['Auto', 'Top left', 'Top right', 'Bottom left', 'Bottom right'] as const
 export type Placement = typeof placements[number]
 export type DisplayChoice = { id: string; name: string }
-export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'coachTips', 'achievements', 'personal', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware'] as const
+export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'coachTips', 'achievements', 'personal', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision'] as const
 export type FeatureKey = typeof featureKeys[number]
 export type Features = Record<FeatureKey, boolean>
-export const defaultFeatures = Object.fromEntries(featureKeys.map((k) => [k, k !== 'achievementSound'])) as Features
+export const defaultFeatures = Object.fromEntries(featureKeys.map((k) => [k, k !== 'achievementSound' && k !== 'draftVision'])) as Features
 export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intelligence' | 'Automation'; label: string; help: string }> = {
   winMeter: { group: 'Overlay modules', label: 'Lineup win meter', help: 'Estimated edge of your lineup vs theirs while drafting.' },
   roshanTimer: { group: 'Overlay modules', label: 'Roshan / Aegis timer', help: 'A stopwatch you start yourself (hotkey or button) when Roshan dies. Reads nothing from the game.' },
@@ -62,7 +62,7 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   hints: { group: 'Overlay modules', label: 'Hotkey hints', help: 'Footer line with shortcuts.' },
   toasts: { group: 'Overlay modules', label: 'Achievement pop-ups', help: 'Animated banners for first blood, multi-kills, streaks and goals.' },
   achievementSound: { group: 'Overlay modules', label: 'Dota achievement sound', help: 'Play a Valve chat-wheel sound when an achievement is awarded.' },
-  overlayAssistant: { group: 'Overlay modules', label: 'Puter overlay assistant', help: 'Ask about your draft or practice game with Ctrl/⌘ + Shift + F7.' },
+  overlayAssistant: { group: 'Overlay modules', label: 'Puter overlay assistant', help: 'Ask about your draft or practice game with Ctrl/⌘ + Shift + O once a game is live.' },
   deathAdvice: { group: 'Overlay modules', label: 'Respawn coach', help: 'Show a next step based on your role, build and practice stats while dead.' },
   momentum: { group: 'Overlay modules', label: 'Momentum graph', help: 'Kill lead of your team over the game, like Dota\'s own advantage graph.' },
   multikills: { group: 'Intelligence', label: 'Kill tracking', help: 'Detect first blood, double/triple/ultra kill, rampage and streaks from your own feed.' },
@@ -74,6 +74,7 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   autoInstallApp: { group: 'Automation', label: 'Launch verified updates automatically', help: 'Once a GitHub release is downloaded and verified, launch its installer as soon as you are not mid-game, instead of waiting for you to click Install in Settings. You still click through the installer itself (and enter your password on macOS) — this app never launches other programs silently or in the background; that is a deliberate fair-play guardrail, not a missing feature.' },
   learning: { group: 'Intelligence', label: 'Learn from my matches', help: 'Use your history to adjust suggestions. Off = public data only.' },
   patchAware: { group: 'Intelligence', label: 'Patch awareness', help: 'Trust old data less for heroes changed in recent patches.' },
+  draftVision: { group: 'Intelligence', label: 'Draft vision (off by default)', help: 'Reads one small, cropped strip of your own screen — the pick-bar hero portraits — and matches it against Valve\'s own hero art, ONLY while Dota reports hero selection or strategy time, never once a game is live. This is the one deliberate exception to the app never reading your screen; macOS will ask for Screen Recording permission the first time. Needs calibration per resolution/UI scale — use Test draft vision below to check it.' },
 }
 export type LiveSettings = {
   display: 'Overlay' | 'Companion'; size: 'Compact' | 'Large'; placement: Placement; monitor: string;
@@ -175,6 +176,7 @@ export interface AppApi {
   draft(input: DraftInput): Promise<LiveState>;
   nudge(mine: number, enemy: number, delta: number): Promise<LiveState>;
   defaultBuild(slug: string): Promise<Partial<Record<'starting' | 'early' | 'mid' | 'late', string[]>> | null>;
+  visionDebug(): Promise<{ barWidth: number; barHeight: number; barPng: string; radiant: (number | null)[]; dire: (number | null)[]; radiantNames: (string | null)[]; direNames: (string | null)[] }>;
   detectSteam(): Promise<string | null>;
   openGame(): Promise<void>;
   importHistory(value: string): Promise<SourceResult<MatchSummary[]>>;
