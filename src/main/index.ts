@@ -2233,11 +2233,9 @@ else {
   void app.whenReady().then(async () => {
     try { windowProbe = require(path.join(dir, 'overlay-window.node')) as NonNullable<typeof windowProbe> }
     catch { windowProbe = null }
-    // Electron creates this directory itself for some of its own subsystems (session, disk cache) before this
-    // runs, which is why this was never caught on macOS — but nothing guarantees it on every platform, and
-    // DatabaseSync doesn't create missing parent directories, so a fresh profile on a machine where that didn't
-    // happen yet failed every store call with "unable to open database file".
-    await mkdir(app.getPath('userData'), { recursive: true })
+    // Store itself creates its directory and recovers from a broken handle (see store.ts) — a fresh profile or
+    // a Documents folder that OneDrive had demoted to an online-only placeholder no longer wedges every feature
+    // that touches the database for the rest of the session.
     store = new Store(path.join(app.getPath('userData'), 'improviser.sqlite'))
     releaseUpdates = new ReleaseUpdates((info) => {
       if (dashboard && !dashboard.isDestroyed()) dashboard.webContents.send('updates:changed', info)
