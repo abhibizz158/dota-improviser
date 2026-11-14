@@ -5,6 +5,7 @@ import { contextualCoach } from '../dist/main/shared/contextual-coach.js'
 const fixture = {
   frame: { clock: 500, deaths: 0, level: 7, gold: 2400, items: [] },
   role: 'Mid', mode: 'Ranked', bracket: 'Archon', baseline: { phase: 'Laning', lhPct: 55 },
+  hero: { id: 1, name: 'Anti-Mage', roles: ['Carry', 'Escape', 'Nuker'], ranged: false },
   kit: { a: [{ n: 'Hex', p: false, c: ['hex'] }, { n: 'Finger of Death', p: false, u: true, c: [] }] },
   opponents: [{ hero: { id: 2, name: 'Axe' }, kit: { a: [{ n: 'Berserker’s Call', p: false, c: ['taunt', 'stun'] }] } }],
   rows: [{ enemy: 2, rate: 43.1, games: 700 }], data: { pick: [0, 0, 0, 300], win: [0, 0, 0, 159] },
@@ -45,6 +46,19 @@ test('neutral item advice fires when a higher tier is live than what you hold, a
   assert.ok(!caughtUp.tips.some((tip) => tip.text.includes('neutral item')))
   const none = contextualCoach({ ...fixture, frame: { ...fixture.frame, clock: 8 * 60, items: [] }, items })
   assert.ok(none.tips.some((tip) => tip.text.includes('Tier 1 neutral items') && !tip.text.includes('tier')))
+})
+
+test('off-role heroes (a core in support, or vice versa) get distinct laning advice instead of the generic role text', () => {
+  const sniper = { id: 35, name: 'Sniper', roles: ['Carry', 'Nuker'], ranged: true }
+  const support = contextualCoach({ ...fixture, role: 'Hard support', hero: sniper })
+  assert.ok(support.offRole)
+  assert.ok(support.tips.some((tip) => tip.text.includes('Sniper is usually a core') && tip.text.includes('range')))
+  const lion = { id: 26, name: 'Lion', roles: ['Support', 'Disabler', 'Nuker'], ranged: true }
+  const core = contextualCoach({ ...fixture, role: 'Carry', hero: lion })
+  assert.ok(core.offRole)
+  assert.ok(core.tips.some((tip) => tip.text.includes('Lion is usually a support')))
+  const normal = contextualCoach({ ...fixture, role: 'Mid', hero: fixture.hero })
+  assert.ok(!normal.offRole)
 })
 
 test('coach pairs allied setup with own follow-up and keeps unknown lanes conditional', () => {

@@ -100,6 +100,11 @@ function projectFrame(g: NonNullable<ReturnType<typeof gate>>): Frame {
     assists: stat(player.assists), items: ownItems(packet.items), itemsObserved: Object.keys(asRecord(packet.items)).some((key) => /^slot\d+$/.test(key)), paused: g.map.paused === true,
     matchmaking: ![0, '0'].includes(g.map.matchid as string | number),
     team: String(player.team_name).toLowerCase() === 'dire' ? 'Dire' : 'Radiant', radiantScore: stat(g.map.radiant_score), direScore: stat(g.map.dire_score), killStreak: stat(player.kill_streak),
+    status: {
+      stunned: hero.stunned === true, silenced: hero.silenced === true, disarmed: hero.disarmed === true, hexed: hero.hexed === true,
+      muted: hero.muted === true, broken: hero.break === true, magicImmune: hero.magicimmune === true, smoked: hero.smoked === true,
+    },
+    buybackCost: stat(player.buyback_cost), buybackCooldown: stat(player.buyback_cooldown),
   }
 }
 

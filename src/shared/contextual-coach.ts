@@ -16,6 +16,7 @@ export type CoachingContext = {
   bracket: { name: Bracket; rate: number; games: number } | null
   tips: Tip[]
   items?: ItemRecommendation[]
+  offRole: boolean
 }
 
 export type CoachHero = { hero: Hero; kit?: Kit }
@@ -51,12 +52,31 @@ const lanePlan: Record<Role, string> = {
   'Hard support': 'Trade away from your carry’s creeps and pull when the wave is pushing away from your tower.',
 }
 
+/** A hero whose Valve-tagged roles (hero.roles — its usual job, not the lane you picked for it) don't match the
+ * selected role plays laning very differently from the role's generic plan above: a Sniper put in support still
+ * wants to poke and deny from range, not last-hit, and a support-tagged hero pushed into a core slot needs farm
+ * priority the generic core text doesn't call out. Off-role is real and common (support Sniper, core Lion in a
+ * pub) — this names it instead of giving advice that quietly assumes the hero is the role's usual pick. */
+export function laningGuidance(role: Role, hero: Hero): { text: string; offRole: boolean } {
+  const core = ['Carry', 'Mid', 'Offlane'].includes(role)
+  const taggedCore = hero.roles.includes('Carry') && !hero.roles.includes('Support')
+  const taggedSupport = hero.roles.includes('Support')
+  if (core && taggedSupport && !taggedCore) {
+    return { text: `${hero.name} is usually a support, not a ${role.toLowerCase()} — prioritize farm and levels for yourself this lane rather than giving way for teammates; your team is relying on you to carry a fight later, which isn't this hero's normal job.`, offRole: true }
+  }
+  if (!core && taggedCore && !taggedSupport) {
+    return { text: `${hero.name} is usually a core, not a ${role.toLowerCase()} — don't contest last hits with your carry; your value here is ${hero.ranged ? 'poking and denying from range, plus wards and dewarding' : 'trading and wards, since you lack ranged poke'}, not farm.`, offRole: true }
+  }
+  return { text: lanePlan[role], offRole: false }
+}
+
 export function contextualCoach(input: {
-  frame: Frame; role: Role; mode: GameType | null; kit?: Kit; opponents: CoachHero[]; allies?: CoachHero[]; kits?: KitsDb | null; items?: Record<string, ItemInfo>
+  frame: Frame; role: Role; mode: GameType | null; hero: Hero; kit?: Kit; opponents: CoachHero[]; allies?: CoachHero[]; kits?: KitsDb | null; items?: Record<string, ItemInfo>
   rows: Matchup[]; bracket: Bracket | null; data?: HeroData; plan: { key: string; name: string; cost: number }[]
   seen: Record<string, number>; baseline: CoachView
 }): CoachingContext {
   const { frame, role, mode, kit, opponents, rows, baseline } = input
+  const lane = laningGuidance(role, input.hero)
   const phase = mode === 'Turbo' ? coachPhase(frame.clock, true) : baseline.phase
   const worst = rows.find((row) => row.games >= 60 && row.rate < 48)
   const difficult = opponents.find(({ hero }) => hero.id === worst?.enemy)
@@ -73,7 +93,7 @@ export function contextualCoach(input: {
   const tips: Tip[] = []
   if (phase === 'Laning') {
     tips.push(behind ? { level: 'warn', text: role === 'Mid' ? 'Secure XP and clear the wave safely before contesting a rune.' :
-      'Recover near allied vision and ask for help controlling the next wave.' } : { level: 'info', text: lanePlan[role] })
+      'Recover near allied vision and ask for help controlling the next wave.' } : { level: lane.offRole ? 'warn' : 'info', text: lane.text })
     if (ownControl && !partner) tips.push({ level: 'info', text: `Hold ${ownControl.n} for a trade your teammate can follow up on.` })
   } else if (phase === 'Mid game') {
     tips.push({ level: 'info', text: behind && !support ? 'Take safe waves near your team and wait for a fight that favours you.' :
@@ -88,7 +108,7 @@ export function contextualCoach(input: {
   }
   if (mode === 'Ability Draft') {
     // The catalogue has native hero abilities. Ability Draft can replace the entire kit.
-    return { phase, matchup: null, bracket: null, tips: tips.slice(0, 1) }
+    return { phase, matchup: null, bracket: null, tips: tips.slice(0, 1), offRole: false }
   }
   if (threat?.ability) {
     tips.splice(0, 0, { level: 'warn', text: `Watch ${threat.name}’s ${threat.ability.n}. ${phase === 'Laning' ? 'If they are in your lane, trade after they use it.' : 'Keep an exit and wait for that spell before committing.'}` })
@@ -117,7 +137,7 @@ export function contextualCoach(input: {
   return {
     phase, matchup: worst && difficult ? { name: difficult.hero.name, rate: Math.round(worst.rate), games: worst.games } : null,
     bracket: mode === 'Ranked' && input.bracket && games >= 100 && wins <= games ? { name: input.bracket, rate: Math.round(100 * wins / games), games } : null,
-    tips: tips.slice(0, 4),
+    tips: tips.slice(0, 4), offRole: lane.offRole,
     items: input.items ? counterItems(frame, role, phase, opponents, enemyProfile, input.items) : undefined,
   }
 }

@@ -288,6 +288,22 @@ function MatchItems({ items, compact }: { items: ItemRecommendation[]; compact?:
   </section>
 }
 
+const statusLabels: Record<keyof import('../shared/model.js').HeroStatus, string> = {
+  stunned: 'Stunned', silenced: 'Silenced', disarmed: 'Disarmed', hexed: 'Hexed', muted: 'Muted', broken: 'Broken', magicImmune: 'Spell immune', smoked: 'Smoked',
+}
+/** Straight from your own GSI hero block, zero inference — these booleans are exactly what Dota already tells
+ * the client about your own hero's current debuffs, same category as the stats above, just not shown before. */
+function StatusStrip({ coach }: { coach: CoachView }) {
+  const active = (Object.keys(coach.status) as (keyof typeof coach.status)[]).filter((key) => coach.status[key])
+  const buyback = coach.buybackCooldown != null && coach.buybackCooldown > 0 ? 'Buyback in ' + mmss(coach.buybackCooldown)
+    : coach.buybackCost != null && coach.buybackCost > 0 ? 'Buyback ready · ' + coach.buybackCost.toLocaleString('en-US') + 'g' : null
+  if (!active.length && !buyback) return null
+  return <div className="status-strip">
+    {active.map((key) => <span key={key} className="status-chip">{statusLabels[key]}</span>)}
+    {buyback && <span className="status-chip buyback">{buyback}</span>}
+  </div>
+}
+
 /** Live coach: percentile score vs this hero's benchmarks, goals, tips, achievements. Own-player GSI data only. Detail mode (Settings) adds stats and medians. */
 export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, performance, coaching, compact = false, recoveryMode = false }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; performance?: PersonalPerformance; coaching?: CoachingContext; compact?: boolean; recoveryMode?: boolean }) {
   const f = settings.features, s = coach.stats
@@ -302,6 +318,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
   const med = (v: number | null, d = 0) => v == null ? undefined : fmt(v, d)
   if (compact) return <article className="coach-card compact-coach">
     <Head icon={<Trophy size={13} />} tag={heroName} sub={clockText} />
+    {!recoveryMode && <StatusStrip coach={coach} />}
     {outlook && <OutlookCard outlook={outlook} compact />}
     {!recoveryMode && performance && <PerformanceMeter performance={performance} detailed={false} />}
     <div className="stat-row">
@@ -315,6 +332,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
   </article>
   return <article className="coach-card">
     <Head icon={<Trophy size={13} />} tag={'Coach · ' + heroName} sub={(coach.matchmaking ? 'Matchmaking' : 'Practice') + ' · ' + coach.phase + ' · ' + clockText} />
+    {!recoveryMode && <StatusStrip coach={coach} />}
     {outlook && <OutlookCard outlook={outlook} />}
     {!recoveryMode && performance && <PerformanceMeter performance={performance} detailed={detailed} />}
     {coach.role && <span className="role-chip">{roleLabels[coach.role]}{adaptive ? ' · adaptive view' : ''}</span>}

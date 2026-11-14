@@ -125,11 +125,13 @@ export type KnowledgeContext = {
   killStreak?: number; alive?: boolean; teamScore?: number; enemyScore?: number
 }
 export type UpdateInfo = { current: string; latest: string | null; state: 'idle' | 'checking' | 'downloading' | 'ready' | 'current' | 'error'; message: string }
+export type HeroStatus = { stunned: boolean; silenced: boolean; disarmed: boolean; hexed: boolean; muted: boolean; broken: boolean; magicImmune: boolean; smoked: boolean }
 export type Frame = {
   matchId?: string; clock: number; heroSlug: string; heroId: number | null; level: number | null; alive: boolean; gold: number | null
   gpm: number | null; xpm: number | null; lastHits: number | null; denies: number | null; kills: number | null
   deaths: number | null; assists: number | null; items: string[]; itemsObserved: boolean; respawnSeconds: number | null; paused: boolean; matchmaking: boolean
   team: 'Radiant' | 'Dire'; radiantScore: number | null; direScore: number | null; killStreak: number | null
+  status: HeroStatus; buybackCost: number | null; buybackCooldown: number | null
 }
 export type DraftReveal = { radiant: { picks: number[]; bans: number[]; slots: ReadonlyMap<number, number> }; dire: { picks: number[]; bans: number[]; slots: ReadonlyMap<number, number> }; activeTeam: 'Radiant' | 'Dire' | null; timeLeft: number | null }
 export type TeamPick = { team: 'Radiant' | 'Dire'; heroId: number | null }

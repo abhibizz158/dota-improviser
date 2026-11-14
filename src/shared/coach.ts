@@ -1,4 +1,4 @@
-import type { Frame, Role } from './model.js'
+import type { Frame, HeroStatus, Role } from './model.js'
 import type { HeroStats } from './brain.js'
 
 export type HeroData = {
@@ -29,6 +29,7 @@ export type CoachView = {
   /** True when GPM or XPM is both below your own recent average on this hero AND below the general-player benchmark
    * for it: two independent signals agreeing, not just noise against one baseline. Debounced into a toast by main. */
   lowPace: 'gpm' | 'xpm' | null
+  status: HeroStatus; buybackCost: number | null; buybackCooldown: number | null
 }
 
 // Par times (seconds) for common power spikes in a normal All Pick game. Shown only when the hero's own item data lists them.
@@ -138,5 +139,6 @@ export function coach(frame: Frame, data: HeroData | undefined, percentiles: num
     nextGoal: (() => { const g = achievements.filter((a) => a.state === 'live' && a.par > frame.clock).sort((a, b) => a.par - b.par)[0]; return g ? { label: g.label, left: g.par - frame.clock } : null })(),
     stats: { kills: frame.kills, deaths: frame.deaths, assists: frame.assists, lastHits: frame.lastHits, denies: frame.denies, level: frame.level, gold: frame.gold },
     medians: { gpm: data?.bench.gpm[2] ?? null, xpm: data?.bench.xpm[2] ?? null, lhpm: data?.bench.lhpm[2] ?? null },
-    personal: mine && mine.n >= 3 ? { gpm: Math.round(mine.gpm), xpm: Math.round(mine.xpm), n: Math.round(mine.n) } : null, lowPace }
+    personal: mine && mine.n >= 3 ? { gpm: Math.round(mine.gpm), xpm: Math.round(mine.xpm), n: Math.round(mine.n) } : null, lowPace,
+    status: frame.status, buybackCost: frame.buybackCost, buybackCooldown: frame.buybackCooldown }
 }
