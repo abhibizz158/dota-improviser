@@ -8,9 +8,10 @@ type Slots = (number | null)[]
 export type VisionReveal = { radiant: Slots; dire: Slots }
 export type VisionTarget = {
   windowID?: number | null; width: number; height: number; ownHero?: number | null; ownTeam?: 'Radiant' | 'Dire';
-  active: () => boolean; readSharedBar?: () => Buffer | null
+  active: () => boolean; readSharedBar?: () => Buffer | null; learned?: PortraitMemory[]
 }
-export type VisionDebug = VisionReveal & { barWidth: number; barHeight: number; barPng: string; references: number }
+export type VisionDebug = VisionReveal & { barWidth: number; barHeight: number; barPng: string; references: number; samples: (string | null)[] }
+export type PortraitMemory = { hero: number; sample: string }
 
 export const BAR_HEIGHT_FRACTION = 0.075
 const leftCenters = [0.066, 0.141, 0.215, 0.290, 0.365]
@@ -25,6 +26,10 @@ function feature(crop: NativeImage) {
   if (crop.isEmpty()) return null
   const pixels = crop.resize({ width: THUMB, height: THUMB }).toBitmap()
   if (pixels.length !== THUMB * THUMB * 4) return null
+  return pixelFeature(pixels)
+}
+
+function pixelFeature(pixels: Buffer) {
   const means = [0, 0, 0]
   for (let i = 0; i < pixels.length; i += 4) {
     means[0] += pixels[i]
@@ -84,54 +89,83 @@ function portraitDistance(a: Feature, b: Feature) {
   return total / (6 * THUMB * THUMB)
 }
 
-function matchSlot(bar: NativeImage, center: number, layoutScale: number) {
+function matchSlot(bar: NativeImage, center: number, layoutScale: number, learned: Map<number, Feature[]>, includeSample: boolean) {
   const candidates: Feature[] = []
+  let sample: Feature | null = null
   for (const slide of [-0.003, 0, 0.003]) {
     for (const width of [0.038, 0.046, 0.052]) {
       for (const [top, bottom] of [[0.072, 0.857], [0.09, 0.75], [0.144, 0.647]]) {
         const x = center + slide * layoutScale
         const half = width * layoutScale / 2
         if (x - half < 0 || x + half > 1) continue
-        const sample = feature(imageCrop(bar, x - half, x + half, top, bottom))
-        if (sample) candidates.push(sample)
+        const candidate = feature(imageCrop(bar, x - half, x + half, top, bottom))
+        if (candidate) candidates.push(candidate)
+        if (includeSample && slide === 0 && width === 0.046 && top === 0.09) sample = candidate
       }
     }
   }
   let id: number | null = null, best = Infinity, runnerUp = Infinity
-  for (const [hero, variants] of referenceCache) {
+  for (const hero of new Set([...referenceCache.keys(), ...learned.keys()])) {
     let score = Infinity
-    for (const portrait of variants) for (const candidate of candidates) score = Math.min(score, portraitDistance(candidate, portrait))
+    for (const portrait of referenceCache.get(hero) ?? []) {
+      for (const candidate of candidates) score = Math.min(score, portraitDistance(candidate, portrait))
+    }
+    // User-labelled variants use a tighter distance so new cosmetics don't get matched by color alone.
+    for (const portrait of learned.get(hero) ?? []) {
+      for (const candidate of candidates) {
+        const distance = portraitDistance(candidate, portrait)
+        if (distance < 12) score = Math.min(score, distance + 1)
+      }
+    }
     if (score < best) { runnerUp = best; best = score; id = hero }
     else if (score < runnerUp) runnerUp = score
   }
-  // Compare against the next distinct hero. A fit typical of a blank or obscured slot stays empty.
-  return { id: best < 24 && runnerUp - best >= 5 ? id : null, score: best }
+  const savedSample = sample
+  const textured = savedSample && savedSample.pixels.some((value, index) =>
+    index % 4 !== 3 && Math.abs(value - savedSample.mean[index % 4]) > 24)
+  return { id: best < 24 && runnerUp - best >= 5 ? id : null, score: best,
+    sample: textured && savedSample ? savedSample.pixels.toString('base64') : null }
 }
 
-function readPickBar(bar: NativeImage, target: VisionTarget): VisionReveal {
+export function rememberPortrait(records: PortraitMemory[], hero: number, sample: string): PortraitMemory[] {
+  const feature = pixelFeature(Buffer.from(sample, 'base64'))
+  return [{ hero, sample }, ...records.filter((record) => {
+    const bytes = Buffer.from(record.sample, 'base64')
+    return bytes.length === THUMB * THUMB * 4 && portraitDistance(feature, pixelFeature(bytes)) > 4
+  })].slice(0, 60)
+}
+
+function readPickBar(bar: NativeImage, target: VisionTarget, includeSamples = false) {
+  const learned = new Map<number, Feature[]>()
+  for (const { hero, sample } of target.learned ?? []) {
+    const pixels = Buffer.from(sample, 'base64')
+    if (pixels.length !== THUMB * THUMB * 4) continue
+    learned.set(hero, [...(learned.get(hero) ?? []), pixelFeature(pixels)])
+  }
   const { width, height } = bar.getSize()
   const nominal = 16 / 9 * (height / BAR_HEIGHT_FRACTION) / width
   const scale = Math.max(0.68, Math.min(1, nominal))
   const layouts = scale < 0.96 ? [1, scale] : [1]
   const results = layouts.map((factor) => {
-    const entries = [...leftCenters, ...rightCenters].map((center) => matchSlot(bar, 0.5 + (center - 0.5) * factor, factor))
+    const entries = [...leftCenters, ...rightCenters].map((center) => matchSlot(bar, 0.5 + (center - 0.5) * factor, factor, learned, includeSamples))
     const radiant = entries.slice(0, 5).map(({ id }) => id)
     const dire = entries.slice(5).map(({ id }) => id)
     const own = target.ownTeam === 'Radiant' ? radiant : dire
     const quality = entries.reduce((sum, entry) => sum + (entry.id == null ? 0 : 30 - entry.score), 0)
       + (target.ownHero != null && own.includes(target.ownHero) ? 35 : 0)
-    return { radiant, dire, quality }
+    return { radiant, dire, quality, samples: includeSamples ? entries.map((entry) => entry.sample) : [] }
   })
-  const { radiant, dire } = results.reduce((best, current) => current.quality > best.quality ? current : best)
-  return { radiant, dire }
+  const { radiant, dire, samples } = results.reduce((best, current) => current.quality > best.quality ? current : best)
+  return { radiant, dire, samples }
 }
 
-export function confirmDraftPicks(previous: VisionReveal, current: VisionReveal) {
-  const confirmed = (before: Slots, after: Slots) =>
-    [...new Set(after.filter((id, index): id is number => id != null && id === before[index]))]
-  const radiant = confirmed(previous.radiant, current.radiant)
-  const dire = confirmed(previous.dire, current.dire)
-  return { radiant: radiant.filter((id) => !dire.includes(id)), dire: dire.filter((id) => !radiant.includes(id)) }
+export function confirmDraftPicks(previous: VisionReveal, current: VisionReveal, known: VisionReveal): VisionReveal {
+  const confirmed = (before: Slots, after: Slots, accepted: Slots) =>
+    after.map((id, index) => id != null && id === before[index] ? id : accepted[index] ?? null)
+  return {
+    radiant: confirmed(previous.radiant, current.radiant, known.radiant),
+    dire: confirmed(previous.dire, current.dire, known.dire),
+  }
 }
 
 export class DraftCaptureError extends Error {
@@ -194,5 +228,5 @@ export async function debugCaptureDraftPicks(inPickPhase: boolean, target: Visio
   const bar = await captureBar(target)
   if (!bar || !target.active()) return null
   const { width, height } = bar.getSize()
-  return { ...readPickBar(bar, target), references: referenceCache.size, barWidth: width, barHeight: height, barPng: bar.toDataURL() }
+  return { ...readPickBar(bar, target, true), references: referenceCache.size, barWidth: width, barHeight: height, barPng: bar.toDataURL() }
 }

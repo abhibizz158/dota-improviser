@@ -36,3 +36,11 @@ test('Ability Draft stays at role advice when native kit data may be wrong', () 
   assert.equal(result.tips.length, 1)
   assert.ok(!result.tips[0].text.includes('Hex'))
 })
+
+test('coach pairs allied setup with own follow-up and keeps unknown lanes conditional', () => {
+  const result = contextualCoach({ ...fixture, allies: [
+    { hero: { id: 7, name: 'Earthshaker' }, kit: { a: [{ n: 'Fissure', p: false, c: ['stun'] }] } },
+  ] })
+  assert.match(result.tips[0].text, /Axe/)
+  assert.match(result.tips[1].text, /If you lane with Earthshaker.*Fissure.*Hex/)
+})

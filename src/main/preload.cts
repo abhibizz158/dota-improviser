@@ -56,6 +56,7 @@ if (location.hash === '#achievements') {
     defaultBuild: (slug) => ipcRenderer.invoke('draft:default-build', slug),
     requestDraftScreenRecording: () => ipcRenderer.invoke('draft:vision-permission'),
     chooseDraftWindow: () => ipcRenderer.invoke('draft:vision-window'),
+    learnDraftPortrait: (slot, hero) => ipcRenderer.invoke('draft:learn-portrait', slot, hero),
     visionDebug: () => ipcRenderer.invoke('draft:vision-debug'),
     detectSteam: () => ipcRenderer.invoke('profile:steam'),
     openGame: () => ipcRenderer.invoke('app:open-game'),
@@ -86,6 +87,7 @@ if (location.hash === '#achievements') {
     openExternal: (target) => ipcRenderer.invoke('app:external', target),
     toggleAssistant: () => ipcRenderer.invoke('live:assistant'),
     askLiveCoach: (question) => ipcRenderer.invoke('live:ask', question),
+    setDeathKiller: (hero) => ipcRenderer.invoke('live:killer', hero),
     onAchievementSound: (callback) => {
       const listener = () => callback()
       ipcRenderer.on('achievement:sound', listener)

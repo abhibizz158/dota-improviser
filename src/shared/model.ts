@@ -67,7 +67,7 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   toasts: { group: 'Overlay modules', label: 'Achievement pop-ups', help: 'Animated banners for first blood, multi-kills, streaks and goals.' },
   achievementSound: { group: 'Overlay modules', label: 'Dota achievement sound', help: 'Play a Valve chat-wheel sound when an achievement is awarded.' },
   overlayAssistant: { group: 'Overlay modules', label: 'Puter overlay assistant', help: 'Ask about your draft or practice game with Ctrl/⌘ + Shift + O once a game is live.' },
-  deathAdvice: { group: 'Overlay modules', label: 'Respawn coach', help: 'Show a next step based on your role, build and practice stats while dead.' },
+  deathAdvice: { group: 'Overlay modules', label: 'Respawn coach', help: 'Show a short plan while dead using your lane, stats, items and known matchup.' },
   momentum: { group: 'Overlay modules', label: 'Momentum graph', help: 'Kill lead of your team over the game, like Dota\'s own advantage graph.' },
   multikills: { group: 'Intelligence', label: 'Kill tracking', help: 'Detect first blood, double/triple/ultra kill, rampage and streaks from your own feed.' },
   phaseAdaptive: { group: 'Automation', label: 'Adapt overlay to game phase', help: 'Laning and mid game show full detail; late game trims to essentials.' },
@@ -76,7 +76,7 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   autoOpen: { group: 'Automation', label: 'Open draft overlay at pick phase', help: 'Show the draft card when hero selection starts.' },
   autoUpdate: { group: 'Automation', label: 'Update data after patches', help: 'Refetch public hero data in the background after a Dota update.' },
   autoInstallApp: { group: 'Automation', label: 'Launch verified updates automatically', help: 'Once a GitHub release is downloaded and verified, launch its installer as soon as you are not mid-game, instead of waiting for you to click Install in Settings. You still click through the installer itself (and enter your password on macOS) — this app never launches other programs silently or in the background; that is a deliberate fair-play guardrail, not a missing feature.' },
-  learning: { group: 'Intelligence', label: 'Learn from my matches', help: 'Use your history to adjust suggestions. Off = public data only.' },
+  learning: { group: 'Intelligence', label: 'Learn from my matches', help: 'Use match history, saved coaching answers and repeated respawn scenarios to personalize advice.' },
   patchAware: { group: 'Intelligence', label: 'Patch awareness', help: 'Trust old data less for heroes changed in recent patches.' },
   draftVision: { group: 'Intelligence', label: 'Draft vision', help: 'Match visible hero portraits during hero selection and strategy time. On Mac, allow Screen Recording for the app. On Windows, use Borderless Windowed or Windowed mode.' },
 }
@@ -143,7 +143,7 @@ export type LiveState = {
   historyChangedAt?: number
   /** True once a game is live but you haven't said this session's lane/role and game type yet — the overlay should prompt. */
   performance?: PersonalPerformance; coaching?: CoachingContext; draftVisionActive?: boolean; draftWindowShare?: DraftWindowShare;
-  needsSessionInfo: boolean; sessionInfo: { gameType: GameType | null; lane: Role | null }
+  needsSessionInfo: boolean; confirmedKiller?: number | null; sessionInfo: { gameType: GameType | null; lane: Role | null }
 }
 export type MechRow = { heroId: number; edge: number; parts: { label: FeatureName; points: number }[] }
 export type MechSummary = { r2: number; samples: number; k?: number; importance: { name: FeatureName; weight: number; share: number }[] }
@@ -185,7 +185,8 @@ export interface AppApi {
   defaultBuild(slug: string): Promise<Partial<Record<'starting' | 'early' | 'mid' | 'late', string[]>> | null>;
   requestDraftScreenRecording(): Promise<boolean>;
   chooseDraftWindow(): Promise<LiveState>;
-  visionDebug(): Promise<{ barWidth: number; barHeight: number; barPng: string; references: number; radiant: (number | null)[]; dire: (number | null)[]; radiantNames: (string | null)[]; direNames: (string | null)[] }>;
+  learnDraftPortrait(slot: number, hero: number): Promise<number>;
+  visionDebug(): Promise<{ barWidth: number; barHeight: number; barPng: string; references: number; trainable: boolean[]; radiant: (number | null)[]; dire: (number | null)[]; radiantNames: (string | null)[]; direNames: (string | null)[] }>;
   detectSteam(): Promise<string | null>;
   openGame(): Promise<void>;
   importHistory(value: string): Promise<SourceResult<MatchSummary[]>>;
@@ -206,6 +207,7 @@ export interface AppApi {
   toggleDraftOverlay(): Promise<LiveState>;
   toggleAssistant(): Promise<LiveState>;
   askLiveCoach(question: string): Promise<string>;
+  setDeathKiller(hero: number | null): Promise<LiveState>;
   onAchievementSound(callback: () => void): () => void;
   checkUpdates(): Promise<UpdateInfo>;
   updateStatus(): Promise<UpdateInfo>;

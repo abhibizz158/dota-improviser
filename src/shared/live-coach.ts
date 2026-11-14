@@ -1,3 +1,4 @@
+import type { knownThreat } from './contextual-coach.js'
 import { positionFit } from './brain.js'
 import { roles } from './model.js'
 import type { Frame, Hero, Role } from './model.js'
@@ -47,18 +48,35 @@ export function observeAchievement(previous: Frame | null, next: Frame, achievem
   return { id, heroId: next.heroId, at: next.clock }
 }
 
-export type Recovery = { seconds: number | null; title: string; tip: string }
+export type Recovery = { seconds: number | null; title: string; tip: string; followUp?: string; threat?: string; repeats?: number }
 
-export function recoveryAdvice(frame: Frame, role: Role, view: CoachView | null, nextItem?: { name: string; cost: number }): Recovery | null {
-  if (frame.alive || frame.clock < 600 || frame.paused || frame.respawnSeconds === 0) return null
+export function recoveryAdvice(frame: Frame, role: Role, view: CoachView | null, options: {
+  threat?: ReturnType<typeof knownThreat>; nextItem?: { name: string; cost: number }; priorCases?: number;
+} = {}): Recovery | null {
+  if (frame.alive || frame.clock < 0 || frame.respawnSeconds === 0) return null
+  const { threat, nextItem, priorCases } = options
+  const support = role === 'Hard support' || role === 'Soft support'
+  const lane = view?.phase === 'Laning' || (view == null && frame.clock < 600)
+  const owned = frame.items
   const seconds = frame.respawnSeconds
-  if (nextItem && frame.gold != null && frame.gold >= nextItem.cost) {
-    return { seconds, title: 'Your next item is affordable', tip: `Queue ${nextItem.name} from your saved build, then check which fight you can reach safely.` }
-  }
-  if (role === 'Hard support' || role === 'Soft support') {
-    return { seconds, title: 'Reconnect with an ally', tip: role === 'Hard support' ? 'Restock detection or wards if your team needs them. Place vision with an ally after you respawn.' : 'Rejoin a core who can follow up on your spells. Check whether your team needs a save or initiation item next.' }
-  }
-  if (role === 'Offlane') return { seconds, title: 'Plan your next initiation', tip: 'Check who can follow up, then approach the next fight from allied vision.' }
-  if (view?.gpmPct != null && view.gpmPct < 35) return { seconds, title: 'Recover your farm', tip: 'Start with a safe wave near your team and nearby camps. Keep a teleport ready for a fight you can reach.' }
-  return { seconds, title: role === 'Mid' ? 'Pick your next rotation' : 'Choose a safe route', tip: 'Check your teleport and item timing before committing. Start on the side where your team can support you.' }
+  const defensiveTool = owned.includes('force_staff') ? 'Keep Force Staff ready and leave room to use it.'
+    : owned.includes('glimmer_cape') && threat?.magic ? 'Use Glimmer Cape before their magic damage lands.'
+    : owned.includes('black_king_bar') && threat?.ability && !threat.ability.x ? 'Activate Black King Bar before their disable lands.'
+    : undefined
+  const threatTip = threat?.ability ? threat.ability.x
+    ? `Stay outside ${threat.ability.n} range until ${threat.name} uses it. Debuff immunity alone won’t stop it.`
+    : `Wait for ${threat.name} to use ${threat.ability.n}, then commit with an ally.`
+    : null
+  const followUp = defensiveTool ?? (nextItem && frame.gold != null && frame.gold >= nextItem.cost
+    ? `${nextItem.name} fits your current gold. Check buyback before buying it.`
+    : threat?.magic && !owned.includes('glimmer_cape') && support && !lane ? 'Consider Glimmer Cape if you need a save against their magic damage.' : undefined)
+  const evidence = threat?.confirmed ? `Killer you confirmed · ${threat.name}` : threat?.ability ? `Lineup threat · ${threat.name}` : undefined
+  const detail = { seconds, threat: evidence, repeats: priorCases, followUp }
+  if (threatTip) return { ...detail, title: 'Avoid the next catch', tip: threatTip }
+  if (lane && support) return { ...detail, title: 'Rejoin your lane partner', tip: 'Return to the next wave together. Trade from allied vision and keep a retreat to your tower.' }
+  if (lane) return { ...detail, title: 'Recover the next wave', tip: 'Take XP near your tower and ask for cover before contesting a rune or farming beyond vision.' }
+  if (support) return { ...detail, title: 'Reconnect with an ally', tip: 'Bring detection or wards if needed. Set vision with a core who can follow up on your spells.' }
+  if (role === 'Offlane') return { ...detail, title: 'Plan your next initiation', tip: 'Approach from allied vision. Wait until a teammate is in range to follow up.' }
+  if (view?.gpmPct != null && view.gpmPct < 35) return { ...detail, title: 'Recover your farm', tip: 'Take a safe wave and nearby camps. Keep a teleport for a fight you can reach.' }
+  return { ...detail, title: role === 'Mid' ? 'Pick your next rotation' : 'Choose a safe route', tip: 'Check your teleport and item timing before committing. Start where an ally can support you.' }
 }

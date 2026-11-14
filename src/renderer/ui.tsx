@@ -297,7 +297,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
         {coaching.bracket && <small title={coaching.bracket.games.toLocaleString() + ' public games'}>{coaching.bracket.name} · {coaching.bracket.rate}% overall</small>}
         {coaching.matchup && <small title={coaching.matchup.games.toLocaleString() + ' public games'}>vs. {coaching.matchup.name} · {coaching.matchup.rate}%</small>}
       </div>
-      <div className="tips">{coaching.tips.slice(0, detailed ? 4 : 1).map(renderTip)}</div>
+      <div className="tips">{coaching.tips.slice(0, detailed ? 4 : 2).map(renderTip)}</div>
     </div>}
     {game && <GameStrip game={game} />}
     {f.momentum && game && game.momentum.length > 1 && (!adaptive || coach.phase !== 'Laning' || game.momentum.length > 4) && <MomentumGraph points={game.momentum} />}
@@ -312,7 +312,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
     {coach.nextGoal && f.achievements && <div className="next-goal"><small>NEXT GOAL</small><b>{coach.nextGoal.label}</b><em>{mmss(coach.nextGoal.left)} left</em></div>}
     {f.laneWatch && laning && support && support.matchups.length > 0 && <div className="lane-watch"><small>LANE WATCH · you vs revealed enemies</small>
       <div>{support.matchups.map((m) => <span key={m.enemy} className={m.rate >= 52 ? 'good' : m.rate < 48 ? 'bad' : ''} title={heroes.find((h) => h.id === m.enemy)?.name}><Portrait hero={heroes.find((h) => h.id === m.enemy)} />{fmt(m.rate, 0)}%</span>)}</div></div>}
-    {f.laneWatch && support && support.tips.length > 0 && <div className="tips">{support.tips.slice(0, detailed ? 3 : 1).map(renderTip)}</div>}
+    {f.laneWatch && !coaching && support && support.tips.length > 0 && <div className="tips">{support.tips.slice(0, detailed ? 3 : 1).map(renderTip)}</div>}
     {f.coachTips && !coaching && coach.tips.length > 0 && <div className="tips">{coach.tips.slice(0, detailed ? 3 : 1).map(renderTip)}</div>}
     {f.achievements && !late && coach.achievements.length > 0 && <div className="ach">{coach.achievements.map((a) => <span key={a.id} className={a.state}>{a.elite ? '★' : a.state === 'done' ? '✓' : a.state === 'late-done' ? '•' : a.state === 'live' ? '◔' : '×'} {a.label}</span>)}</div>}
     {f.personal && coach.personal && <small className="draft-note">Your avg on this hero: {coach.personal.gpm} GPM · {coach.personal.xpm} XPM ({coach.personal.n} games, patch-weighted)</small>}
@@ -325,7 +325,10 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
 export function RecoveryCard({ recovery }: { recovery: Recovery }) {
   return <article className="recovery-card">
     <Head icon={<Clock3 size={13} />} tag="Respawn coach" sub={recovery.seconds != null ? clock(recovery.seconds) + ' left' : ''} />
+    {recovery.threat && <small className="draft-note">{recovery.threat}</small>}
     <b>{recovery.title}</b><p>{recovery.tip}</p>
+    {recovery.followUp && <p>{recovery.followUp}</p>}
+    {Boolean(recovery.repeats) && <small className="draft-note">Similar deaths in your history · {recovery.repeats}</small>}
   </article>
 }
 

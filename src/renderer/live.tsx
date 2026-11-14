@@ -4,7 +4,7 @@ import type { AppApi, Bootstrap, FeatureKey, LiveSettings, LiveState, Placement 
 import { featureInfo, featureKeys, placements, roleLabels, roles } from '../shared/model'
 import { brackets } from '../shared/contextual-coach'
 import { ShareMatch } from './share-match'
-import { CoachCard, Dialog, Feedback, LaneCard, RoshanTimer, SessionPrompt, clock } from './ui'
+import { CoachCard, Dialog, Feedback, LaneCard, RecoveryCard, RoshanTimer, SessionPrompt, clock } from './ui'
 
 type Props = { api: AppApi; context: Bootstrap; live: LiveState; onState: (live: LiveState) => void; onAccount: () => void }
 
@@ -47,8 +47,14 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
   const [visionBusy, setVisionBusy] = useState(false)
   const [visionResult, setVisionResult] = useState<Awaited<ReturnType<AppApi['visionDebug']>> | null>(null)
   const [visionError, setVisionError] = useState('')
+  const [portraitSlot, setPortraitSlot] = useState('')
+  const [portraitHero, setPortraitHero] = useState('')
+  const [portraitMessage, setPortraitMessage] = useState('')
+  const [portraitSaving, setPortraitSaving] = useState(false)
   useEffect(() => {
-    if (!live.draftVisionActive) { setVisionResult(null); setVisionError('') }
+    if (!live.draftVisionActive) {
+      setVisionResult(null); setVisionError(''); setPortraitSlot(''); setPortraitHero(''); setPortraitMessage('')
+    }
   }, [live.draftVisionActive])
   const hero = context.catalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
   const actual = live.armed || live.settings.display === 'Companion'
@@ -111,6 +117,16 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
         <header className="panel-heading"><div><h2>{settings.display === 'Companion' ? 'Companion window' : actual ? 'Live coach' : 'Overlay preview'}</h2>
           <p>{actual ? 'Own-player stats from the local feed' : 'Example lane card at 7:13'}</p></div><Monitor size={19} className="quiet-icon" /></header>
         <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={context.catalog.heroes} settings={settings} coaching={live.coaching} performance={live.performance} heroName={hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} compact={settings.size === 'Compact'} /> : <LaneCard live={live} preview={!actual} hero={hero} />}</div>
+        {live.recovery && <RecoveryCard recovery={live.recovery} />}
+        {live.recovery && live.draft.enemy.length > 0 && <label className="field">Who killed you?
+          <select disabled={!!busy} value={live.confirmedKiller ?? ''} onChange={(event) => {
+            const id = Number(event.target.value) || null
+            void act('killer', async () => { onState(await api.setDeathKiller(id)) })
+          }}>
+            <option value="">Unknown</option>
+            {context.catalog.heroes.filter(({ id }) => live.draft.enemy.includes(id)).map(({ id, name }) => <option value={id} key={id}>{name}</option>)}
+          </select>
+        </label>}
         <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay' || (!active && !live.pick && !live.open)} onClick={() =>
           void act('overlay', async () => { onState(await api.toggleOverlay()) })}><Layers3 size={16} />{live.open ? 'Hide overlay' : 'Show overlay'}</button>
         {live.coach && <button className="button secondary" type="button" onClick={() => setEditingSession(true)}>Game type and lane</button>}
@@ -183,7 +199,7 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
             void act('vision', async () => { onState(await api.chooseDraftWindow()) })
           }}>Share Dota window</button>}
         <button className="button secondary" disabled={visionBusy || pickerBusy || !context.desktop || !live.draftVisionActive} onClick={() => {
-          setVisionBusy(true); setVisionError(''); setVisionResult(null)
+          setVisionBusy(true); setVisionError(''); setVisionResult(null); setPortraitSlot(''); setPortraitHero(''); setPortraitMessage('')
           void api.visionDebug().then(setVisionResult).catch((error: Error) => setVisionError(error.message.replace(/^Error invoking remote method '[^']+': Error: /, ''))).finally(() => setVisionBusy(false))
         }}>{visionBusy ? 'Capturing…' : 'Capture now'}</button>
         {mac && <>
@@ -208,6 +224,31 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
         <img src={visionResult.barPng} alt="Captured pick-bar strip" />
         <div className="vision-rows"><p><strong>Radiant:</strong> {visionResult.radiantNames.map((n) => n ?? '—').join(', ') || 'none matched'}</p>
           <p><strong>Dire:</strong> {visionResult.direNames.map((n) => n ?? '—').join(', ') || 'none matched'}</p></div>
+        {settings.features.learning && context.accountId && visionResult.trainable.some(Boolean) && <details>
+          <summary>Teach a cosmetic portrait</summary>
+          <p className="fine-print">Label a visible Arcana, Persona, or other portrait. The app remembers the small portrait sample on this device.</p>
+          <div className="actions">
+            <label className="field">Portrait slot<select value={portraitSlot} disabled={portraitSaving} onChange={(event) => {
+              setPortraitSlot(event.target.value); setPortraitMessage('')
+            }}>
+              <option value="">Select a slot</option>
+              {[...visionResult.radiantNames, ...visionResult.direNames].map((name, i) => visionResult.trainable[i] &&
+                <option key={i} value={i}>{i < 5 ? 'Radiant' : 'Dire'} {(i % 5) + 1} · {name ?? 'Unrecognized'}</option>)}
+            </select></label>
+            <label className="field">Actual hero<select value={portraitHero} disabled={portraitSaving} onChange={(event) => setPortraitHero(event.target.value)}>
+              <option value="">Select a hero</option>
+              {context.catalog.heroes.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+            </select></label>
+            <button className="button secondary" type="button" disabled={portraitSaving || !portraitSlot || !portraitHero} onClick={() => {
+              setPortraitSaving(true); setPortraitMessage(''); setVisionError('')
+              void api.learnDraftPortrait(Number(portraitSlot), Number(portraitHero)).then(() => {
+                setPortraitMessage('Saved. The next draft scans will compare against this portrait.')
+              }).catch((error: Error) => setVisionError(error.message.replace(/^Error invoking remote method '[^']+': Error: /, '')))
+                .finally(() => setPortraitSaving(false))
+            }}>Remember portrait</button>
+          </div>
+          <Feedback message={portraitMessage} />
+        </details>}
       </div>}
     </section>}
     <div className="detail-grid live-grid">

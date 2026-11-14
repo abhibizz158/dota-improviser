@@ -1,7 +1,7 @@
 import type { CoachView, HeroData, Tip } from './coach.js'
 import type { Matchup } from './guide.js'
-import type { Kit } from './mechanics.js'
-import { CONTROL } from './mechanics.js'
+import type { Kit, KitsDb } from './mechanics.js'
+import { CONTROL, rectify, teamProfile } from './mechanics.js'
 import type { Frame, GameType, Hero, Role } from './model.js'
 
 export const brackets = ['Herald', 'Guardian', 'Crusader', 'Archon', 'Legend', 'Ancient', 'Divine', 'Immortal'] as const
@@ -13,6 +13,21 @@ export type CoachingContext = {
   tips: Tip[]
 }
 
+export type CoachHero = { hero: Hero; kit?: Kit }
+const control = (kit?: Kit) => kit?.a.find((a) => !a.p && a.c.some((effect) => (CONTROL[effect] ?? 0) >= 0.6))
+const followUp = (kit?: Kit) => kit?.a.find((a) => !a.p && a.c.some((effect) => ['heal', 'barrier', 'dispel'].includes(effect)))
+
+export function knownThreat(opponents: CoachHero[], rows: Matchup[], killer: number | null = null) {
+  const ranked = opponents.map(({ hero, kit }) => ({
+    hero, kit, ability: kit?.a.find((a) => a.x && !a.p && a.c.some((effect) => (CONTROL[effect] ?? 0) >= 0.6)) ?? control(kit),
+    rate: rows.find((row) => row.enemy === hero.id && row.games >= 60)?.rate ?? 50,
+  })).sort((a, b) => Number(b.hero.id === killer) - Number(a.hero.id === killer) ||
+    Number(Boolean(b.ability)) - Number(Boolean(a.ability)) || a.rate - b.rate)
+  const entry = ranked[0]
+  return entry ? { name: entry.hero.name, ability: entry.ability, confirmed: entry.hero.id === killer,
+    magic: (entry.kit?.a.filter((a) => a.d === 2).length ?? 0) >= 2 } : null
+}
+
 const lanePlan: Record<Role, string> = {
   Carry: 'Keep the wave near your tower and reserve gold for regen if you are being pushed off last hits.',
   Mid: 'Secure the ranged creep and shove before leaving for a rune or a rotation.',
@@ -22,19 +37,22 @@ const lanePlan: Record<Role, string> = {
 }
 
 export function contextualCoach(input: {
-  frame: Frame; role: Role; mode: GameType | null; kit?: Kit; opponents: { hero: Hero; kit?: Kit }[]
+  frame: Frame; role: Role; mode: GameType | null; kit?: Kit; opponents: CoachHero[]; allies?: CoachHero[]; kits?: KitsDb | null; availableItems?: ReadonlySet<string>
   rows: Matchup[]; bracket: Bracket | null; data?: HeroData; plan: { key: string; name: string; cost: number }[]
   seen: Record<string, number>; baseline: CoachView
 }): CoachingContext {
   const { frame, role, mode, kit, opponents, rows, baseline } = input
   const phase = mode === 'Turbo' ? frame.clock < 420 ? 'Laning' : frame.clock < 1080 ? 'Mid game' : 'Late game' : baseline.phase
-  const sampled = rows.filter((row) => row.games >= 60)
-  const worst = sampled.find((row) => row.rate < 48)
-  const control = (candidate?: Kit) => candidate?.a.find((ability) => !ability.p && ability.c.some((effect) => (CONTROL[effect] ?? 0) >= 0.8))
+  const worst = rows.find((row) => row.games >= 60 && row.rate < 48)
   const difficult = opponents.find(({ hero }) => hero.id === worst?.enemy)
-  const opponent = difficult && control(difficult.kit) ? difficult : opponents.find(({ kit }) => control(kit))
+  const threat = knownThreat(opponents, rows)
   const ownControl = control(kit)
-  const threat = control(opponent?.kit)
+  const partners = (input.allies ?? []).map((ally) => ({ name: ally.hero.name, setup: control(ally.kit), save: followUp(ally.kit) }))
+  const partner = partners.find((ally) => ownControl ? ally.setup : ally.save || ally.setup)
+  const enemyProfile = teamProfile(opponents.map(({ hero }) => hero.id), input.kits ?? null)
+  const allyProfile = teamProfile([...(frame.heroId == null ? [] : [frame.heroId]), ...(input.allies ?? []).map(({ hero }) => hero.id)], input.kits ?? null)
+  const draftFix = rectify(enemyProfile, allyProfile).find((fix) => fix.id !== 'nocarry' &&
+    (fix.items.length === 0 || fix.items.some((key) => input.availableItems?.has(key) && !frame.items.includes(key))))
   const ultimate = kit?.a.find((ability) => ability.u && !ability.p)
   const nextItem = input.plan.find((item) => input.seen[item.key] == null && !frame.items.includes(item.key))
   const support = role === 'Soft support' || role === 'Hard support'
@@ -44,7 +62,7 @@ export function contextualCoach(input: {
   if (phase === 'Laning') {
     tips.push(behind ? { level: 'warn', text: role === 'Mid' ? 'Secure XP and clear the wave safely before contesting a rune.' :
       'Recover near allied vision and ask for help controlling the next wave.' } : { level: 'info', text: lanePlan[role] })
-    if (ownControl) tips.push({ level: 'info', text: `Hold ${ownControl.n} for a trade your teammate can follow up on.` })
+    if (ownControl && !partner) tips.push({ level: 'info', text: `Hold ${ownControl.n} for a trade your teammate can follow up on.` })
   } else if (phase === 'Mid game') {
     tips.push({ level: 'info', text: behind && !support ? 'Take safe waves near your team before committing to the next fight.' :
       role === 'Offlane' ? 'Set up the next initiation with an ally in range to follow up.' : support ? 'Move with a core and establish vision around the next objective.' :
@@ -60,11 +78,26 @@ export function contextualCoach(input: {
     // The catalogue has native hero abilities. Ability Draft can replace the entire kit.
     return { phase, matchup: null, bracket: null, tips: tips.slice(0, 1) }
   }
-  if (opponent && threat) {
-    tips.splice(1, 0, { level: 'warn', text: `Watch ${opponent.hero.name}’s ${threat.n}. ${phase === 'Laning' ? 'If they are in your lane, keep an escape route and trade after they use it.' : 'Keep a way out and wait for the spell to be used before committing.'}` })
+  if (threat?.ability) {
+    tips.splice(0, 0, { level: 'warn', text: `Watch ${threat.name}’s ${threat.ability.n}. ${phase === 'Laning' ? 'If they are in your lane, trade after they use it.' : 'Keep an exit and wait for that spell before committing.'}` })
+  }
+  if (partner) {
+    const setup = ownControl ? partner.setup : partner.save ?? partner.setup
+    const action = ownControl && partner.setup
+      ? `Follow ${partner.name}’s ${partner.setup.n} with ${ownControl.n} as the first disable ends.`
+      : `Fight within range of ${partner.name}’s ${setup?.n} so they can ${setup === partner.save ? 'cover your retreat' : 'set up your damage'}.`
+    tips.splice(Math.min(1, tips.length), 0, { level: 'info', text: phase === 'Laning' ? `If you lane with ${partner.name}, ${action[0].toLowerCase() + action.slice(1)}` : action })
+  }
+  if (draftFix && phase !== 'Laning') {
+    const items = draftFix.items.filter((key) => input.availableItems?.has(key) && !frame.items.includes(key)).slice(0, 2)
+    const text = draftFix.id === 'pierce' ? 'Leave space to escape their piercing disables and be ready to help the hero they catch.'
+      : draftFix.id === 'magic' ? 'Consider magic resistance or a team barrier against their spell damage.'
+      : draftFix.id === 'physical' ? 'Consider armor or an escape item against their physical damage.'
+      : draftFix.title
+    tips.splice(Math.min(3, tips.length), 0, { level: 'info', text, items })
   }
   if (nextItem && phase !== 'Laning') {
-    tips.push({ level: 'info', text: frame.gold != null && frame.gold >= nextItem.cost ? `${nextItem.name} is affordable from your current gold. Check buyback before committing.` :
+    tips.splice(Math.min(3, tips.length), 0, { level: 'info', text: frame.gold != null && frame.gold >= nextItem.cost ? `${nextItem.name} is affordable from your current gold. Check buyback before committing.` :
       `Check the remaining components for ${nextItem.name} before your next rotation.`, items: [nextItem.key] })
   }
   const bracketIndex = input.bracket == null ? -1 : brackets.indexOf(input.bracket)
