@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight, BookOpen, ChevronDown, ChevronUp, Crosshair, RefreshCw, Search, ShieldCheck, Swords, X } from 'lucide-react'
 import type { AppApi, Build, Catalog, Hero, LiveState, Role, SourceResult } from '../shared/model'
 import { roleLabels, roles } from '../shared/model'
-import { demoBuild } from './demo'
 import { counterTips } from '../shared/guide'
 import { FEATURE_LABELS } from '../shared/mechanics'
 import type { Analysis } from '../shared/model'
@@ -10,7 +9,7 @@ import { Empty, Feedback, fmt, Portrait, WinMeter } from './ui'
 
 const ItemPlanner = lazy(() => import('./item-planner').then((module) => ({ default: module.ItemPlanner })))
 
-type DraftProps = { api: AppApi; catalog: Catalog; sample: boolean; live: LiveState; account: string; onMatch: (id: string) => void }
+type DraftProps = { api: AppApi; catalog: Catalog; live: LiveState; account: string; onMatch: (id: string) => void }
 const stageLabels: Record<keyof Build, string> = { starting: 'Starting items', early: 'Early game', mid: 'Mid game', late: 'Late game' }
 const situational = [
   { item: 'black_king_bar', reason: 'Consider spell protection if enemy disables stop you from staying in fights.' },
@@ -56,7 +55,7 @@ function LineupAnalysis({ analysis, catalog }: { analysis: Analysis; catalog: Ca
   </div>
 }
 
-export function Draft({ api, catalog, sample, live, account, onMatch }: DraftProps) {
+export function Draft({ api, catalog, live, account, onMatch }: DraftProps) {
   const [tab, setTab] = useState<'draft' | 'build'>('draft')
   const [heroId, setHeroId] = useState(44)
   const [item, setItem] = useState('')
@@ -78,13 +77,12 @@ export function Draft({ api, catalog, sample, live, account, onMatch }: DraftPro
     const slug = catalog.heroes.find((hero) => hero.id === heroId)?.slug ?? ''
     void api.defaultBuild(slug).then((value) => { if (current) setValve(value) }).catch(() => {})
     void api.build(heroId).catch((reason: Error) => {
-      if (sample) return demoBuild() // browser preview has no main process
       throw reason
     }).then((value) => { if (current) setBuild(value) })
       .catch((reason: Error) => { if (current) setBuildError(reason.message) })
       .finally(() => { if (current) setBuildLoading(false) })
     return () => { current = false }
-  }, [api, tab, heroId, sample, buildRefresh, catalog])
+  }, [api, tab, heroId, buildRefresh, catalog])
 
   const selected = catalog.heroes.find((hero) => hero.id === heroId)
   const name = (id: number) => catalog.heroes.find((hero) => hero.id === id)?.name ?? 'Hero ' + id
@@ -165,7 +163,7 @@ export function Draft({ api, catalog, sample, live, account, onMatch }: DraftPro
       {buildError && <button className="button secondary slim" onClick={() => setBuildRefresh((value) => value + 1)}>Retry item data</button>}
       {buildLoading ? <section className="panel"><Empty title="Loading item usage" /></section> : build && <div className="build-grid">
         {(Object.keys(stageLabels) as (keyof Build)[]).map((stage) => <section className="panel build-panel" key={stage}>
-          <header className="panel-heading"><div><h2>{stageLabels[stage]}</h2><p>{sample ? 'Sample purchase counts' : (build.stale ? 'Cached · ' : 'Refreshed ') + new Date(build.updatedAt).toLocaleString()}</p></div><Search size={16} className="quiet-icon" /></header>
+          <header className="panel-heading"><div><h2>{stageLabels[stage]}</h2><p>{(build.stale ? 'Cached · ' : 'Refreshed ') + new Date(build.updatedAt).toLocaleString()}</p></div><Search size={16} className="quiet-icon" /></header>
           {build.data[stage].length ? build.data[stage].map(({ item, count }) => <div key={item} className="item-row">
             <button type="button" className="text-button" onClick={() => setItem(item)}>{catalog.items[item] ?? item}</button><strong>{fmt(count)}</strong>
           </div>) : <Empty title="No item usage data" />}

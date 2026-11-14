@@ -4,12 +4,11 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, ArrowRight, Clock3, FileSearch, Flag, ListFilter, RefreshCw, Target } from 'lucide-react'
 import type { AppApi, Catalog, MatchPlayer, MatchReview, MatchSummary, ReviewEvent, SourceResult } from '../shared/model'
 import { atMinute, available, average, comparable } from '../shared/analysis'
-import { demoHistory, demoReview } from './demo'
 import { AdvChart, DiffChart, day, ReviewChart } from './charts'
 import { clock, Empty, Feedback, fmt, Portrait } from './ui'
 
 type Props = {
-  api: AppApi; catalog: Catalog; account: string; id: string; sample: boolean;
+  api: AppApi; catalog: Catalog; account: string; id: string;
   history: MatchSummary[]; onImport: () => void; onBack: () => void;
 }
 
@@ -41,7 +40,7 @@ function ObjectiveTimeline({ timeline }: { timeline: NonNullable<MatchReview['ti
   </section>
 }
 
-export function Review({ api, catalog, account, id, sample, history, onImport, onBack }: Props) {
+export function Review({ api, catalog, account, id, history, onImport, onBack }: Props) {
   const [result, setResult] = useState<SourceResult<MatchReview> | null>(null)
   const [slot, setSlot] = useState<number | null>(null)
   const [loading, setLoading] = useState(Boolean(id))
@@ -59,23 +58,14 @@ export function Review({ api, catalog, account, id, sample, history, onImport, o
     if (!id) return
     setLoading(true)
     setError('')
-    if (sample) {
-      const row = demoHistory.find((match) => match.id === id)
-      if (row) {
-        const data = { id, players: [demoReview(row)], parsed: true, start: row.start, duration: row.duration, patch: row.patch }
-        setResult({ data, updatedAt: Date.now(), stale: false })
-      } else setError('Sample match unavailable.')
-      setLoading(false)
-    } else {
-      void api.match(id, refresh > 0).then((value) => { if (current) setResult(value) })
-        .catch((reason: Error) => { if (current) setError(reason.message) })
-        .finally(() => { if (current) setLoading(false) })
-    }
+    void api.match(id, refresh > 0).then((value) => { if (current) setResult(value) })
+      .catch((reason: Error) => { if (current) setError(reason.message) })
+      .finally(() => { if (current) setLoading(false) })
     return () => { current = false }
-  }, [api, id, sample, refresh])
+  }, [api, id, refresh])
 
   useEffect(() => {
-    if (!id || sample || !result || result.data.parsed || result.data.localOnly) return
+    if (!id || !result || result.data.parsed || result.data.localOnly) return
     let active = true
     void api.parseStatus(id).then((state) => {
       if (!active || !state.jobId) return
@@ -83,7 +73,7 @@ export function Review({ api, catalog, account, id, sample, history, onImport, o
       else setRefresh((value) => value + 1)
     }).catch(() => {})
     return () => { active = false }
-  }, [api, id, sample, result])
+  }, [api, id, result])
 
   useEffect(() => {
     if (parse !== 'pending') return
@@ -115,13 +105,12 @@ export function Review({ api, catalog, account, id, sample, history, onImport, o
   const player = match?.players.find((entry) => entry.slot === slot) ??
     match?.players.find((entry) => entry.accountId !== null && entry.accountId === account) ?? match?.players[0]
   const hero = catalog.heroes.find((hero) => hero.id === player?.heroId)
-  const personal = Boolean(player && (sample || (account && player.accountId === account)))
+  const personal = Boolean(player && account && player.accountId === account)
   const personalRows = player && personal && player.role ? history.filter((row) => {
     // A history row can lack a position estimate that is present in the full match.
     return comparable(player, row.role == null ? { ...row, role: player.role } : row)
   }).slice(0, 8) : []
-  const currentBaseline = sample && player
-    ? personalRows.map(demoReview).filter((candidate) => comparable(player, candidate)) : baseline?.slot === player?.slot ? baseline?.players ?? [] : []
+  const currentBaseline = baseline?.slot === player?.slot ? baseline?.players ?? [] : []
 
   async function loadBaseline() {
     if (!player || loadingBaseline) return
@@ -163,7 +152,7 @@ export function Review({ api, catalog, account, id, sample, history, onImport, o
   return <>
     <div className="page-heading">
       <div><button className="text-button back-button" onClick={onBack}><ArrowLeft size={15} /> Overview</button>
-        <h1>Match review</h1><p>{id ? 'Match ' + id + (sample ? ' · Sample data' : match?.start ? ' · ' + day(match.start, true) : '') : 'Review lane performance, decisions, and item timings.'}</p></div>
+        <h1>Match review</h1><p>{id ? 'Match ' + id + (match?.start ? ' · ' + day(match.start, true) : '') : 'Review lane performance, decisions, and item timings.'}</p></div>
       <button className="button primary" onClick={onImport}><FileSearch size={17} /> Open match by ID</button>
     </div>
     <Feedback error message={error} />
@@ -178,11 +167,11 @@ export function Review({ api, catalog, account, id, sample, history, onImport, o
         {match.players.length > 1 && <select aria-label="Player perspective" value={player.slot} onChange={(event) => {
           setSlot(Number(event.target.value)); setBaseline(null); setBaselineMessage('')
         }}>{match.players.map((entry) => <option key={entry.slot} value={entry.slot}>{catalog.heroes.find((hero) => hero.id === entry.heroId)?.name ?? 'Unknown hero'} · {entry.side}{entry.accountId && entry.accountId === account ? ' (you)' : ''}</option>)}</select>}
-        {!sample && account && player.accountId === account && <ShareMatch api={api} compact stats={{
+        {account && player.accountId === account && <ShareMatch api={api} compact stats={{
           ...player, at: player.duration, hero: hero?.name ?? 'My hero', role: player.role && roleLabels[player.role],
           status: player.won == null ? 'Completed' : player.won ? 'Victory' : 'Defeat',
         }} />}
-        {!sample && <button className="icon-button" aria-label="Refresh match" onClick={() => setRefresh((value) => value + 1)} disabled={loading}><RefreshCw size={18} className={loading ? 'spin' : ''} /></button>}
+        {<button className="icon-button" aria-label="Refresh match" onClick={() => setRefresh((value) => value + 1)} disabled={loading}><RefreshCw size={18} className={loading ? 'spin' : ''} /></button>}
       </section>
       {result.stale && <Feedback message={'Showing cached match data from ' + new Date(result.updatedAt).toLocaleString()} />}
       <div className="review-stats">
@@ -195,7 +184,7 @@ export function Review({ api, catalog, account, id, sample, history, onImport, o
         <div><h2>Replay data is unavailable</h2><p>{parse === 'pending' ? 'OpenDota is processing the replay. This view will refresh when it finishes.' :
           parse === 'unavailable' ? 'The parse job ended without detailed replay data. The replay may have expired.' :
             'The scoreboard is available. You can ask OpenDota to parse the replay for detailed stats.'}</p></div>
-        <button className="button secondary" disabled={sample || parse === 'pending' || parse === 'requesting'} onClick={requestParse}>
+        <button className="button secondary" disabled={parse === 'pending' || parse === 'requesting'} onClick={requestParse}>
           {parse === 'pending' ? 'Parse queued' : parse === 'requesting' ? 'Submitting…' : 'Request replay parse'}</button>
       </section>}
       <div className="detail-grid">
@@ -216,7 +205,7 @@ export function Review({ api, catalog, account, id, sample, history, onImport, o
                 return <div className="benchmark-row" key={minute}><span>{minute}:00 average</span><strong>{fmt(average(stats))} LH <small>({stats.length})</small></strong></div>
               })}
             </> : <p>{personalRows.length ? 'Load comparable matches to see your normal pace.' : 'A matching hero, role, side, and mode are needed for comparison.'}</p>}
-            {!sample && personalRows.length > 0 && <button className="text-button" disabled={loadingBaseline} onClick={loadBaseline}>{loadingBaseline ? 'Loading comparable matches…' : 'Load comparable matches'} <ArrowRight size={14} /></button>}
+            {personalRows.length > 0 && <button className="text-button" disabled={loadingBaseline} onClick={loadBaseline}>{loadingBaseline ? 'Loading comparable matches…' : 'Load comparable matches'} <ArrowRight size={14} /></button>}
             <Feedback message={baselineMessage} />
           </div>
         </section>

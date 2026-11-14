@@ -52,8 +52,8 @@ function Stat({ label, value, digits = 0, suffix = '', pct }: { label: string; v
     {pct != null && <em>{Math.round(pct)}th percentile</em>}</div>
 }
 
-export function FeaturedStage({ f, catalog, demo, account, localInstall, localBuilds, onAccount, onImport, onUseHero, onOpenGame, onDraft }: {
-  f: Loaded; catalog: Catalog; demo: boolean; account: string; localInstall: boolean; localBuilds: number; onAccount: () => void; onImport: () => void; onUseHero: (id: number) => void; onOpenGame: () => void; onDraft: () => void
+export function FeaturedStage({ f, catalog, account, localInstall, localBuilds, onAccount, onImport, onUseHero, onOpenGame, onDraft }: {
+  f: Loaded; catalog: Catalog; account: string; localInstall: boolean; localBuilds: number; onAccount: () => void; onImport: () => void; onUseHero: (id: number) => void; onOpenGame: () => void; onDraft: () => void
 }) {
   const { feat, hero, guide, pcts } = f
   const [artBroken, setArtBroken] = useState('')
@@ -69,7 +69,7 @@ export function FeaturedStage({ f, catalog, demo, account, localInstall, localBu
     </div>
     <div className="stage-copy">
       <div className="stage-rank">01<sup>+</sup></div>
-      <small className="stage-eyebrow">YOUR MOST PLAYED · LAST {feat.of} MATCHES{demo ? ' · SAMPLE' : ''}</small>
+      <small className="stage-eyebrow">YOUR MOST PLAYED · LAST {feat.of} MATCHES</small>
       <h1 className="stage-name">{hero.name}</h1>
       <p className="stage-hype">{guide?.info?.hype || (hero.roles.join(' · ') + '. Your signature hero lately: here is how it is going.')}</p>
       <div className="stage-stats">

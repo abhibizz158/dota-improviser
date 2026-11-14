@@ -1,9 +1,9 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Activity, ArrowDownToLine, ArrowRight, Award, BookOpen, BrainCircuit, CircleHelp, Database, Gamepad2, LayoutDashboard, PanelTop, Radio, Settings2, ShieldCheck, Swords, UserRound } from 'lucide-react'
+import { Activity, ArrowDownToLine, ArrowRight, Award, BookOpen, BrainCircuit, CircleHelp, Database, Gamepad2, LayoutDashboard, Radio, Settings2, ShieldCheck, Swords, UserRound } from 'lucide-react'
 import type { AppApi, Bootstrap, FeatureKey, LiveState, MatchSummary, PuterStatus, SourceResult, UpdateInfo } from '../shared/model'
 import { featureInfo } from '../shared/model'
-import { browserApi, demoCatalog, demoHistory, initialLive } from './demo'
+import { browserApi, builtInCatalog, initialLive } from './demo'
 import { Overview } from './overview'
 import { AssistantCard, CoachCard, Dialog, DraftCard, Feedback, LaneCard, RecoveryCard, RoshanTimer, SessionPrompt, Toasts, clock } from './ui'
 import { fairPlay } from '../shared/guard'
@@ -73,7 +73,7 @@ function useOverlayLive(playSound: boolean) {
 
 function Overlay() {
   const { live, card } = useOverlayLive(true)
-  const hero = demoCatalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
+  const hero = builtInCatalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
   const compact = live.settings.size === 'Compact'
   const editorial = live.view === 'lane'
   const acceptsInput = live.interactive || live.view === 'setup'
@@ -84,8 +84,8 @@ function Overlay() {
       : live.view === 'assistant'
       ? <AssistantCard ask={window.overlayApi?.ask} done={window.overlayApi?.done} />
       : live.view === 'draft'
-      ? <DraftCard live={live} heroes={demoCatalog.heroes} send={window.overlayApi?.draft} done={window.overlayApi?.done} />
-      : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={demoCatalog.heroes} settings={live.settings} coaching={recovery ? undefined : live.coaching} performance={live.performance} compact={compact || Boolean(recovery)} recoveryMode={Boolean(recovery)} heroName={demoCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
+      ? <DraftCard live={live} heroes={builtInCatalog.heroes} send={window.overlayApi?.draft} done={window.overlayApi?.done} />
+      : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={builtInCatalog.heroes} settings={live.settings} coaching={recovery ? undefined : live.coaching} performance={live.performance} compact={compact || Boolean(recovery)} recoveryMode={Boolean(recovery)} heroName={builtInCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
         : <LaneCard live={live} hero={hero} />}
     {recovery && <RecoveryCard recovery={recovery} />}
     {live.settings.features.roshanTimer && editorial && <RoshanTimer roshan={live.roshan} />}
@@ -102,8 +102,7 @@ function AchievementOverlay() {
   </div></div>
 }
 
-const demoResult: SourceResult<MatchSummary[]> = { data: demoHistory, updatedAt: 0, stale: false }
-const initialContext: Bootstrap = { catalog: demoCatalog, live: initialLive, desktop: Boolean(window.dota), accountId: '', displays: [], local: { installFound: false, gsiInstalled: false, steamFound: false, build: null, localBuilds: 0 } }
+const initialContext: Bootstrap = { catalog: builtInCatalog, live: initialLive, desktop: Boolean(window.dota), accountId: '', displays: [], local: { installFound: false, gsiInstalled: false, steamFound: false, build: null, localBuilds: 0 } }
 
 function App() {
   const [context, setContext] = useState(initialContext)
@@ -111,9 +110,8 @@ function App() {
   const [history, setHistory] = useState<SourceResult<MatchSummary[]> | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [sample, setSample] = useState(false)
   const [page, setPage] = useState<Page>('overview')
-  const [selection, setSelection] = useState({ id: '', sample: false })
+  const [match, setMatch] = useState('')
   const [modal, setModal] = useState<Modal>(null)
   const [welcomeStep, setWelcomeStep] = useState(0)
   const [gsiMessage, setGsiMessage] = useState({ message: '', error: false })
@@ -202,8 +200,8 @@ function App() {
     setModal(next)
   }
 
-  function openMatch(id: string, isSample: boolean) {
-    setSelection({ id, sample: isSample })
+  function openMatch(id: string) {
+    setMatch(id)
     navigate('review')
   }
 
@@ -214,7 +212,7 @@ function App() {
     if (modal === 'import') {
       if (!/^[1-9]\d{0,15}$/.test(value) || !Number.isSafeInteger(Number(value))) { setFormError('Enter a valid numeric Dota match ID.'); return }
       setModal(null)
-      openMatch(value, false)
+      openMatch(value)
       return
     }
     await linkAccount(value)
@@ -230,8 +228,7 @@ function App() {
       const id = await api.saveAccount(candidate)
       setContext((previous) => ({ ...previous, accountId: id }))
       setHistory(null)
-      setSelection({ id: '', sample: false })
-      setSample(false)
+      setMatch('')
       markOnboarded()
       if (modal === 'welcome') setWelcomeStep(1); else setModal(null)
       void loadHistory(id, true)
@@ -242,7 +239,10 @@ function App() {
 
   async function installGsiNow() {
     setGsiBusy(true); setGsiMessage({ message: '', error: false })
-    try { setGsiMessage({ message: await api.installConfig(), error: false }) }
+    try {
+      setGsiMessage({ message: await api.installConfig(), error: false })
+      setContext((previous) => ({ ...previous, local: { ...previous.local, gsiInstalled: true } }))
+    }
     catch (error) { setGsiMessage({ message: error instanceof Error ? error.message : 'Could not install the config.', error: true }) }
     finally { setGsiBusy(false) }
   }
@@ -272,7 +272,6 @@ function App() {
     try {
       const result = await api.importHistory(privateRows)
       ++request.current
-      setHistory(result); setLoading(false); setSample(false); setError(''); setModal(null); navigate('overview')
     } catch (error) { setFormError(error instanceof Error ? error.message : 'Could not import matches.') }
     finally { setFormBusy(false) }
   }
@@ -318,8 +317,7 @@ function App() {
       latestLive.current = fresh.live
       setLive(fresh.live)
       setHistory(null)
-      setSample(true)
-      setSelection({ id: '', sample: false })
+      setMatch('')
       setError('')
       setLoading(false)
       setModal(null)
@@ -328,8 +326,7 @@ function App() {
     finally { setFormBusy(false) }
   }
 
-  const rows = sample ? demoResult : history
-  const statusText = sample ? 'Sample workspace' : context.accountId ? 'Account ' + context.accountId : 'Local workspace'
+  const statusText = context.accountId ? 'Account connected' : 'Local workspace'
 
   return <div className={'shell ' + (context.desktop ? 'desktop' + (/Mac/.test(navigator.platform) ? ' mac' : '') : '')}>
     <a className="skip-link" href="#main-content">Skip to content</a>
@@ -345,7 +342,7 @@ function App() {
         <button className="nav-button" aria-label="Settings" onClick={() => showModal('settings')}><Settings2 size={18} /><span>Settings</span></button>
         <div className="sidebar-profile">
           <span className="profile-icon"><UserRound size={17} /></span>
-          <div><strong>{context.accountId && !sample ? 'Dota player' : 'Local profile'}</strong><small>{sample ? 'Sample data' : context.accountId ? 'Account connected' : 'Account optional'}</small></div>
+          <div><strong>{context.accountId ? 'Dota player' : 'Local profile'}</strong><small>{context.accountId ? 'Account connected' : 'Account optional'}</small></div>
           <button className="icon-button" aria-label="Open account settings" onClick={() => showModal('account')}><CircleHelp size={17} /></button>
         </div>
       </div>
@@ -358,22 +355,21 @@ function App() {
           {live.data.state === 'updating' && <span className="data-download" title={'Downloading hero data: ' + live.data.done + ' of ' + live.data.total}>
             <small>Downloading hero data{live.data.total > 0 ? ` ${live.data.done}/${live.data.total}` : '…'}</small>
             <div className="data-download-bar"><i style={{ width: (live.data.total ? 100 * live.data.done / live.data.total : 0) + '%' }} /></div></span>}
-          <button className={'status-pill ' + (sample ? 'sample' : 'connected')} title={sample ? 'Switch to your workspace' : 'Workspace settings'} onClick={() => sample ? setSample(false) : showModal('settings')}>
-            <i />{statusText}</button>
+          <button className={'status-pill' + (context.accountId ? ' connected' : '')} title="Workspace settings" onClick={() => showModal('settings')}><i />{statusText}</button>
           <button className="icon-button top-settings" aria-label="Settings" onClick={() => showModal('settings')}><Settings2 size={18} /></button>
         </div>
       </header>
       <div className="content-scroll">
         <main key={page} className="content" id="main-content" tabIndex={-1}>
-          {!sample && <Feedback message={error} error />}
-          {page === 'overview' && <Overview api={api} showStyle={live.settings.features.styleProfile} onUseHero={(id) => { void api.draft({ pool: [...new Set([...latestLive.current.draft.pool, id])] }); navigate('draft') }} catalog={context.catalog} account={context.accountId} loading={loading} demo={sample} history={rows} historyChangedAt={live.historyChangedAt}
-            onAccount={() => showModal('account')} onRefresh={() => { setSample(false); void loadHistory(context.accountId, true) }}
-            onMatch={(id) => openMatch(id, sample)} onImport={() => showModal('import')} onDraft={() => navigate('draft')}
+          <Feedback message={error} error />
+          {page === 'overview' && <Overview api={api} showStyle={live.settings.features.styleProfile} onUseHero={(id) => { void api.draft({ pool: [...new Set([...latestLive.current.draft.pool, id])] }); navigate('draft') }} catalog={context.catalog} account={context.accountId} loading={loading} history={history} historyChangedAt={live.historyChangedAt}
+            onAccount={() => showModal('account')} onRefresh={() => void loadHistory(context.accountId, true)}
+            onMatch={openMatch} onImport={() => showModal('import')} onDraft={() => navigate('draft')}
             onPrivateHistory={() => showModal('privateHistory')} onOpenGame={() => { setError(''); void api.openGame().catch((reason: Error) => setError(reason.message)) }} local={context.local} />}
           <Suspense fallback={<p role="status">Loading {pages.find(({ id }) => id === page)?.label}…</p>}>
-          {page === 'review' && <Review key={selection.id + ':' + selection.sample} api={api} catalog={context.catalog} account={context.accountId}
-            id={selection.id} sample={selection.sample} history={selection.sample ? demoHistory : history?.data ?? []} onImport={() => showModal('import')} onBack={() => navigate('overview')} />}
-          {page === 'draft' && <Draft api={api} catalog={context.catalog} sample={sample} live={live} account={context.accountId} onMatch={(id) => openMatch(id, false)} />}
+          {page === 'review' && <Review key={match + ':' + context.accountId} api={api} catalog={context.catalog} account={context.accountId}
+            id={match} history={history?.data ?? []} onImport={() => showModal('import')} onBack={() => navigate('overview')} />}
+          {page === 'draft' && <Draft api={api} catalog={context.catalog} live={live} account={context.accountId} onMatch={openMatch} />}
           {page === 'heroes' && <Heroes api={api} live={live} catalog={context.catalog} onDraft={(id) => { void api.draft({ pool: [...new Set([...latestLive.current.draft.pool, id])] }); navigate('draft') }} />}
           {page === 'achievements' && <Achievements catalog={context.catalog} live={live} />}
           {page === 'live' && <LiveSetup api={api} context={context} live={live} onState={setLive} onAccount={() => showModal('account')} />}
@@ -418,7 +414,7 @@ function App() {
           <p className="fine-print">Skip this if you don't want AI coaching — everything else in the app works without it, and you can connect it later from Settings → Puter AI.</p>
         </>}
         {welcomeStep === 3 && <>
-          <p>Everything below is off until you choose it. Draft vision is the only feature that ever reads your screen, and only the pick-bar strip during hero selection — never once a match is live.</p>
+          <p>Draft Vision reads the Dota portrait strip during hero selection and strategy time. Achievement pop-ups can be turned off here.</p>
           <label className="check-field"><input type="checkbox" checked={live.settings.features.draftVision} onChange={(event) => void toggleFeature('draftVision', event.target.checked)} /><span>{featureInfo.draftVision.label}<small>{featureInfo.draftVision.help}</small></span></label>
           {live.settings.features.draftVision && /Mac/.test(navigator.platform) && <p className="fine-print">You can request Screen Recording when Dota enters hero selection or strategy time.</p>}
           {live.settings.features.draftVision && !/Mac/.test(navigator.platform) && <p className="fine-print">No OS permission needed on Windows — but Dota must be in Borderless Windowed or Windowed mode (Settings → Video) for this feature to see anything; an exclusive Fullscreen window can't be captured at all.</p>}
@@ -434,10 +430,9 @@ function App() {
       </div> : modal === 'fair' ? <div className="settings-dialog"><ul className="fair-list">{fairPlay.map((rule) => <li key={rule}>{rule}</li>)}</ul>
         <p className="fine-print">Enforced in code (network allowlist, fixed GSI sections) and by tests that fail the build on forbidden APIs. Valve's rules can change: this is not legal advice, and you remain responsible for how you use any tool.</p></div> : modal === 'settings' ? <div className="settings-dialog">
         <button className="settings-choice" onClick={() => { setWelcomeStep(0); setModal('welcome') }}><UserRound size={18} /><span><strong>Setup guide</strong><small>Account, live feed and feature setup, step by step</small></span><ArrowRight size={16} /></button>
-        <button className="settings-choice" onClick={() => { setSample(!sample); setModal(null); navigate('overview') }}><PanelTop size={18} /><span><strong>{sample ? 'Open your workspace' : 'Explore sample data'}</strong><small>{sample ? 'Use public match data from your Dota account.' : 'Try the dashboard with example matches.'}</small></span><ArrowRight size={16} /></button>
         <button className="settings-choice" onClick={() => showModal('account')}><UserRound size={18} /><span><strong>Dota account</strong><small>{context.accountId || 'Add a numeric Dota account ID'}</small></span><ArrowRight size={16} /></button>
         <button className="settings-choice" onClick={() => showModal('puter')}><BrainCircuit size={18} /><span><strong>Puter AI</strong><small>{puter.connected ? `Connected · ${puter.model}` : 'Sign in in your browser to request AI coaching'}</small></span><ArrowRight size={16} /></button>
-        <button className="settings-choice" onClick={() => showModal('updates')}><ArrowDownToLine size={18} /><span><strong>App updates</strong><small>{appUpdate?.state === 'ready' ? 'An update is ready to install' : 'Connect to private GitHub releases'}</small></span><ArrowRight size={16} /></button>
+        <button className="settings-choice" onClick={() => showModal('updates')}><ArrowDownToLine size={18} /><span><strong>App updates</strong><small>{appUpdate?.state === 'ready' ? 'An update is ready to install' : 'Check GitHub for a new version'}</small></span><ArrowRight size={16} /></button>
         <button className="settings-choice" disabled={!context.accountId} onClick={() => showModal('privateHistory')}><Database size={18} /><span><strong>Matches without public sharing</strong><small>Auto-capture via the listener, or a manual backfill</small></span><ArrowRight size={16} /></button>
         <button className="settings-choice" onClick={() => void api.openExternal('patches')}><ArrowDownToLine size={18} /><span><strong>Official patch notes</strong><small>Open the Dota 2 patch page.</small></span><ArrowRight size={16} /></button>
         <div className="clear-area">

@@ -46,7 +46,7 @@ npm ci
 npm run dev
 ```
 
-The first launch shows a sample workspace until you add a Dota account ID or open a completed match by ID. You can use a numeric Dota account ID, a SteamID64, or the Steam account detected on this computer. Signing into Steam is not required for the manual workflow.
+Link your Dota account to see your match history, or open a completed match by ID. You can use a numeric Dota account ID, a SteamID64, or the Steam account detected on this computer. Signing into Steam is not required for the manual workflow.
 
 ## Local practice setup
 
@@ -103,7 +103,7 @@ Recommendations are guidance, not predictions or instructions. Matchup sample si
 | `npm run check` | Type-check renderer and desktop-process code |
 | `npm test` | Build and run unit and fair-play guardrail tests |
 | `npm run build` | Create the production UI and desktop-process build in `dist/` |
-| `npm run preview` | Build and serve the sample UI locally |
+| `npm run preview` | Build and serve the browser preview locally |
 | `npm run data` | Fetch/rebuild the generated public hero, matchup, kit, and timing datasets in `data/` |
 | `npm run seed` | Rebuild only the hero matchup seed |
 | `npm run package:local` | Package a local Apple Silicon macOS app |

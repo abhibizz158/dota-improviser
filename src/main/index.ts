@@ -6,7 +6,7 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Display, IpcMainInvokeEvent } from 'electron'
-import type { Bootstrap, Checkpoint, Pick, DraftView, DraftWindowShare, GameType, KnowledgeContext, Lane, LiveSettings, LiveState, Matchups, OverlayView, Placement, PuterStatus, Role, SessionRecord, UpdateInfo } from '../shared/model.js'
+import type { Bootstrap, Checkpoint, TeamPick, DraftView, DraftWindowShare, GameType, KnowledgeContext, Lane, LiveSettings, LiveState, Matchups, OverlayView, Placement, PuterStatus, Role, SessionRecord, UpdateInfo } from '../shared/model.js'
 import { defaultFeatures, defaultLiveSettings, featureKeys, gameTypes, placements, roleLabels, roles } from '../shared/model.js'
 import { draftLineup, mergeDraftSlots, mergePicks } from '../shared/draft-picks.js'
 import { chooseRole, observeAchievement, recoveryAdvice } from '../shared/live-coach.js'
@@ -104,6 +104,7 @@ let latestLocalMatch: { id: string; fields: number } | undefined
 let sessionGameType: GameType | null = null
 let sessionLane: Role | null = null
 let sessionCompleted = false
+let sessionRevision = 0
 let sessionWon: boolean | null = null
 let outlookPoints: OutlookPoint[] = []
 let outlook: Omit<MatchOutlook, 'points'> | null = null
@@ -190,7 +191,7 @@ let seed: Seed | null = null
 let local: LocalInfo = { installDir: null, build: null, versionDate: null, localBuilds: 0, steamAccount: null, gsiDir: null, gsiInstalled: false }
 let patchChanged = false
 const emptyPicks = { manualEnemy: [] as number[], manualAllied: [] as number[], manualHero: null as number | null,
-  lockedHero: null as number | null, vision: { radiant: [], dire: [] } as VisionReveal, visionTeam: null as Pick['team'] | null, feedAllied: new Map<number, number>() as ReadonlyMap<number, number>, feedEnemy: new Map<number, number>() as ReadonlyMap<number, number>, banned: [] as number[], role: null as Role | null }
+  lockedHero: null as number | null, vision: { radiant: [], dire: [] } as VisionReveal, visionTeam: null as TeamPick['team'] | null, feedAllied: new Map<number, number>() as ReadonlyMap<number, number>, feedEnemy: new Map<number, number>() as ReadonlyMap<number, number>, banned: [] as number[], role: null as Role | null }
 let draft = { ...emptyPicks, pool: [] as number[] }
 let draftStarted = false
 let heroDb: HeroDb | null = null
@@ -226,7 +227,7 @@ let profileMemo: Profile | null = null
 let weightsMemo: Weights | null = null
 let dataStatus: DataStatus = { state: 'idle', done: 0, total: 0, updatedAt: 0, message: '' }
 let dataCancel = { stop: false }
-let pick: Pick | null = null
+let pick: TeamPick | null = null
 let lastBroadcast = 0
 let pending: NodeJS.Timeout | undefined
 let view: OverlayView = 'lane'
@@ -396,9 +397,9 @@ function emit(events: GameEvent[], earned: { id: string; heroId: number; label: 
       awards[award.id] = { heroId: award.heroId, label: award.label, role: award.role, count: (old?.count ?? 0) + 1,
         onTime: (old?.onTime ?? 0) + Number(award.onTime), best: Math.min(old?.best ?? award.at, award.at), last: award.at }
     }
-    store.set('item-awards', awards)
+    store.set(profileKey('item-awards'), awards)
   }
-  store.set('career', career)
+  store.set(profileKey('career'), career)
   if (settings.features.toasts) {
     toasts = [...toasts, ...events.map((event) => ({ ...event, shownAt: now }))].slice(-6)
     clearTimeout(toastTimer)
@@ -465,12 +466,12 @@ function performanceView(): LiveState['performance'] {
 function finishGame() {
   if (sessionCompleted) rememberDeath()
   if (!frame || frame.clock < 0 || (!sessionCompleted && frame.clock < 300)) return
-  const sessions = store.get<SessionRecord[]>('sessions') ?? []
+  const sessions = store.get<SessionRecord[]>(profileKey('sessions')) ?? []
   const existing = frame.matchId ? sessions.find((entry) => entry.matchId === frame?.matchId) : undefined
   const low = frame.matchmaking && frame.matchId && settings.features.achievements && sessionCompleted && !existing?.comeback
     ? comebackLow(outlookPoints, sessionWon) : null
   if (low != null && frame.matchId) {
-    const key = 'comeback-match:' + frame.matchId
+    const key = profileKey('comeback-match:' + frame.matchId)
     if (!store.get<boolean>(key)) {
       store.set(key, true)
       emit([{ id: 'comeback', kind: 'comeback', label: 'Against the odds', sub: `Won after an estimated ${low}% chance`, epic: true, at: frame.clock }], [])
@@ -499,7 +500,7 @@ function finishGame() {
   }
   if (!existing || existing.status !== 'completed' || record.status === 'completed') {
     const previous = record.matchId ? sessions.filter((entry) => entry.matchId !== record.matchId) : sessions
-    store.set('sessions', [...previous, record].slice(-60))
+    store.set(profileKey('sessions'), [...previous, record].slice(-60))
   }
   historyChangedAt = Date.now()
 }
@@ -523,7 +524,7 @@ function state(): LiveState {
     status, lane, receivedAt, settings, armed, shortcutAvailable, checkpoints, roshan,
     open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
     needsSessionInfo: view === 'setup' && Boolean(frame), confirmedKiller: deathCase?.killer ?? null, sessionInfo: { gameType: sessionGameType, lane: sessionLane },
-    detectionAvailable: windowProbe !== null, performance: performanceView(), coaching, draftVisionActive, draftWindowShare: windowProbe?.draftWindowShareState?.(),
+    sessionRevision, detectionAvailable: windowProbe !== null, performance: performanceView(), coaching, draftVisionActive, draftWindowShare: windowProbe?.draftWindowShareState?.(),
   }
 }
 
@@ -546,31 +547,47 @@ function broadcastSoon() {
   pending = setTimeout(() => { pending = undefined; lastBroadcast = Date.now(); broadcast() }, Math.max(0, 500 - (Date.now() - lastBroadcast)))
 }
 
+/** Whether there's an achievement banner worth showing right now — the achievement window still gets the same
+ * full LiveState as everything else over 'live:update'; this only decides whether to show/hide it. */
+function achievementState(value: LiveState) {
+  return value.toasts.filter((toast) => toast.kind !== 'alert')
+}
+
 function broadcast() {
   if (!frame && (view === 'lane' || view === 'setup') && overlayRequested) hideOverlay()
   lastBroadcast = Date.now()
   const value = state()
-  if (value.toasts.some((toast) => toast.kind === 'comeback') && overlay && settings.display === 'Overlay' && settings.features.toasts && dashboard) {
+  dashboard?.webContents.send('live:update', value)
+  // The overlay and achievement windows still take the full LiveState over the same 'live:update' channel the
+  // preload bridge and renderer already know how to read — overlayState()/achievementState() exist only to pick
+  // whether an achievement banner is currently worth showing, not to change the wire shape; sending a different
+  // shape on a different channel here with no matching listener on the other end silently stopped every overlay
+  // from ever updating again after its first snapshot.
+  overlay?.webContents.send('live:update', value)
+  const banners = settings.display === 'Overlay' && settings.features.toasts ? achievementState(value) : []
+  if (banners.length && (overlay?.isVisible() || banners.some((toast) => toast.kind === 'comeback')) && !clearTask) {
     const toastWindow = achievementWindow ?? makeAchievementWindow()
     placeAchievementWindow()
-    if (!toastWindow.isVisible()) {
-      toastWindow.showInactive()
-      setTimeout(() => { if (!overlayRequested && !toastWindow.isDestroyed()) toastWindow.hide() }, TOAST_MS + 350).unref()
-    }
+    toastWindow.webContents.send('live:update', value)
+    if (!toastWindow.isVisible()) toastWindow.showInactive()
+  } else if (achievementWindow) {
+    achievementWindow.webContents.send('live:update', value)
+    achievementWindow.hide()
   }
-  dashboard?.webContents.send('live:update', value)
-  if (overlay?.isVisible()) overlay.webContents.send('live:update', value)
-  if (achievementWindow?.isVisible()) achievementWindow.webContents.send('live:update', value)
   return value
 }
 
 function resetSession(next: LiveState['status']) {
   clearTimeout(timeout)
   timeout = undefined
+  const showComeback = sessionCompleted && overlay?.isVisible() && overlayRequested
   finishGame()
+  ++sessionRevision
+  roshan = emptyRoshan
+  const resultToasts = showComeback ? toasts.filter((toast) => toast.kind === 'comeback' && Date.now() - toast.shownAt < TOAST_MS) : []
   if (pick || view !== 'draft' || returnToLane) hideOverlay()
   track = newTrack(); awarded = new Set()
-  toasts = sessionCompleted ? toasts.filter((toast) => toast.kind === 'comeback' && Date.now() - toast.shownAt < TOAST_MS) : []
+  toasts = resultToasts
   lane = null
   frame = null
   coachView = null
@@ -601,7 +618,7 @@ function resetSession(next: LiveState['status']) {
 }
 
 /** Advance the draft from own-player GSI, keeping the locked hero separate from teammates. */
-function onPick(next: Pick | null) {
+function onPick(next: TeamPick | null) {
   if (next && !draftStarted) {
     draftStarted = true
     revealMeta = { activeTeam: null, timeLeft: null }
@@ -1074,6 +1091,7 @@ function trackOverlay() {
     if (!overlay.isVisible()) { overlay.showInactive(); broadcast() }
   } else if (gameBounds && ++foregroundMisses >= 3 && overlay.isVisible()) {
     overlay.hide()
+    achievementWindow?.hide()
   }
   if (previous?.name !== overlayDisplay?.name || previous?.following !== overlayDisplay?.following) broadcastSoon()
 }
@@ -1128,11 +1146,6 @@ function requestOverlay(edit: boolean) {
     window.setFocusable(view === 'setup')
     placeOverlay(window)
     window.showInactive()
-    if (settings.features.toasts) {
-      const toastWindow = achievementWindow ?? makeAchievementWindow()
-      placeAchievementWindow()
-      toastWindow.showInactive()
-    }
     updateOverlayTracking()
   }
 }
@@ -1268,6 +1281,7 @@ function hideOverlay() {
   if (view === 'setup') { view = 'lane'; sessionInfoDismissed = true }
   setInteractive(false)
   overlay?.hide()
+  toasts = []
   achievementWindow?.hide()
   overlayDisplay = undefined
   updateOverlayTracking()
@@ -1309,6 +1323,27 @@ function toggleOverlay() {
     requestOverlay(false)
   }
   return broadcast()
+}
+
+function profileKey(key: string) {
+  return `profile:${account || 'local'}:${key}`
+}
+
+function loadProfileData(migrateLegacy = false) {
+  const load = <T,>(key: string, empty: T): T => {
+    const scoped = profileKey(key)
+    const saved = store.get<T>(scoped)
+    if (saved !== undefined) return saved
+    const legacy = migrateLegacy ? store.get<T>(key) : undefined
+    if (legacy === undefined || legacy === null) return empty
+    store.set(scoped, legacy)
+    store.set(key, null)
+    return legacy
+  }
+  career = load<Record<string, number>>('career', {})
+  awards = load<Record<string, AwardRecord>>('item-awards', {})
+  overrides = load<Overrides>('overrides', {})
+  load<SessionRecord[]>('sessions', [])
 }
 
 function bootstrap(): Bootstrap {
@@ -1683,13 +1718,15 @@ async function askLiveCoach(question: unknown) {
     buildPlan: ownHero == null ? [] : approvedBuild(ownHero).order.map((key) => itemInfo[key].n) }
   const memory = account && settings.features.learning ? 'coach-answers:' + account : null
   const operation = profileOperation
+  const revision = sessionRevision
   const key = JSON.stringify([scenarioKey(liveScenario(current, live.confirmedKiller)), text.toLowerCase().replace(/\s+/g, ' ')])
   const cached = memory && findCoachAnswer(store.get<CoachAnswer[]>(memory) ?? [], key, Date.now())
   if (cached) return cached
   overlayAskPending = true
   try {
     const answer = await askPuter(text, context, live)
-    if (memory && answer && profileOperation === operation && settings.features.learning) {
+    if (profileOperation !== operation || sessionRevision !== revision) throw new Error('The match changed while the answer was loading.')
+    if (memory && settings.features.learning) {
       store.set(memory, saveCoachAnswer(store.get<CoachAnswer[]>(memory) ?? [], { key, answer, at: Date.now() }))
     }
     return answer
@@ -1752,6 +1789,9 @@ async function clearData() {
   token = randomBytes(32).toString('hex')
   store.set('token', token)
   diagnostics = []
+  latestLocalMatch = undefined
+  historyChangedAt = Date.now()
+  local = { ...local, gsiInstalled: false }
   settings = defaultLiveSettings
   paceMemo = null; profileMemo = null; weightsMemo = null
   broadcast()
@@ -1769,10 +1809,10 @@ function handlers() {
     })
   }
   ipcMain.handle('live:snapshot', (event: IpcMainInvokeEvent) => {
-    const permitted = [overlay, achievementWindow].some((window) =>
-      window && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame)
-    if (!permitted) throw new Error('This action is only available in the overlay.')
-    return state()
+    if (event.senderFrame === event.sender.mainFrame && (event.sender === overlay?.webContents || event.sender === achievementWindow?.webContents)) {
+      return state()
+    }
+    throw new Error('This action is only available in the overlay.')
   })
   ipcMain.on('overlay:height', (event, value: unknown) => {
     if (typeof value !== 'number' || !Number.isFinite(value)) return
@@ -1790,14 +1830,14 @@ function handlers() {
     if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || !interactive || clearTask) {
       throw new Error('Draft input is only available while the overlay is interactive.')
     }
-    return setDraft(input)
+    setDraft(input)
   })
   ipcMain.handle('overlay:done', (event: IpcMainInvokeEvent) => {
     if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || !interactive) return
-    return finishOverlayEditing()
+    finishOverlayEditing()
   })
   ipcMain.handle('overlay:skip-session', (event: IpcMainInvokeEvent) => {
-    if (overlay && event.sender === overlay.webContents && event.senderFrame === overlay.webContents.mainFrame && view === 'setup' && frame && !clearTask) return finishSessionSetup()
+    if (overlay && event.sender === overlay.webContents && event.senderFrame === overlay.webContents.mainFrame && view === 'setup' && frame && !clearTask) finishSessionSetup()
   })
   ipcMain.handle('overlay:ask', (event: IpcMainInvokeEvent, question: unknown) => {
     if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || !interactive || view !== 'assistant' || clearTask) {
@@ -1816,7 +1856,7 @@ function handlers() {
     if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || view !== 'setup' || !frame || clearTask) {
       throw new Error('The game setup prompt is no longer active.')
     }
-    return saveSession(gameType, lane)
+    saveSession(gameType, lane)
   })
   handle('share:copy', (value) => {
     if (typeof value !== 'string' || !value.trim() || value.length > 4000) throw new Error('The match summary could not be copied.')
@@ -1887,7 +1927,7 @@ function handlers() {
     const next = Math.max(-15, Math.min(15, (overrides[key] ?? 0) + (typeof delta === 'number' ? Math.sign(delta) * 2 : 0)))
     overrides = { ...overrides }
     if (next) overrides[key] = next; else delete overrides[key]
-    store.set('overrides', overrides)
+    store.set(profileKey('overrides'), overrides)
     return broadcast()
   })
   handle('draft:default-build', async (slug) => {
@@ -1925,6 +1965,8 @@ function handlers() {
     if (nextAccount === account) return account
     resetSession('Idle')
     account = nextAccount
+    loadProfileData()
+    historyChangedAt = Date.now()
     portraitMemory = store.get<PortraitMemory[]>('draft-portraits:' + account) ?? []
     store.set('account', account)
     const operation = ++profileOperation
@@ -1964,7 +2006,7 @@ function handlers() {
     return historySnapshot(who)
   })
   handle('history:cached', () => account ? historySnapshot(account) : undefined)
-  handle('history:sessions', () => store.get<SessionRecord[]>('sessions') ?? [])
+  handle('history:sessions', () => store.get<SessionRecord[]>(profileKey('sessions')) ?? [])
   handle('history:parsing', () => provider.pendingParseIds())
   handle('match:get', async (id, refresh) => {
     const local = account && store.get<{ data: import('../shared/model.js').MatchSummary[]; updatedAt: number }>(localHistoryKey(account))
@@ -2174,7 +2216,10 @@ function handlers() {
   })
   handle('puter:ask', (question, context) => askPuter(question, context))
   handle('knowledge:search', (query) => searchCorpus(getCorpus(), typeof query === 'string' ? query : '', 8))
-  handle('roshan:start', (which) => startRoshan(which === 'rosh' || which === 'aegis' ? which : 'both'))
+  handle('roshan:start', (which) => {
+    if (!frame || !settings.features.roshanTimer) throw new Error('Start the timer during an active game.')
+    return startRoshan(which === 'rosh' || which === 'aegis' ? which : 'both')
+  })
   handle('roshan:clear', (which) => clearRoshan(which === 'aegis' ? 'aegis' : 'both'))
 }
 
@@ -2188,6 +2233,11 @@ else {
   void app.whenReady().then(async () => {
     try { windowProbe = require(path.join(dir, 'overlay-window.node')) as NonNullable<typeof windowProbe> }
     catch { windowProbe = null }
+    // Electron creates this directory itself for some of its own subsystems (session, disk cache) before this
+    // runs, which is why this was never caught on macOS — but nothing guarantees it on every platform, and
+    // DatabaseSync doesn't create missing parent directories, so a fresh profile on a machine where that didn't
+    // happen yet failed every store call with "unable to open database file".
+    await mkdir(app.getPath('userData'), { recursive: true })
     store = new Store(path.join(app.getPath('userData'), 'improviser.sqlite'))
     releaseUpdates = new ReleaseUpdates((info) => {
       if (dashboard && !dashboard.isDestroyed()) dashboard.webContents.send('updates:changed', info)
@@ -2200,9 +2250,7 @@ else {
     store.set('token', token)
     settings = readSettings(store.get('live'))
     if (settings.features.draftVision) void loadReferencePortraits(catalog.heroes).catch(() => {})
-    overrides = store.get<Overrides>('overrides') ?? {}
-    career = store.get<Record<string, number>>('career') ?? {}
-    awards = store.get<Record<string, AwardRecord>>('item-awards') ?? {}
+    loadProfileData(true)
     const savedNotes = store.get<{ at: number; changes: PatchChange[] }>('patch-notes')
     patchCheckedAt = savedNotes?.at ?? 0
     patchChanges = savedNotes?.changes ?? []

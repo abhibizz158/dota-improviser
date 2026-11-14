@@ -10,18 +10,18 @@ import { ShareMatch } from './share-match'
 import { FeaturedStage, GuideSections, Insights, useFeatured } from './featured'
 
 type Props = {
-  api: AppApi; onUseHero: (id: number) => void; showStyle?: boolean; catalog: Catalog; history: SourceResult<MatchSummary[]> | null; loading: boolean; demo: boolean; account: string; historyChangedAt?: number;
+  api: AppApi; onUseHero: (id: number) => void; showStyle?: boolean; catalog: Catalog; history: SourceResult<MatchSummary[]> | null; loading: boolean; account: string; historyChangedAt?: number;
   onAccount: () => void; onRefresh: () => void; onMatch: (id: string) => void; onImport: () => void; onPrivateHistory: () => void; onDraft: () => void; onOpenGame: () => void; local: LocalStatus;
 }
 const base = import.meta.env.BASE_URL
 
-export function Overview({ api, onUseHero, showStyle = true, catalog, history, historyChangedAt, loading, demo, account, onAccount, onRefresh, onMatch, onImport, onPrivateHistory, onDraft, onOpenGame, local }: Props) {
+export function Overview({ api, onUseHero, showStyle = true, catalog, history, historyChangedAt, loading, account, onAccount, onRefresh, onMatch, onImport, onPrivateHistory, onDraft, onOpenGame, local }: Props) {
   const [sessions, setSessions] = useState<SessionRecord[]>([])
   useEffect(() => {
     let active = true
     void api.sessionHistory().then((entries) => { if (active) setSessions(entries) }).catch(() => {})
     return () => { active = false }
-  }, [api, historyChangedAt])
+  }, [api, historyChangedAt, account])
   const [parsing, setParsing] = useState<Set<string>>(new Set())
   useEffect(() => {
     let active = true
@@ -77,15 +77,15 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, h
   const filter = (change: (value: string) => void) => (event: React.ChangeEvent<HTMLSelectElement>) => { change(event.target.value); setPage(0) }
 
   return <>
-    <FeaturedStage f={f} catalog={catalog} demo={demo} account={account} localInstall={local.installFound} localBuilds={local.localBuilds} onAccount={onAccount} onImport={onImport} onUseHero={onUseHero} onOpenGame={onOpenGame} onDraft={onDraft} />
+    <FeaturedStage f={f} catalog={catalog} account={account} localInstall={local.installFound} localBuilds={local.localBuilds} onAccount={onAccount} onImport={onImport} onUseHero={onUseHero} onOpenGame={onOpenGame} onDraft={onDraft} />
 
     <section aria-labelledby="performance-title">
       <div className="section-heading">
-        <div><h2 id="performance-title">Your performance</h2><p>{filtered.length} {demo ? 'sample' : ''} {filtered.length === 1 ? 'match' : 'matches'}{trendContext}</p></div>
+        <div><h2 id="performance-title">Your performance</h2><p>{filtered.length} {filtered.length === 1 ? 'match' : 'matches'}{trendContext}</p></div>
         <div className="section-actions">
-          {!demo && history && <span className="fine-print">{history.stale ? 'Cached · ' : 'Updated '}{new Date(history.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
+          {history && <span className="fine-print">{history.stale ? 'Cached · ' : 'Updated '}{new Date(history.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
           {account && <button className="button secondary slim" disabled={loading} onClick={onRefresh}><RefreshCw size={15} className={loading ? 'spin' : ''} /> {loading ? 'Refreshing…' : 'Refresh'}</button>}
-          {account && !demo && <button className="button secondary slim" onClick={onPrivateHistory}>Import own matches</button>}
+          {account && <button className="button secondary slim" onClick={onPrivateHistory}>Import own matches</button>}
         </div>
       </div>
       <div className="metrics-grid">
@@ -98,7 +98,7 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, h
       </div>
     </section>
 
-    <SessionHistory api={api} sessions={sessions} byId={byId} publicGpm={total.gpm} publicXpm={total.xpm} />
+    <SessionHistory api={api} sessions={sessions} byId={byId} onMatch={onMatch} publicGpm={total.gpm} publicXpm={total.xpm} />
 
     <Insights f={f} catalog={catalog} matches={matches} showStyle={showStyle} />
 
@@ -148,7 +148,7 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, h
         <div className="actions"><button className="button secondary slim" onClick={onImport}>Open match by ID</button>{local.installFound && <button className="button secondary slim" onClick={onOpenGame}><Gamepad2 size={14} /> Open Dota 2</button>}</div>
       </div>}
     </section>
-    <div className="bottom-meta"><span><Activity size={14} /> {demo ? 'Sample workspace' : 'History: public match data'}</span><span><Target size={14} /> {local.installFound ? 'Local Dota build ' + (local.build ?? 'found') : 'No local Dota install'}</span><span><TrendingUp size={14} /> {filtered.length} matches in view</span></div>
+    <div className="bottom-meta"><span><Activity size={14} /> Public and local match history</span><span><Target size={14} /> {local.installFound ? 'Local Dota build ' + (local.build ?? 'found') : 'No local Dota install'}</span><span><TrendingUp size={14} /> {filtered.length} matches in view</span></div>
     <div ref={guideArea}>
       {loadGuide ? <GuideSections f={f} catalog={catalog} /> : <button type="button" className="button slim" onClick={() => setLoadGuide(true)}>Load hero guide</button>}
     </div>
@@ -158,7 +158,7 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, h
 /** Every own-feed game recorded locally while the listener was running (practice, normal or ranked alike), tagged
  * completed or abandoned (AGENTS.md's half-recorded rule: app/game closed or you left = abandoned, ancient fell = completed),
  * plus what those sessions say about your real pace next to your public match history. */
-function SessionHistory({ api, sessions, byId, publicGpm, publicXpm }: { api: AppApi; sessions: SessionRecord[]; byId: Map<number, Catalog['heroes'][number]>; publicGpm: number | null; publicXpm: number | null }) {
+function SessionHistory({ api, sessions, byId, onMatch, publicGpm, publicXpm }: { api: AppApi; sessions: SessionRecord[]; byId: Map<number, Catalog['heroes'][number]>; onMatch: (id: string) => void; publicGpm: number | null; publicXpm: number | null }) {
   const [selectedOutlook, setSelectedOutlook] = useState<number | null>(null)
   if (!sessions.length) return null
   const completed = sessions.filter((s) => s.status === 'completed')
@@ -184,7 +184,9 @@ function SessionHistory({ api, sessions, byId, publicGpm, publicXpm }: { api: Ap
     <div className="match-table-wrap"><table className="match-table">
       <thead><tr><th>Hero</th><th>Status</th><th>K / D / A</th><th>GPM</th><th>XPM</th><th>Lane / type</th><th>Duration</th><th>Recorded</th><th>Share</th></tr></thead>
       <tbody>{sessions.slice().reverse().slice(0, 8).map((session) => <tr key={session.at}>
-        <td><button className="match-name"><Portrait hero={session.heroId != null ? byId.get(session.heroId) : undefined} /><span><strong>{byId.get(session.heroId ?? -1)?.name ?? session.hero.replace(/_/g, ' ')}</strong></span></button></td>
+        <td>{session.matchId && session.status === 'completed'
+          ? <button type="button" className="match-name" onClick={() => onMatch(session.matchId!)}><RecordedHero session={session} byId={byId} /></button>
+          : <span className="match-name recorded-hero"><RecordedHero session={session} byId={byId} /></span>}</td>
         <td><span className={'status-tag ' + session.status}>{session.status === 'completed' ? <CheckCircle2 size={13} /> : <XCircle size={13} />} {session.status === 'completed' ? 'Completed' : 'Abandoned'}</span></td>
         <td>{[session.kills, session.deaths, session.assists].map((n) => fmt(n)).join(' / ')}</td><td>{fmt(session.gpm)}</td><td>{fmt(session.xpm)}</td>
         <td>{[session.lane && roleLabels[session.lane], session.gameType].filter(Boolean).join(' · ') || 'Not set'}</td>
@@ -205,4 +207,9 @@ function SessionHistory({ api, sessions, byId, publicGpm, publicXpm }: { api: Ap
       <OutlookGraph key={chartSession.at} points={chartSession.outlook} detailed />
     </details>}
   </section>
+}
+
+function RecordedHero({ session, byId }: { session: SessionRecord; byId: Map<number, Catalog['heroes'][number]> }) {
+  const hero = session.heroId == null ? undefined : byId.get(session.heroId)
+  return <><Portrait hero={hero} /><strong>{hero?.name ?? session.hero.replaceAll('_', ' ')}</strong></>
 }

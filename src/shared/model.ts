@@ -63,12 +63,12 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   laneWatch: { group: 'Overlay modules', label: 'Lane watch', help: 'Your win rate vs each revealed enemy, plus lineup advice.' },
   itemCoach: { group: 'Overlay modules', label: 'Matchup item recommendations', help: 'Adjust purchases to visible opponents, your own inventory and the game phase.' },
   coachTips: { group: 'Overlay modules', label: 'Coach tips', help: 'Live tips: farm, unspent gold, deaths.' },
-  achievements: { group: 'Overlay modules', label: 'Track practice achievements', help: 'Record hero and role item milestones and timed goals.' },
+  achievements: { group: 'Overlay modules', label: 'Track practice achievements', help: 'Record hero and role item milestones and timed goals in matchmaking.' },
   performanceMeter: { group: 'Overlay modules', label: 'Personal performance meter', help: 'Compare your pace with previous matches every five minutes.' },
   personal: { group: 'Overlay modules', label: 'Your own average', help: 'Compare with your average on this hero.' },
   hints: { group: 'Overlay modules', label: 'Hotkey hints', help: 'Footer line with shortcuts.' },
   toasts: { group: 'Overlay modules', label: 'Achievement pop-ups', help: 'Animated banners for first blood, multi-kills, streaks and goals.' },
-  achievementSound: { group: 'Overlay modules', label: 'Dota achievement sound', help: 'Play a Valve chat-wheel sound when an achievement is awarded.' },
+  achievementSound: { group: 'Overlay modules', label: 'Achievement sound', help: 'Play a short chime when an achievement is awarded.' },
   overlayAssistant: { group: 'Overlay modules', label: 'Puter overlay assistant', help: 'Ask about your draft or practice game with Ctrl/⌘ + Shift + O once a game is live.' },
   deathAdvice: { group: 'Overlay modules', label: 'Respawn coach', help: 'Show a short plan while dead using your lane, stats, items and known matchup.' },
   momentum: { group: 'Overlay modules', label: 'Momentum graph', help: 'Kill lead of your team over the game, like Dota\'s own advantage graph.' },
@@ -124,7 +124,7 @@ export type Frame = {
   team: 'Radiant' | 'Dire'; radiantScore: number | null; direScore: number | null; killStreak: number | null
 }
 export type DraftReveal = { radiant: { picks: number[]; bans: number[]; slots: ReadonlyMap<number, number> }; dire: { picks: number[]; bans: number[]; slots: ReadonlyMap<number, number> }; activeTeam: 'Radiant' | 'Dire' | null; timeLeft: number | null }
-export type Pick = { team: 'Radiant' | 'Dire'; heroId: number | null }
+export type TeamPick = { team: 'Radiant' | 'Dire'; heroId: number | null }
 export type GameView = {
   team: 'Radiant' | 'Dire'; firstBlood: GameTrack['firstBlood']; lead: number | null; momentum: [number, number][]
   outlook?: MatchOutlook;
@@ -134,7 +134,7 @@ export type Toast = GameEvent & { shownAt: number }
 export type OverlayView = 'lane' | 'draft' | 'assistant' | 'setup'
 export type DraftWindowShare = 'unsupported' | 'idle' | 'choosing' | 'starting' | 'sharing' | 'cancelled' | 'wrong-window' | 'unavailable' | 'stopped'
 export type LiveState = {
-  view: OverlayView; interactive: boolean; draft: DraftView; pick: Pick | null; coach: CoachView | null; data: DataStatus; support: Support | null; game: GameView | null; toasts: Toast[]; career: Record<string, number>;
+  view: OverlayView; interactive: boolean; draft: DraftView; pick: TeamPick | null; coach: CoachView | null; data: DataStatus; support: Support | null; game: GameView | null; toasts: Toast[]; career: Record<string, number>;
   status: 'Idle' | 'Waiting for Dota' | 'Pick phase' | 'Live' | 'Paused' | 'Feed stale' | 'Unsupported session' | 'Connection error';
   recovery: Recovery | null; awards: Record<string, AwardRecord>; assistantShortcutAvailable: boolean;
   lane: Lane | null; receivedAt: number | null; open: boolean; armed: boolean;
@@ -143,10 +143,12 @@ export type LiveState = {
   /** False when the OS-level window-detection module failed to load (e.g. not built for this platform/arch) — "Follow Dota" can't work and the UI should say so. */
   detectionAvailable: boolean
   historyChangedAt?: number
+  sessionRevision?: number
   /** True once a game is live but you haven't said this session's lane/role and game type yet — the overlay should prompt. */
   performance?: PersonalPerformance; coaching?: CoachingContext; draftVisionActive?: boolean; draftWindowShare?: DraftWindowShare;
   needsSessionInfo: boolean; confirmedKiller?: number | null; sessionInfo: { gameType: GameType | null; lane: Role | null }
 }
+
 export type MechRow = { heroId: number; edge: number; parts: { label: FeatureName; points: number }[] }
 export type MechSummary = { r2: number; samples: number; k?: number; importance: { name: FeatureName; weight: number; share: number }[] }
 export type Analysis = { enemy: TeamProfile | null; ally: TeamProfile | null; fixes: Fix[]; model: MechSummary | null }

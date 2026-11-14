@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import { asRecord, heroById, heroBySlug, number } from './data.js'
-import type { Checkpoint, DraftReveal, Frame, Lane, MatchSummary, Pick } from '../shared/model.js'
+import type { Checkpoint, DraftReveal, Frame, Lane, MatchSummary, TeamPick } from '../shared/model.js'
 import { allowedGsiSections } from '../shared/guard.js'
 
 const activePhases = new Set(['DOTA_GAMERULES_STATE_PRE_GAME', 'DOTA_GAMERULES_STATE_GAME_IN_PROGRESS'])
@@ -10,7 +10,7 @@ const visionPhases = new Set(['DOTA_GAMERULES_STATE_HERO_SELECTION', 'DOTA_GAMER
 const pickPhases = new Set([...visionPhases, 'DOTA_GAMERULES_STATE_PLAYER_DRAFT'])
 const loadingPhases = new Set(['DOTA_GAMERULES_STATE_TEAM_SHOWCASE', 'DOTA_GAMERULES_STATE_WAIT_FOR_MAP_TO_LOAD'])
 
-export function draftVisionPhase(value: unknown, pick: Pick | null) {
+export function draftVisionPhase(value: unknown, pick: TeamPick | null) {
   return pick != null && visionPhases.has(String(asRecord(asRecord(value).map).game_state))
 }
 
@@ -151,7 +151,7 @@ export function parseDraft(value: unknown): DraftReveal | null {
 }
 
 /** Verify that a draft packet belongs to the linked player before using its own hero or draft reveals. */
-export function parsePick(value: unknown, expectedSteamId: string): Pick | null {
+export function parsePick(value: unknown, expectedSteamId: string): TeamPick | null {
   const packet = asRecord(value)
   const map = asRecord(packet.map)
   const player = asRecord(packet.player)
