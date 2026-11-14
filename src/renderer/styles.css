@@ -389,11 +389,13 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 
 .toasts { display: grid; gap: 6px; margin-bottom: 8px; width: 100%; max-width: 380px; }
 .toast { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 12px; background: linear-gradient(160deg, rgba(30,34,46,.96), rgba(12,13,18,.96)); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 14px 34px rgba(0,0,0,.5);
-  animation: toastIn .45s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 7.4s ease-in forwards; }
+  animation: toastIn .3s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 2.1s ease-in forwards;
+  transform: scale(calc(1 - var(--stack, 0) * .035)); opacity: calc(1 - var(--stack, 0) * .22); }
 .toast-icon { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 17px; background: rgba(255,255,255,.08); flex: none; }
 .toast b { display: block; font: 800 15px var(--display); letter-spacing: .1em; } .toast small { color: var(--muted); font-size: 11px; }
-.toast.epic { border-color: rgba(217,172,79,.6); background: linear-gradient(110deg, rgba(60,40,10,.96), rgba(18,14,10,.96)); animation: toastIn .45s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 7.4s ease-in forwards, pulseGlow 1.6s 2; }
-.toast.epic .toast-icon { background: var(--grad-gold); color: #3a2400; } .toast.epic b { background: linear-gradient(90deg, #fff, #ffe08a, #fff); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 2.4s linear infinite; }
+.toast.epic { border-color: rgba(217,172,79,.6); background: linear-gradient(110deg, rgba(60,40,10,.96), rgba(18,14,10,.96)); animation: toastIn .3s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 2.1s ease-in forwards, pulseGlow .8s 2; }
+.toast.epic .toast-icon { background: var(--grad-gold); color: #3a2400; } .toast.epic b { background: linear-gradient(90deg, #fff, #ffe08a, #fff); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 1.3s linear infinite; }
+.achievement-view .toasts { margin-bottom: 0; }
 .toast.first-blood { border-color: rgba(224,87,75,.6); }
 .toast.alert { border-color: rgba(224,87,75,.5); } .toast.alert .toast-icon { background: rgba(224,87,75,.18); color: var(--bad); }
 

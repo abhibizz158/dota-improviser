@@ -41,7 +41,7 @@ import { OpenDota } from './opendota.js'
 import { Store } from './store.js'
 import { ReleaseUpdates } from './release-updates.js'
 import { localHistoryKey, mergeHistory, parsePrivateHistory } from './private-history.js'
-import { gameDisplay, overlayBounds } from './overlay-layout.js'
+import { achievementBounds, gameDisplay, overlayBounds } from './overlay-layout.js'
 import type { Rect } from './overlay-layout.js'
 
 app.setName('Dota Improviser')
@@ -121,6 +121,8 @@ let overlayHeight: number | null = null
 let overlayRequested = false
 let overlayTimer: NodeJS.Timeout | undefined
 let hoverTimer: NodeJS.Timeout | undefined
+let achievementWindow: BrowserWindow | null = null
+let achievementHeight: number | null = null
 let editFocusTimer: NodeJS.Timeout | undefined
 let windowProbe: { foregroundBounds: () => Rect | null } | null | undefined
 let gameBounds: Rect | null = null
@@ -330,7 +332,7 @@ function refreshDraftMatchups() {
   }
 }
 
-const TOAST_MS = 8000
+const TOAST_MS = 2600
 
 /** Record an achievement/event: toast for the overlay, career counter for the trophy case, and — for a per-hero
  * item/timing achievement — a per-hero award record (every hero's own data, never a fixed hero list). */
@@ -434,6 +436,7 @@ function broadcast() {
   const value = state()
   dashboard?.webContents.send('live:update', value)
   if (overlay?.isVisible()) overlay.webContents.send('live:update', value)
+  if (achievementWindow?.isVisible()) achievementWindow.webContents.send('live:update', value)
   return value
 }
 
@@ -670,17 +673,31 @@ function detectDotaBounds() {
   } catch { return null }
 }
 
-function placeOverlay(window: BrowserWindow) {
-  if (window.isDestroyed()) return
+function resolveOverlayDisplay() {
   const automatic = settings.monitor === 'auto'
   const detected = automatic ? gameDisplay(displays, gameBounds) : undefined
   const manual = settings.monitor === 'primary' ? screen.getPrimaryDisplay() :
     displays.find((display) => automatic ? display.id === fallbackDisplayId : String(display.id) === settings.monitor)
   const display = detected ?? manual ?? screen.getPrimaryDisplay()
+  return { display, detected }
+}
+
+function placeOverlay(window: BrowserWindow) {
+  if (window.isDestroyed()) return
+  const { display, detected } = resolveOverlayDisplay()
   overlayDisplay = { name: display.label || 'Display ' + Math.max(1, displays.findIndex(({ id }) => id === display.id) + 1), following: Boolean(detected) }
   const bounds = overlayBounds(display.workArea, detected ? gameBounds : null, settings, view, overlayHeight, interactive)
   const old = window.getBounds()
   if (old.x !== bounds.x || old.y !== bounds.y || old.width !== bounds.width || old.height !== bounds.height) window.setBounds(bounds)
+  if (window === overlay) placeAchievementWindow()
+}
+
+function placeAchievementWindow() {
+  if (!achievementWindow || achievementWindow.isDestroyed()) return
+  const { display, detected } = resolveOverlayDisplay()
+  const bounds = achievementBounds(display.workArea, detected ? gameBounds : null, settings, view, achievementHeight)
+  const old = achievementWindow.getBounds()
+  if (old.x !== bounds.x || old.y !== bounds.y || old.width !== bounds.width || old.height !== bounds.height) achievementWindow.setBounds(bounds)
 }
 
 function trackOverlay() {
@@ -742,6 +759,11 @@ function requestOverlay(edit: boolean) {
   else {
     placeOverlay(window)
     window.showInactive()
+    if (settings.features.toasts) {
+      const toastWindow = achievementWindow ?? makeAchievementWindow()
+      placeAchievementWindow()
+      toastWindow.showInactive()
+    }
     updateOverlayTracking()
   }
 }
@@ -781,9 +803,31 @@ function makeOverlay() {
     overlayDisplay = undefined; gameBounds = null; returnToLane = false
     assistantReturn = null; promptOpenedOverlay = false
     clearTimeout(editFocusTimer)
+    if (achievementWindow && !achievementWindow.isDestroyed()) achievementWindow.close()
     updateOverlayTracking()
   })
   void window.loadFile(ui, { hash: 'overlay' })
+  return window
+}
+
+/** Achievement pop-ups live in their own small window, mirrored from the main card's corner, so a burst of
+ * trophies never covers the stats the main overlay is showing. Purely decorative: click-through, never focusable. */
+function makeAchievementWindow() {
+  const window = new BrowserWindow({
+    width: 300, height: 60, show: false, frame: false, transparent: true, resizable: false, focusable: false,
+    skipTaskbar: true, hasShadow: false, fullscreenable: false,
+    type: process.platform === 'darwin' ? 'panel' : undefined,
+    webPreferences: { ...webPreferences, spellcheck: false, backgroundThrottling: false },
+  })
+  achievementWindow = window
+  achievementHeight = null
+  windowGuard(window)
+  window.setAlwaysOnTop(true, 'floating')
+  window.setIgnoreMouseEvents(true, { forward: true })
+  if (process.platform === 'darwin') window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+  window.webContents.on('render-process-gone', () => { window.destroy() })
+  window.on('closed', () => { if (achievementWindow === window) { achievementWindow = null; achievementHeight = null } })
+  void window.loadFile(ui, { hash: 'achievements' })
   return window
 }
 
@@ -834,6 +878,7 @@ function hideOverlay() {
   assistantReturn = null
   setInteractive(false)
   overlay?.hide()
+  achievementWindow?.hide()
   overlayDisplay = undefined
   updateOverlayTracking()
 }
@@ -1286,10 +1331,15 @@ function handlers() {
     return state()
   })
   ipcMain.on('overlay:height', (event, value: unknown) => {
-    if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame ||
-      typeof value !== 'number' || !Number.isFinite(value)) return
-    overlayHeight = Math.min(2400, Math.max(48, Math.ceil(value)))
-    placeOverlay(overlay)
+    if (typeof value !== 'number' || !Number.isFinite(value)) return
+    const measured = Math.min(2400, Math.max(48, Math.ceil(value)))
+    if (overlay && event.sender === overlay.webContents && event.senderFrame === overlay.webContents.mainFrame) {
+      overlayHeight = measured
+      placeOverlay(overlay)
+    } else if (achievementWindow && event.sender === achievementWindow.webContents && event.senderFrame === achievementWindow.webContents.mainFrame) {
+      achievementHeight = measured
+      placeAchievementWindow()
+    }
   })
   ipcMain.handle('overlay:draft', (event: IpcMainInvokeEvent, input: unknown) => {
     if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || !interactive || clearTask) {

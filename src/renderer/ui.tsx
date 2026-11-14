@@ -180,10 +180,12 @@ function Pace({ label, value, median, pct }: { label: string; value: string; med
 }
 const toastIcon = (kind: string) => kind === 'first-blood' ? '🩸' : kind === 'multikill' ? '⚔' : kind === 'streak' ? '🔥' : kind === 'item' ? '★' : kind === 'alert' ? '⚠' : '✓'
 
-/** Animated achievement banners. Each fades itself out via CSS; the overlay just stops receiving them after 8s. */
+/** Animated achievement/alert banners. Each fades itself out via CSS; the overlay just stops receiving them once
+ * TOAST_MS elapses. Several landing at once (a multikill plus a streak, say) stack instead of replacing each other. */
 export function Toasts({ toasts }: { toasts: Toast[] }) {
   if (!toasts.length) return null
-  return <div className="toasts" aria-live="polite">{toasts.slice(-3).map((t) => <div key={t.id + t.shownAt} className={'toast ' + t.kind + (t.epic ? ' epic' : '')}>
+  return <div className="toasts" aria-live="polite">{toasts.slice(-4).map((t, index, all) => <div key={t.id + t.shownAt}
+    className={'toast ' + t.kind + (t.epic ? ' epic' : '')} style={{ '--stack': all.length - 1 - index } as never}>
     <span className="toast-icon">{toastIcon(t.kind)}</span><div><b>{t.label}</b>{t.sub && <small>{t.sub}</small>}</div></div>)}</div>
 }
 

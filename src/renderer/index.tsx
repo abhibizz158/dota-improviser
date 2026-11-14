@@ -41,7 +41,9 @@ function BrandMark() {
   return <img className="brand-logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={34} height={34} />
 }
 
-function Overlay() {
+/** Shared by every overlay window: subscribes to live state over the preload bridge and reports this window's
+ * measured content height back to the main process so it can size/place the native BrowserWindow to match. */
+function useOverlayLive(playSound: boolean) {
   const [live, setLive] = useState<LiveState>(initialLive)
   const card = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -58,9 +60,14 @@ function Overlay() {
     if (element) observer.observe(element)
     const unsubscribe = window.overlayApi.onLive((state) => { received = true; setLive(state) })
     void window.overlayApi.state().then((state) => { if (active && !received) setLive(state) }).catch(() => {})
-    const stopSound = window.overlayApi.onAchievementSound(playAchievementChime)
-    return () => { active = false; observer.disconnect(); unsubscribe(); stopSound() }
-  }, [])
+    const stopSound = playSound ? window.overlayApi.onAchievementSound(playAchievementChime) : undefined
+    return () => { active = false; observer.disconnect(); unsubscribe(); stopSound?.() }
+  }, [playSound])
+  return { live, card }
+}
+
+function Overlay() {
+  const { live, card } = useOverlayLive(true)
   const hero = demoCatalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
   const compact = live.settings.size === 'Compact'
   const editorial = live.view !== 'draft' && live.view !== 'assistant'
@@ -75,7 +82,16 @@ function Overlay() {
         : <LaneCard live={live} hero={hero} />}
     {live.settings.features.deathAdvice && live.recovery && editorial && <RecoveryCard recovery={live.recovery} />}
     {live.settings.features.roshanTimer && editorial && <RoshanTimer roshan={live.roshan} />}
-    {!compact && live.settings.features.toasts && editorial && <Toasts toasts={live.toasts} />}
+    {!compact && live.settings.features.toasts && editorial && <Toasts toasts={live.toasts.filter((t) => t.kind === 'alert')} />}
+  </div></div>
+}
+
+/** Mirror-corner window for achievement pop-ups (first blood, multikills, streaks, item/milestone goals) — kept
+ * out of the main card entirely so a burst of trophies never covers the stats it's celebrating. */
+function AchievementOverlay() {
+  const { live, card } = useOverlayLive(false)
+  return <div className="overlay-scroll"><div className="overlay-view achievement-view" ref={card}>
+    <Toasts toasts={live.toasts.filter((t) => t.kind !== 'alert')} />
   </div></div>
 }
 
@@ -378,4 +394,5 @@ function App() {
 }
 
 if (window.dota) document.documentElement.classList.add(navigator.userAgent.includes('Mac') ? 'mac' : 'win')
-createRoot(document.getElementById('root')!).render(location.hash === '#overlay' ? <Overlay /> : <App />)
+createRoot(document.getElementById('root')!).render(
+  location.hash === '#overlay' ? <Overlay /> : location.hash === '#achievements' ? <AchievementOverlay /> : <App />)
