@@ -120,6 +120,7 @@ let overlay: BrowserWindow | null = null
 let overlayHeight: number | null = null
 let overlayRequested = false
 let overlayTimer: NodeJS.Timeout | undefined
+let hoverTimer: NodeJS.Timeout | undefined
 let editFocusTimer: NodeJS.Timeout | undefined
 let windowProbe: { foregroundBounds: () => Rect | null } | null | undefined
 let gameBounds: Rect | null = null
@@ -700,7 +701,26 @@ function trackOverlay() {
   if (previous?.name !== overlayDisplay?.name || previous?.following !== overlayDisplay?.following) broadcastSoon()
 }
 
+/** Fades the overlay to near-transparent while the cursor sits directly over it, so it never blocks the view
+ * underneath — restores to the configured opacity once the cursor moves off, and never fades while interactive
+ * (editing draft picks or the AI assistant), since that's a deliberate, focused use of the overlay, not a hover. */
+function updateHoverFade() {
+  clearInterval(hoverTimer)
+  hoverTimer = undefined
+  if (!overlay || overlay.isDestroyed()) return
+  if (!overlayRequested || interactive) { overlay.setOpacity(settings.opacity); return }
+  hoverTimer = setInterval(() => {
+    if (!overlay || overlay.isDestroyed() || interactive) return
+    const point = screen.getCursorScreenPoint()
+    const bounds = overlay.getBounds()
+    const hovering = point.x >= bounds.x && point.x < bounds.x + bounds.width && point.y >= bounds.y && point.y < bounds.y + bounds.height
+    overlay.setOpacity(hovering ? Math.min(settings.opacity, 0.2) : settings.opacity)
+  }, 150)
+  hoverTimer.unref()
+}
+
 function updateOverlayTracking() {
+  updateHoverFade()
   clearInterval(overlayTimer)
   overlayTimer = undefined
   if (!overlayRequested || settings.monitor !== 'auto' || interactive || windowProbe === null) return
