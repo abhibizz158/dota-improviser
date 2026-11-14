@@ -68,10 +68,11 @@ type PuterSdk = { init: (token: string) => PuterClient }
 let puterSdk: PuterSdk | null = null
 const getPuterSdk = () => puterSdk ??= require('@heyputer/puter.js/src/init.cjs') as PuterSdk
 const ui = path.join(dir, '../../ui/index.html')
-const shortcut = 'CommandOrControl+Shift+F10'
-const draftShortcut = 'CommandOrControl+Shift+F9'
-const assistantShortcut = 'CommandOrControl+Shift+F7'
-const detailShortcut = 'CommandOrControl+Shift+F8'
+// Plain letter chords instead of function keys: F7-F12 are Fn-shifted (media/brightness) on most laptops on both
+// OSes, making them unreliable to hit reliably mid-game. CommandOrControl maps to Cmd on macOS, Ctrl on Windows.
+const hideShortcut = 'CommandOrControl+Shift+H'
+const interactiveShortcut = 'CommandOrControl+Shift+O'
+const compactShortcut = 'CommandOrControl+Shift+C'
 const WATCH_MS = 10 * 60 * 1000
 const publicLinks = {
   guides: 'https://www.dota2.com/workshop/builds/overview',
@@ -584,7 +585,7 @@ function receive(value: unknown) {
   let award: { id: string; heroId: number; label: string; role: Role; at: number; elite: boolean } | null = null
   if (refreshCoach) {
     const result = refreshCoachView()
-    if (settings.features.achievements && nextFrame && !nextFrame.paused && frameBefore && !newPractice && nextFrame.clock - frameBefore.clock <= 12) {
+    if (settings.features.achievements && nextFrame?.matchmaking && !nextFrame.paused && frameBefore && !newPractice && nextFrame.clock - frameBefore.clock <= 12) {
       for (const goal of result?.achievements ?? []) {
         const hit = observeAchievement(frameBefore, nextFrame, goal, awarded)
         if (!hit) continue
@@ -824,6 +825,13 @@ function toggleDraftOverlay() {
   view = 'draft'
   requestOverlay(true)
   return broadcast()
+}
+
+/** The merged "overlay on" hotkey: before a hero is live there's nothing to ask about yet, so it opens draft
+ * editing; once a game is running it opens the AI assistant instead. Either way, pressing it again exits. */
+function toggleOverlayInteractive() {
+  if (interactive) return finishOverlayEditing()
+  return frame ? toggleAssistant() : toggleDraftOverlay()
 }
 
 function toggleAssistant() {
@@ -1221,7 +1229,6 @@ async function clearData() {
     receiver = null
   }
   provider.clear()
-  releaseUpdates.disconnect()
   puterOperation++
   puterClient = null
   puterTokenMemory = ''
@@ -1370,8 +1377,6 @@ function handlers() {
   handle('live:draft-overlay', toggleDraftOverlay)
   handle('app:updates', () => frame || pick ? releaseUpdates.status() : releaseUpdates.check())
   handle('updates:status', () => releaseUpdates.status())
-  handle('updates:connect', (credential) => releaseUpdates.connect(credential))
-  handle('updates:disconnect', () => releaseUpdates.disconnect())
   handle('updates:install', () => {
     if (frame || pick) throw new Error('Finish the current game before installing the update.')
     return releaseUpdates.install()
@@ -1564,7 +1569,7 @@ else {
     try { windowProbe = require(path.join(dir, 'overlay-window.node')) as NonNullable<typeof windowProbe> }
     catch { windowProbe = null }
     store = new Store(path.join(app.getPath('userData'), 'improviser.sqlite'))
-    releaseUpdates = new ReleaseUpdates(store, (info) => {
+    releaseUpdates = new ReleaseUpdates((info) => {
       if (dashboard && !dashboard.isDestroyed()) dashboard.webContents.send('updates:changed', info)
     })
     scheduleAppUpdates(30000)
@@ -1593,16 +1598,13 @@ else {
     }, WATCH_MS).unref()
     setTimeout(() => { void refreshPatchNotes() }, 60000).unref()
     handlers()
-    shortcutAvailable = globalShortcut.register(shortcut, () => {
+    shortcutAvailable = globalShortcut.register(hideShortcut, () => {
       if (overlayRequested) { hideOverlay(); view = 'lane'; broadcast() }
     })
-    globalShortcut.register(draftShortcut, () => { toggleDraftOverlay() })
-    assistantShortcutAvailable = globalShortcut.register(assistantShortcut, () => { toggleAssistant() })
-    // Closest valid equivalent to "Shift+Tab+1": Electron's accelerators allow modifiers plus exactly one
-    // trigger key, so a three-key chord (Shift, Tab, 1 all as triggers) can't be registered as one shortcut.
-    globalShortcut.register('Shift+Tab', () => { toggleAssistant() })
-    globalShortcut.register(detailShortcut, () => {
-      settings = { ...settings, detailed: !settings.detailed }
+    // One combined "overlay on" mode: edit draft picks before the game has a hero, ask the AI assistant once it does.
+    assistantShortcutAvailable = globalShortcut.register(interactiveShortcut, () => { toggleOverlayInteractive() })
+    globalShortcut.register(compactShortcut, () => {
+      settings = { ...settings, size: settings.size === 'Compact' ? 'Large' : 'Compact' }
       store.set('live', settings)
       if (overlay) placeOverlay(overlay)
       broadcast()

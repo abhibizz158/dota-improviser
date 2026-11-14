@@ -120,7 +120,7 @@ function Team({ label, tone, ids, heroes, remove }: { label: string; tone: 'a' |
     {!ids.length && <small>{tone === 'e' ? 'none revealed' : 'none'}</small>}</div>
 }
 
-/** Overlay draft card. Passive = click-through read-out; interactive (Ctrl/⌘+Shift+F9) = type a hero, Enter=enemy, Shift+Enter=ally. */
+/** Overlay draft card. Passive = click-through read-out; interactive (Ctrl/⌘+Shift+O) = type a hero, Enter=enemy, Shift+Enter=ally. */
 export function DraftCard({ live, heroes, send, done }: { live: LiveState; heroes: Hero[]; send?: (input: DraftInput) => Promise<unknown>; done?: () => Promise<void> }) {
   const [query, setQuery] = useState('')
   const { draft, interactive } = live
@@ -170,7 +170,7 @@ export function DraftCard({ live, heroes, send, done }: { live: LiveState; heroe
       </div>
     </div>}
     {(draft.stale || draft.patchChanged || draft.loading) && <small className="draft-note">{draft.patchChanged ? 'New patch: data refreshing' : draft.stale ? 'Seed predates this build' : 'Refreshing live data…'}</small>}
-    {f.hints && <Foot><kbd>{mod}F9</kbd> type picks · <kbd>{mod}F8</kbd> detail · <kbd>{mod}F10</kbd> hide</Foot>}
+    {f.hints && <Foot><kbd>{mod}O</kbd> type picks · <kbd>{mod}C</kbd> compact · <kbd>{mod}H</kbd> hide</Foot>}
   </article>
 }
 
@@ -238,7 +238,7 @@ export function RoshanTimer({ roshan }: { roshan: RoshanState }) {
   </div>
 }
 
-/** Live coach: percentile score vs this hero's benchmarks, goals, tips, achievements. Own-player GSI data only. Detail mode (F8) adds stats and medians. */
+/** Live coach: percentile score vs this hero's benchmarks, goals, tips, achievements. Own-player GSI data only. Detail mode (Settings) adds stats and medians. */
 export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, compact = false }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; compact?: boolean }) {
   const f = settings.features, s = coach.stats
   // Phase-adaptive layout: laning = lane tools, mid game = goals + momentum, late game = essentials only.
@@ -282,7 +282,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
     {f.achievements && !late && coach.achievements.length > 0 && <div className="ach">{coach.achievements.map((a) => <span key={a.id} className={a.state}>{a.elite ? '★' : a.state === 'done' ? '✓' : a.state === 'late-done' ? '•' : a.state === 'live' ? '◔' : '×'} {a.label}</span>)}</div>}
     {f.personal && coach.personal && <small className="draft-note">Your avg on this hero: {coach.personal.gpm} GPM · {coach.personal.xpm} XPM ({coach.personal.n} games, patch-weighted)</small>}
     {!coach.benchmarkAvailable && <small className="draft-note">No benchmark data for this hero yet. Open Heroes → Update data now.</small>}
-    {f.hints && <Foot>Score = percentile vs this hero's benchmarks · <kbd>{mod}F8</kbd> detail · <kbd>{mod}F10</kbd> hide</Foot>}
+    {f.hints && <Foot>Score = percentile vs this hero's benchmarks · <kbd>{mod}C</kbd> compact · <kbd>{mod}H</kbd> hide</Foot>}
   </article>
 }
 
@@ -294,7 +294,7 @@ export function RecoveryCard({ recovery }: { recovery: Recovery }) {
   </article>
 }
 
-/** Floating assistant: ask Puter AI about the current draft or practice game. Opened with Ctrl/⌘+Shift+F7.
+/** Floating assistant: ask Puter AI about the current draft or practice game. Opened with Ctrl/⌘+Shift+O once a game is live.
  * Rendered in the overlay's big, interactive, click-through-off window (same sizing as the draft editor). */
 export function AssistantCard({ ask, done }: { ask?: (question: string) => Promise<string>; done?: () => Promise<void> }) {
   const [question, setQuestion] = useState('')

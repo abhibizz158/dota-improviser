@@ -54,7 +54,9 @@ The first launch shows a sample workspace until you add a Dota account ID or ope
 4. Add `-gamestateintegration` to Dota 2's Steam launch options, then restart Dota.
 5. Start the listener and enter a supported local practice lobby. The overlay supports windowed/borderless play where available. Use **Companion** layout if an overlay cannot display reliably above the game.
 
-In **Live & Coach → Display preferences**, select **Follow Dota** and **Auto** placement to put the draft card in the upper left and the lane card in the upper right of the detected game window. Pick a specific monitor and corner if you prefer. The cards pass clicks through to Dota. To edit draft picks, press **Ctrl/⌘ + Shift + F9** or use **Edit draft overlay**. **Done**, **Esc**, or leaving the editor restores click-through. **Ctrl/⌘ + Shift + F10** hides the overlay.
+In **Live & Coach → Display preferences**, select **Follow Dota** and **Auto** placement to put the draft card in the upper left and the lane card in the upper right of the detected game window. Pick a specific monitor and corner if you prefer. The cards pass clicks through to Dota.
+
+Three hotkeys (plain letter chords rather than function keys, which are Fn-shifted media keys on most laptops on both Windows and macOS): **Ctrl/⌘ + Shift + O** opens the overlay in interactive mode — edit draft picks before a hero is live, ask the AI assistant once it is; **Done**, **Esc**, or leaving the editor restores click-through. **Ctrl/⌘ + Shift + C** toggles Compact/Large card size. **Ctrl/⌘ + Shift + H** hides the overlay.
 
 The GSI receiver listens on `127.0.0.1:43182` and authenticates updates with a per-install token. Live updates are transient; raw packets are not retained. The app validates updates in the desktop process and only exposes allowlisted own-player data. Clearing local app data also rotates the token, so reinstall the generated config afterward. Spectator/replay contexts, unknown contexts, stale updates, and unsupported matches must not populate the live player card.
 

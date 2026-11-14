@@ -106,7 +106,7 @@ export const emptyDraft: DraftView = {
 export type LocalStatus = { installFound: boolean; gsiInstalled: boolean; steamFound: boolean; build: number | null; localBuilds: number }
 export type PuterStatus = { connected: boolean; saved: boolean; model: string }
 export type KnowledgeContext = { heroId?: number; enemyIds?: number[]; itemKeys?: string[]; clockSeconds?: number; gpm?: number; gold?: number }
-export type UpdateInfo = { current: string; latest: string | null; connected: boolean; state: 'idle' | 'checking' | 'downloading' | 'ready' | 'current' | 'error'; message: string }
+export type UpdateInfo = { current: string; latest: string | null; state: 'idle' | 'checking' | 'downloading' | 'ready' | 'current' | 'error'; message: string }
 export type Frame = {
   clock: number; heroSlug: string; heroId: number | null; level: number | null; alive: boolean; gold: number | null
   gpm: number | null; xpm: number | null; lastHits: number | null; denies: number | null; kills: number | null
@@ -162,7 +162,7 @@ export interface AppApi {
   toggleOverlay(): Promise<LiveState>;
   saveConfig(): Promise<boolean>;
   exportDiagnostics(): Promise<boolean>;
-  openExternal(target: 'guides' | 'patches' | 'privacy' | 'gsi' | 'personal' | 'releases' | 'updateToken'): Promise<void>;
+  openExternal(target: 'guides' | 'patches' | 'privacy' | 'gsi' | 'personal' | 'releases'): Promise<void>;
   updateData(): Promise<LiveState>;
   heroGuide(id: number): Promise<HeroGuide>;
   itemLearn(heroId: number, sync?: boolean): Promise<import('./items.js').ItemLearning>;
@@ -192,8 +192,6 @@ export interface AppApi {
   onAchievementSound(callback: () => void): () => void;
   checkUpdates(): Promise<UpdateInfo>;
   updateStatus(): Promise<UpdateInfo>;
-  connectUpdates(token: string): Promise<UpdateInfo>;
-  disconnectUpdates(): Promise<UpdateInfo>;
   installUpdate(): Promise<void>;
   onUpdate(callback: (status: UpdateInfo) => void): () => void;
   onLive(callback: (state: LiveState) => void): () => void;

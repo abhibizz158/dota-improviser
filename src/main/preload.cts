@@ -64,8 +64,6 @@ if (location.hash === '#overlay') {
     toggleDraftOverlay: () => ipcRenderer.invoke('live:draft-overlay'),
     checkUpdates: () => ipcRenderer.invoke('app:updates'),
     updateStatus: () => ipcRenderer.invoke('updates:status'),
-    connectUpdates: (token) => ipcRenderer.invoke('updates:connect', token),
-    disconnectUpdates: () => ipcRenderer.invoke('updates:disconnect'),
     installUpdate: () => ipcRenderer.invoke('updates:install'),
     onUpdate: (callback) => {
       const listener = (_event: unknown, status: Awaited<ReturnType<AppApi['updateStatus']>>) => callback(status)

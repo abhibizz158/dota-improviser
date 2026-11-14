@@ -99,7 +99,6 @@ function App() {
   const [puter, setPuter] = useState<PuterStatus>({ connected: false, saved: false, model: 'gpt-5.4-nano' })
   const [puterModelDraft, setPuterModelDraft] = useState('gpt-5.4-nano')
   const [appUpdate, setAppUpdate] = useState<UpdateInfo | null>(null)
-  const [updateCredential, setUpdateCredential] = useState('')
   const [privateRows, setPrivateRows] = useState('')
   const request = useRef(0)
   const currentPage = useRef<Page>('overview')
@@ -168,7 +167,6 @@ function App() {
     setInput(next === 'account' ? context.accountId : '')
     setFormError('')
     setConfirmClear(false)
-    setUpdateCredential('')
     if (next === 'privateHistory') setPrivateRows('')
     setModal(next)
   }
@@ -207,13 +205,11 @@ function App() {
     if (id) setInput(id); else setFormError('No signed-in Steam user found on this computer.')
   }
 
-  async function updateAction(action: 'check' | 'connect' | 'disconnect' | 'install') {
-    const credential = updateCredential.trim()
+  async function updateAction(action: 'check' | 'install') {
     setFormError(''); setFormBusy(true)
-    if (action === 'connect') setUpdateCredential('')
     try {
       if (action === 'install') await api.installUpdate()
-      else setAppUpdate(await (action === 'connect' ? api.connectUpdates(credential) : action === 'disconnect' ? api.disconnectUpdates() : api.checkUpdates()))
+      else setAppUpdate(await api.checkUpdates())
     } catch (error) { setFormError(error instanceof Error ? error.message : 'Update action failed.') }
     finally { setFormBusy(false) }
   }
@@ -343,14 +339,7 @@ function App() {
         <div className="actions">
           <button className="button secondary" disabled={formBusy || (appUpdate != null && ['checking', 'downloading'].includes(appUpdate.state))} onClick={() => void updateAction('check')}>Check now</button>
           {appUpdate?.state === 'ready' && <button className="button primary" disabled={formBusy} onClick={() => void updateAction('install')}>Install {appUpdate.latest}</button>}
-          {appUpdate?.connected && <button className="text-button" disabled={formBusy} onClick={() => void updateAction('disconnect')}>Disconnect GitHub</button>}
         </div>
-        {!appUpdate?.connected && <>
-          <p className="fine-print">Optional: connect a fine-grained GitHub token (<strong>Contents: Read-only</strong>) only if you hit GitHub's unauthenticated rate limit (60 requests/hour) — not needed otherwise. The token is encrypted on this device.</p>
-          <button className="text-button" onClick={() => void api.openExternal('updateToken')}>Create token in GitHub</button>
-          <label className="field">GitHub update token<input type="password" autoComplete="off" maxLength={270} value={updateCredential} onChange={(event) => setUpdateCredential(event.target.value)} /></label>
-          <button className="button primary" disabled={formBusy || !updateCredential.trim() || !context.desktop} onClick={() => void updateAction('connect')}>Connect GitHub</button>
-        </>}
         <button className="text-button" onClick={() => void api.openExternal('releases')}>Open GitHub releases</button>
         <Feedback error={appUpdate?.state === 'error' || Boolean(formError)} message={formError || appUpdate?.message || (appUpdate?.state === 'checking' ? 'Checking GitHub…' : appUpdate?.state === 'downloading' ? 'Downloading and verifying the installer…' : appUpdate?.state === 'current' ? 'You have the latest compatible build.' : '')} />
       </div> : modal === 'privateHistory' ? <div className="settings-dialog">

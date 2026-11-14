@@ -117,7 +117,7 @@ export const browserApi: AppApi = {
   async openExternal(target) {
     const links = { guides: 'https://www.dota2.com/workshop/builds/overview', patches: 'https://www.dota2.com/patches/',
       privacy: 'https://blog.opendota.com/2014/08/01/faq/', gsi: 'https://support.overwolf.com/support/solutions/articles/9000212745-how-to-enable-game-state-integration-for-dota-2',
-      personal: 'https://steamcommunity.com/my/gcpd/570/', releases: 'https://github.com/abhibizz158/dota-improviser/releases', updateToken: 'https://github.com/settings/personal-access-tokens/new' }
+      personal: 'https://steamcommunity.com/my/gcpd/570/', releases: 'https://github.com/abhibizz158/dota-improviser/releases' }
     window.open(links[target], '_blank', 'noopener,noreferrer')
   },
   async draft(input: DraftInput) {
@@ -161,9 +161,7 @@ export const browserApi: AppApi = {
   async installConfig() { throw new Error('Open the desktop app to install the GSI config.') },
   async toggleDraftOverlay() { throw new Error('Open the desktop app to show the draft overlay.') },
   async checkUpdates() { return this.updateStatus() },
-  async updateStatus() { return { current: 'web', latest: null, connected: false, state: 'idle', message: '' } },
-  async connectUpdates() { throw new Error('Open the desktop app to connect GitHub.') },
-  async disconnectUpdates() { return this.updateStatus() },
+  async updateStatus() { return { current: 'web', latest: null, state: 'idle', message: '' } },
   async installUpdate() {},
   onUpdate() { return () => {} },
   async toggleAssistant() { return sampleLive },

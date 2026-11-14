@@ -103,7 +103,7 @@ export function Draft({ api, catalog, sample, live, account, onMatch }: DraftPro
     {draft.stale && !draft.patchChanged && <Feedback message="Bundled counters predate this game build. Live data is blended in; run npm run seed to refresh the offline table." />}
     {tab === 'draft' ? <div className="detail-grid draft-grid">
       <section className="panel form-panel">
-        <header className="panel-heading"><div><h2>Draft inputs</h2><p>Enter picks as they reveal. Overlay hotkey: Ctrl/⌘ + Shift + F9.</p></div><Crosshair size={19} className="quiet-icon" /></header>
+        <header className="panel-heading"><div><h2>Draft inputs</h2><p>Enter picks as they reveal. Overlay hotkey: Ctrl/⌘ + Shift + O.</p></div><Crosshair size={19} className="quiet-icon" /></header>
         <label className="field">Your hero <small>optional — locks automatically once Dota reveals it</small>
           <select value={draft.ownHero ?? ''} onChange={(event) => set({ ownHero: event.target.value ? Number(event.target.value) : null })}>
             <option value="">Not picked yet</option>

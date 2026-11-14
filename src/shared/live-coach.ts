@@ -35,7 +35,8 @@ export function chooseRole(options: {
 export type AwardRecord = { heroId: number; label: string; role: Role; count: number; onTime: number; best: number | null; last: number | null }
 
 /** An achievement that just flipped from live to done this tick, ready to award (keyed per hero so every hero's
- * progress is tracked separately). Works in any match type: ranked, normal, or practice. */
+ * progress is tracked separately). Callers gate this to matchmaking (ranked/normal) games only — practice lobbies
+ * don't count toward the career trophy case, since they're not a real result. */
 export function observeAchievement(previous: Frame | null, next: Frame, achievement: Achievement, awarded: Set<string>) {
   if (next.paused || next.heroId == null || next.clock < 0 || (previous && next.clock < previous.clock)) return null
   const id = next.heroId + ':' + achievement.id
