@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import type { ItemInfo } from '../shared/items.js'
-import type { Build, Catalog, Hero, MatchPlayer, MatchReview, MatchSummary, Matchup, ReviewEvent, Role, Timeline } from '../shared/model.js'
+import type { Build, Catalog, Hero, MatchPlayer, MatchReview, MatchSummary, Matchup, PlayerProfile, ReviewEvent, Role, Timeline } from '../shared/model.js'
 
 const require = createRequire(import.meta.url)
 type Raw = Record<string, unknown>
@@ -265,4 +265,14 @@ export function normalizeBuild(value: unknown): Build {
     return count != null && count > 0 && entry ? [{ item: entry, count }] : []
   }).sort((a, b) => b.count - a.count).slice(0, 6)
   return { starting: stages('start_game_items'), early: stages('early_game_items'), mid: stages('mid_game_items'), late: stages('late_game_items') }
+}
+
+export function normalizePlayerProfile(value: unknown): PlayerProfile {
+  const raw = asRecord(value), profile = asRecord(raw.profile)
+  return {
+    name: typeof profile.personaname === 'string' ? profile.personaname : null,
+    avatar: typeof profile.avatarfull === 'string' ? profile.avatarfull : typeof profile.avatar === 'string' ? profile.avatar : null,
+    rankTier: typeof raw.rank_tier === 'number' ? raw.rank_tier : null,
+    leaderboardRank: typeof raw.leaderboard_rank === 'number' ? raw.leaderboard_rank : null,
+  }
 }

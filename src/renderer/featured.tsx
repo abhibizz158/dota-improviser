@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Gamepad2, Swords } from 'lucide-react'
-import type { AppApi, Catalog, HeroDetail, MatchSummary } from '../shared/model'
+import { ArrowRight, Gamepad2, Repeat, Swords, UserRound } from 'lucide-react'
+import type { AppApi, Catalog, HeroDetail, MatchSummary, PlayerProfile } from '../shared/model'
+import { rankTierLabel } from '../shared/model'
 import type { HeroGuide } from '../shared/guide'
 import { guideTips } from '../shared/guide'
 import { percentileOf } from '../shared/coach'
@@ -52,11 +53,38 @@ function Stat({ label, value, digits = 0, suffix = '', pct }: { label: string; v
     {pct != null && <em>{Math.round(pct)}th percentile</em>}</div>
 }
 
-export function FeaturedStage({ f, catalog, account, localInstall, localBuilds, onAccount, onImport, onUseHero, onOpenGame, onDraft }: {
+type Overall30 = { games: number; winRate: number | null; gpm: number | null; xpm: number | null; kda: number | null; lastHits: number | null }
+
+/** Player scorecard view of the stage card: Steam avatar (from OpenDota's public player summary — rank-and-avatar
+ * only, never match history, that's the existing history() call) and your aggregate over the last 30 matches
+ * overall, not just the signature hero. Toggled in place of the signature-hero view, same card shape. */
+function Scorecard({ account, profile, overall30 }: { account: string; profile: PlayerProfile | null; overall30: Overall30 }) {
+  const rank = rankTierLabel(profile?.rankTier ?? null, profile?.leaderboardRank ?? null)
+  return <div className="stage-copy scorecard">
+    <div className="scorecard-head">
+      {profile?.avatar ? <img className="scorecard-avatar" src={profile.avatar} alt="" referrerPolicy="no-referrer" /> : <div className="scorecard-avatar placeholder"><UserRound size={28} /></div>}
+      <div><small className="stage-eyebrow">PLAYER SCOREBOARD · LAST {overall30.games} MATCHES</small>
+        <h1 className="stage-name">{profile?.name || 'Dota account ' + account}</h1>
+        {rank && <span className="rank-badge">{rank}</span>}</div>
+    </div>
+    <div className="stage-stats">
+      <Stat label="GAMES" value={overall30.games} />
+      <Stat label="WIN RATE" value={overall30.winRate} suffix="%" />
+      <Stat label="KDA" value={overall30.kda} digits={2} />
+      <Stat label="GPM" value={overall30.gpm} />
+      <Stat label="XPM" value={overall30.xpm} />
+      <Stat label="LAST HITS" value={overall30.lastHits} digits={1} />
+    </div>
+  </div>
+}
+
+export function FeaturedStage({ f, catalog, account, localInstall, localBuilds, onAccount, onImport, onUseHero, onOpenGame, onDraft, profile, overall30 }: {
   f: Loaded; catalog: Catalog; account: string; localInstall: boolean; localBuilds: number; onAccount: () => void; onImport: () => void; onUseHero: (id: number) => void; onOpenGame: () => void; onDraft: () => void
+  profile?: PlayerProfile | null; overall30?: Overall30
 }) {
   const { feat, hero, guide, pcts } = f
   const [artBroken, setArtBroken] = useState('')
+  const [view, setView] = useState<'hero' | 'scorecard'>('hero')
   if (!feat || !hero) return <section className="stage stage-empty"><div className="stage-copy"><small className="stage-eyebrow">PLAYER DASHBOARD</small>
     <h1 className="stage-name">Your Dota workspace</h1>
     <p className="stage-hype">{account ? <>Steam account <b>{account}</b> is linked. {localInstall ? 'The local Dota 2 install and its item builds are ready to use.' : 'Link a local Dota 2 install to use its item builds and live player feed.'} Match history appears when public data is available or you open a completed match by ID.</> : <>Link your Steam account to load public match history. Local Dota item builds and your opt-in player-visible game feed can support planning and practice.</>}</p>
@@ -67,7 +95,9 @@ export function FeaturedStage({ f, catalog, account, localInstall, localBuilds, 
     <div className="stage-art" aria-hidden="true">
       {artBroken !== hero.slug && <img key={hero.slug} src={hero.slug === 'phantom_assassin' ? import.meta.env.BASE_URL + 'heroes/banner.webp' : art(hero.slug)} alt="" decoding="async" onError={() => setArtBroken(hero.slug)} />}
     </div>
-    <div className="stage-copy">
+    <button type="button" className="button secondary slim stage-toggle" onClick={() => setView(view === 'hero' ? 'scorecard' : 'hero')}>
+      <Repeat size={14} /> {view === 'hero' ? 'Show scoreboard' : 'Show signature hero'}</button>
+    {view === 'scorecard' && overall30 ? <Scorecard account={account} profile={profile ?? null} overall30={overall30} /> : <div className="stage-copy">
       <div className="stage-rank">01<sup>+</sup></div>
       <small className="stage-eyebrow">YOUR MOST PLAYED · LAST {feat.of} MATCHES</small>
       <h1 className="stage-name">{hero.name}</h1>
@@ -87,7 +117,7 @@ export function FeaturedStage({ f, catalog, account, localInstall, localBuilds, 
         <button className="button" onClick={onImport}>Open match by ID</button>
       </div>
       {feat.others.length > 0 && <ol className="stage-others">{feat.others.map((o, i) => <li key={o.heroId}><b>{ordinal[i + 1]}</b><Portrait hero={catalog.heroes.find((h) => h.id === o.heroId)} />{heroName(o.heroId)}<em>{o.games} games · {fmt(o.winRate, 0)}%</em></li>)}</ol>}
-    </div>
+    </div>}
     <TornEdge />
   </section>
 }

@@ -1,8 +1,8 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ArrowDown, ArrowUp, BrainCircuit, Clock3, Gamepad2, Minus, Radio, Shield, Swords, Trophy, X } from 'lucide-react'
-import type { DraftInput, GameType, GameView, Hero, LiveSettings, LiveState, Role, Toast } from '../shared/model.js'
-import { gameTypes, roleLabels, roles } from '../shared/model.js'
+import type { CompactModule, DraftInput, GameType, GameView, Hero, LiveSettings, LiveState, Role, Toast } from '../shared/model.js'
+import { compactModules, gameTypes, roleLabels, roles } from '../shared/model.js'
 import { aegisView, clockText as roshanClock, roshanView } from '../shared/roshan.js'
 import type { RoshanState } from '../shared/roshan.js'
 import type { CoachingContext } from '../shared/contextual-coach.js'
@@ -351,20 +351,31 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
   const primaryTip = (f.coachTips ? contextualTips.find((tip) => tip.level === 'warn') ?? contextualTips[0] : undefined) ??
     (f.laneWatch ? support?.tips[0] : undefined)
   const med = (v: number | null, d = 0) => v == null ? undefined : fmt(v, d)
-  if (compact) return <article className="coach-card compact-coach">
-    <Head icon={<Trophy size={13} />} tag={heroName} sub={clockText} />
-    {!recoveryMode && <StatusStrip coach={coach} />}
-    {outlook && <OutlookCard outlook={outlook} compact />}
-    {!recoveryMode && performance && <PerformanceMeter performance={performance} detailed={false} />}
-    <div className="stat-row">
-      <span><b>{fmt(s.lastHits)}/{fmt(s.denies)}</b><small>LH/DN</small></span><span><b>{fmt(s.deaths)}</b><small>Deaths</small></span>
-      <span><b>{fmt(s.level)}</b><small>Level</small></span><span><b>{fmt(coach.gpm)}</b><small>GPM</small></span>
-    </div>
-    {items.length > 0 && <MatchItems items={items} compact />}
-    {detailed && primaryTip && (!items.length || primaryTip.level === 'warn') && <div className="tips">{renderTip(primaryTip)}</div>}
-    {detailed && coach.benchmarkLabel && <small className="draft-note">{coach.benchmarkLabel} · {coach.role.includes('support') ? 'support' : 'core'} benchmarks</small>}
-    {detailed && !primaryTip && coach.nextGoal && f.achievements && <div className="next-goal"><b>{coach.nextGoal.label}</b><em>{mmss(coach.nextGoal.left)} left</em></div>}
-  </article>
+  if (compact) {
+    const showTip = detailed && primaryTip && (!items.length || primaryTip.level === 'warn')
+    const showNextGoal = detailed && !primaryTip && coach.nextGoal && f.achievements
+    // Reorderable by the player (Overlay tab): only these optional rows move, never Head or the stat-row core.
+    const order = settings.compactOrder?.length === compactModules.length ? settings.compactOrder : compactModules
+    const renderModule = (m: CompactModule): ReactNode => {
+      switch (m) {
+        case 'status': return !recoveryMode ? <StatusStrip key={m} coach={coach} /> : null
+        case 'outlook': return outlook ? <OutlookCard key={m} outlook={outlook} compact /> : null
+        case 'performance': return !recoveryMode && performance ? <PerformanceMeter key={m} performance={performance} detailed={false} /> : null
+        case 'items': return items.length > 0 ? <MatchItems key={m} items={items} compact /> : null
+        case 'tip': return showTip ? <div className="tips" key={m}>{renderTip(primaryTip!)}</div> : null
+        case 'nextGoal': return showNextGoal ? <div className="next-goal" key={m}><b>{coach.nextGoal!.label}</b><em>{mmss(coach.nextGoal!.left)} left</em></div> : null
+      }
+    }
+    return <article className="coach-card compact-coach">
+      <Head icon={<Trophy size={13} />} tag={heroName} sub={clockText} />
+      <div className="stat-row">
+        <span><b>{fmt(s.lastHits)}/{fmt(s.denies)}</b><small>LH/DN</small></span><span><b>{fmt(s.deaths)}</b><small>Deaths</small></span>
+        <span><b>{fmt(s.level)}</b><small>Level</small></span><span><b>{fmt(coach.gpm)}</b><small>GPM</small></span>
+      </div>
+      {order.map(renderModule)}
+      {detailed && coach.benchmarkLabel && <small className="draft-note">{coach.benchmarkLabel} · {coach.role.includes('support') ? 'support' : 'core'} benchmarks</small>}
+    </article>
+  }
   return <article className="coach-card">
     <Head icon={<Trophy size={13} />} tag={'Coach · ' + heroName} sub={(coach.matchmaking ? 'Matchmaking' : 'Practice') + ' · ' + coach.phase + ' · ' + clockText} />
     {!recoveryMode && <StatusStrip coach={coach} />}

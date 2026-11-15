@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowUpRight, CheckCircle2, CircleHelp, Download, Droplet, Eye, FileDown, Flame, Layers3, Monitor, Radio, Shield, ShieldCheck, Swords, Target, TrendingUp } from 'lucide-react'
-import type { AppApi, Bootstrap, FeatureKey, LiveSettings, LiveState, Placement } from '../shared/model'
-import { featureInfo, featureKeys, placements, roleLabels, roles } from '../shared/model'
+import type { AppApi, Bootstrap, LiveSettings, LiveState } from '../shared/model'
+import { roleLabels, roles } from '../shared/model'
 import { brackets } from '../shared/contextual-coach'
 import { OutlookGraph } from './match-outlook'
 import { ShareMatch } from './share-match'
@@ -87,32 +87,10 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
   const itemContext = [live.lane?.heroSlug, live.coaching?.phase, live.coach?.role, live.coaching?.items?.map(({ key }) => key).join(',')].join(':')
   const [installed, setInstalled] = useState(false)
   const [feedback, setFeedback] = useState({ message: '', error: false })
-  const [visionBusy, setVisionBusy] = useState(false)
-  const [visionResult, setVisionResult] = useState<Awaited<ReturnType<AppApi['visionDebug']>> | null>(null)
-  const [visionError, setVisionError] = useState('')
-  const [portraitSlot, setPortraitSlot] = useState('')
-  const [portraitHero, setPortraitHero] = useState('')
-  const [portraitMessage, setPortraitMessage] = useState('')
-  const [portraitSaving, setPortraitSaving] = useState(false)
-  useEffect(() => {
-    if (!live.draftVisionActive) {
-      setVisionResult(null); setVisionError(''); setPortraitSlot(''); setPortraitHero(''); setPortraitMessage('')
-    }
-  }, [live.draftVisionActive])
   const hero = context.catalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
   const actual = live.armed || live.settings.display === 'Companion'
   const settings = live.settings
   const latestScore = live.performance?.points.findLast((point) => point.score != null)
-  const mac = context.desktop && /Mac/.test(navigator.platform)
-  const share = live.draftWindowShare
-  const pickerBusy = share === 'choosing' || share === 'starting'
-  const canShare = mac && share && share !== 'unsupported'
-  const shareMessage = live.draftVisionActive && (share === 'choosing' ? 'Choose the Dota 2 window in the macOS picker.'
-    : share === 'starting' ? 'Connecting to the selected Dota window…'
-    : share === 'sharing' ? 'Dota window shared for this draft.'
-    : share === 'wrong-window' ? 'Choose the main Dota 2 window to read the draft.'
-    : share === 'unavailable' ? 'macOS could not share the Dota window. Keep Dota visible and try again.'
-    : share === 'stopped' ? 'Window sharing stopped. Choose the Dota window again to resume.' : '')
   const active = live.status === 'Live' || live.status === 'Paused'
   useEffect(() => { if (!active) { setEditingSession(false); setItemAnswer(null) } }, [active])
 
@@ -157,8 +135,8 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
         {live.status === 'Unsupported session' && <p className="fine-print">The feed could not verify a supported session and your own account.</p>}
       </section>
       <section className="panel overlay-preview">
-        <header className="panel-heading"><div><h2>{settings.display === 'Companion' ? 'Companion window' : actual ? 'Live coach' : 'Overlay preview'}</h2>
-          <p>{actual ? 'Own-player stats from the local feed' : 'Example lane card at 7:13'}</p></div><Monitor size={19} className="quiet-icon" /></header>
+        <header className="panel-heading"><div><h2>{settings.display === 'Companion' ? 'Companion window' : actual ? 'Live coach' : 'Lane card preview'}</h2>
+          <p>{actual ? 'Own-player stats from the local feed' : 'Example lane card at 7:13 — configure appearance on the Overlay tab'}</p></div><Monitor size={19} className="quiet-icon" /></header>
         <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={context.catalog.heroes} settings={settings} coaching={live.coaching} performance={live.performance} heroName={hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} compact={settings.size === 'Compact'} /> : <LaneCard live={live} preview={!actual} hero={hero} />}</div>
         {!!live.coaching?.items?.length && settings.features.overlayAssistant && !live.recovery && <div className="live-item-ai">
           <button className="button secondary slim" type="button" disabled={!!busy} onClick={() =>
@@ -192,40 +170,23 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
           performance: latestScore?.score == null ? undefined : { score: latestScore.score, at: latestScore.at },
         }} />}
         {!active && settings.display === 'Overlay' && <p className="fine-print">Connect a supported game (practice, normal or ranked) to show the overlay.</p>}
-        <button className="button secondary" disabled={!!busy || !context.desktop || settings.display !== 'Overlay'} onClick={() =>
-          void act('draftOverlay', async () => { onState(await api.toggleDraftOverlay()) })}><Layers3 size={16} />Edit draft overlay · Ctrl/⌘ + Shift + O</button>
-        <p className="fine-print">Choose the game type and lane directly on the overlay. During play, use the shortcut to open controls. Use Borderless or Companion if fullscreen covers the overlay.</p>
-        <p className="fine-print">{live.shortcutAvailable ? 'Show or hide shortcut · Ctrl/⌘ + Shift + H' : 'The hide shortcut is unavailable. Use this window to hide the overlay.'}</p>
-        <p className="fine-print">Compact/large overlay · Ctrl/⌘ + Shift + C</p>
+        <p className="fine-print">{live.shortcutAvailable ? 'Show or hide shortcut · Ctrl/⌘ + Shift + H' : 'The hide shortcut is unavailable. Use this button instead.'}</p>
         {settings.features.overlayAssistant && <p className="fine-print">{live.assistantShortcutAvailable ? 'Overlay on (edit draft, or ask the AI assistant once a game is live) · Ctrl/⌘ + Shift + O' : 'The overlay-on shortcut is unavailable on this device.'}</p>}
+        <p className="fine-print">Overlay size, placement and which modules it shows live on the <b>Overlay</b> tab.</p>
       </section>
     </div>
     <section className="panel form-panel">
-      <header className="panel-heading"><div><h2>Display preferences</h2><p>Choose the screen and placement for windowed or borderless play.</p></div></header>
+      <header className="panel-heading"><div><h2>Coaching preferences</h2><p>How the coach scores and benchmarks your games, not how the overlay looks.</p></div></header>
       <div className="settings-grid">
-        <label className="field">Layout<select disabled={!!busy} value={settings.display} onChange={(event) => setting('display', event.target.value as LiveSettings['display'])}><option>Overlay</option><option>Companion</option></select></label>
-        {settings.display === 'Overlay' && !/Mac/.test(navigator.platform) && <p className="fine-print">On Windows, an exclusive Fullscreen Dota window can cover the overlay entirely — Borderless Windowed or Windowed mode (Settings → Video → Display Mode in Dota) keeps it visible. If you need exclusive Fullscreen, use "Companion" here instead.</p>}
-        <label className="field">Monitor<select disabled={!!busy || settings.display === 'Companion'} value={settings.monitor} onChange={(event) => setting('monitor', event.target.value)}>
-          {!(live.displays ?? context.displays).some(({ id }) => id === settings.monitor) && <option value={settings.monitor}>{settings.monitor === 'auto' ? 'Follow Dota' : 'Saved display unavailable'}</option>}
-          {(live.displays ?? context.displays).map((display) => <option key={display.id} value={display.id}>{display.name}</option>)}</select></label>
-        <label className="field">Placement<select disabled={!!busy || settings.display === 'Companion'} value={settings.placement} onChange={(event) => setting('placement', event.target.value as Placement)}>{placements.map((position) => <option key={position} value={position}>{position === 'Auto' ? 'Auto · draft left, lane right' : position}</option>)}</select></label>
-        <label className="field">Card size<select disabled={!!busy} value={settings.size} onChange={(event) => setting('size', event.target.value as LiveSettings['size'])}><option>Compact</option><option>Large</option></select></label>
         <label className="field">Ranked coaching bracket<select disabled={!!busy} value={settings.coachingBracket ?? ''} onChange={(event) => setting('coachingBracket', (event.target.value || undefined) as LiveSettings['coachingBracket'])}>
           <option value="">Any rank</option>{brackets.map((bracket) => <option key={bracket}>{bracket}</option>)}
         </select></label>
         <label className="field">Practice role<select disabled={!!busy} value={settings.role} onChange={(event) => setting('role', event.target.value as LiveSettings['role'])}>{roles.map((role) => <option key={role}>{role}</option>)}</select></label>
       </div>
-      {settings.display === 'Overlay' && settings.monitor === 'auto' && (
-        !live.detectionAvailable
-          ? <p className="fine-print">Automatic window detection isn't available on this build (its native module failed to load). Pick a monitor above instead of "Follow Dota".</p>
-          : <p className="fine-print">{live.overlayDisplay ? (live.overlayDisplay.following ? 'Dota display: ' : 'Fallback display: ') + live.overlayDisplay.name + '. ' : ''}Follow Dota tracks the active game window. If it cannot detect the game, choose a monitor here.</p>
-      )}
-      <label className="field">Overlay opacity ({Math.round(settings.opacity * 100)}%)<input type="range" min={50} max={100} step={5} disabled={!!busy} value={Math.round(settings.opacity * 100)} onChange={(event) => setting('opacity', Number(event.target.value) / 100)} /></label>
-      <label className="check-field"><input type="checkbox" checked={settings.cues} disabled={!!busy} onChange={(event) => setting('cues', event.target.checked)} />
-        <span>Show practice timing cues <small>Approximate clock-based stack and pull windows. Camp and side timings vary.</small></span></label>
       <label className="check-field"><input type="checkbox" checked={settings.saveOwnMatches} disabled={!!busy} onChange={(event) => setting('saveOwnMatches', event.target.checked)} />
         <span>Save my completed match stats locally <small>With GSI connected, save your own scoreboard when Dota sends a result. Keeps up to 20 matches on this device. It cannot backfill past games.</small></span></label>
     </section>
+    <div className="section-heading"><div><h2>Your performance</h2><p>What this session has recorded from your own live matches.</p></div></div>
     {settings.features.performanceMeter && <section className="panel form-panel">
       <header className="panel-heading"><div><h2>Personal performance</h2><p>Scores from 0 to 100 every five minutes. A higher score means you outpaced more of your past matches.</p></div></header>
       <p className="fine-print">Open parsed games in Match Review to add earlier benchmarks. The app also keeps five-minute checkpoints from matches it follows. A score needs at least three comparable matches.</p>
@@ -236,77 +197,6 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
       <OutlookGraph points={live.game.outlook.points} detailed />
       <p className="fine-print">{live.game.outlook.factors.join(' · ')}</p>
       <p className="fine-print">Built from team kills, lineup and your own pace — Dota's own feed never reports tower, Roshan or barracks state during a live match (that's spectator-only data, blocked by this app's fair-play guardrail), so a tower or Roshan lead only shows up here if it also shows up in kills or your pace. The full picture, including towers and net worth, is in Match Review after the game.</p>
-    </section>}
-    <section className="panel form-panel">
-      <header className="panel-heading"><div><h2>Features</h2><p>Switch anything off. Changes apply instantly to the overlay and the app.</p></div>
-        <div className="actions"><button className="button slim" disabled={!!busy} onClick={() => setting('detailed', !settings.detailed)}>{settings.detailed ? 'Detailed overlay: on' : 'Detailed overlay: off'}</button></div></header>
-      <div className="feature-groups">{(['Overlay modules', 'Intelligence', 'Automation'] as const).map((group) => <div key={group}><h3>{group}</h3>
-        {featureKeys.filter((k) => featureInfo[k].group === group).map((k: FeatureKey) => <label className="check-field" key={k}>
-          <input type="checkbox" checked={settings.features[k]} disabled={!!busy} onChange={(event) => setting('features', { ...settings.features, [k]: event.target.checked })} />
-          <span>{featureInfo[k].label} <small>{featureInfo[k].help}</small></span></label>)}</div>)}</div>
-    </section>
-    {settings.features.draftVision && <section className="panel form-panel reveal">
-      <header className="panel-heading"><div><h2>Test draft vision</h2><p>Check the portrait strip and recognized heroes during hero selection or strategy time.</p></div></header>
-      {!live.draftVisionActive && <p className="fine-print">Capture and window sharing become available during Hero Selection and Strategy Time.</p>}
-      <div className="actions">
-        {canShare && <button className="button primary" type="button"
-          disabled={!!busy || visionBusy || pickerBusy || share === 'sharing' || !live.draftVisionActive}
-          onClick={() => {
-            setVisionError('')
-            void act('vision', async () => { onState(await api.chooseDraftWindow()) })
-          }}>Share Dota window</button>}
-        <button className="button secondary" disabled={visionBusy || pickerBusy || !context.desktop || !live.draftVisionActive} onClick={() => {
-          setVisionBusy(true); setVisionError(''); setVisionResult(null); setPortraitSlot(''); setPortraitHero(''); setPortraitMessage('')
-          void api.visionDebug().then(setVisionResult).catch((error: Error) => setVisionError(error.message.replace(/^Error invoking remote method '[^']+': Error: /, ''))).finally(() => setVisionBusy(false))
-        }}>{visionBusy ? 'Capturing…' : 'Capture now'}</button>
-        {mac && <>
-          <button className="button secondary" type="button" disabled={!!busy || pickerBusy || share === 'sharing' || !live.draftVisionActive} onClick={() => {
-            setVisionError('')
-            void act('vision', async () => await api.requestDraftScreenRecording() ? 'Screen Recording access is available.'
-              : 'If macOS still shows access enabled, follow Reset instructions or share the Dota window.')
-          }}>Request Screen Recording</button>
-          <button className="text-button" type="button" onClick={() => void act('vision', () => api.openExternal('screenRecording'))}>Open Screen Recording settings <ArrowUpRight size={14} /></button>
-        </>}
-      </div>
-      {shareMessage && <Feedback message={shareMessage} error={share === 'wrong-window' || share === 'unavailable'} />}
-      <Feedback message={visionError} error />
-      {mac && <details className="fine-print">
-        <summary>Reset instructions for an outdated permission</summary>
-        <p>After an update, macOS can show an enabled switch for an older signature. Quit Dota Improviser, then run this in Terminal to reset only this app’s Screen Recording permission.</p>
-        <p><code>tccutil reset ScreenCapture com.dotaimproviser.app</code></p>
-        <p>Reopen Dota Improviser from Applications and request access during the next draft. If macOS asks, allow access and choose Quit &amp; Reopen.</p>
-      </details>}
-      {live.draftVisionActive && visionResult && <div className="vision-debug">
-        <p className="fine-print">{visionResult.radiant.filter(Boolean).length + visionResult.dire.filter(Boolean).length} of 10 slots recognized · {visionResult.references} hero portraits loaded · {visionResult.barWidth} × {visionResult.barHeight}</p>
-        <img src={visionResult.barPng} alt="Captured pick-bar strip" />
-        <div className="vision-rows"><p><strong>Radiant:</strong> {visionResult.radiantNames.map((n) => n ?? '—').join(', ') || 'none matched'}</p>
-          <p><strong>Dire:</strong> {visionResult.direNames.map((n) => n ?? '—').join(', ') || 'none matched'}</p></div>
-        {settings.features.learning && context.accountId && visionResult.trainable.some(Boolean) && <details>
-          <summary>Teach a cosmetic portrait</summary>
-          <p className="fine-print">Label a visible Arcana, Persona, or other portrait. The app remembers the small portrait sample on this device.</p>
-          <div className="actions">
-            <label className="field">Portrait slot<select value={portraitSlot} disabled={portraitSaving} onChange={(event) => {
-              setPortraitSlot(event.target.value); setPortraitMessage('')
-            }}>
-              <option value="">Select a slot</option>
-              {[...visionResult.radiantNames, ...visionResult.direNames].map((name, i) => visionResult.trainable[i] &&
-                <option key={i} value={i}>{i < 5 ? 'Radiant' : 'Dire'} {(i % 5) + 1} · {name ?? 'Unrecognized'}</option>)}
-            </select></label>
-            <label className="field">Actual hero<select value={portraitHero} disabled={portraitSaving} onChange={(event) => setPortraitHero(event.target.value)}>
-              <option value="">Select a hero</option>
-              {context.catalog.heroes.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
-            </select></label>
-            <button className="button secondary" type="button" disabled={portraitSaving || !portraitSlot || !portraitHero} onClick={() => {
-              setPortraitSaving(true); setPortraitMessage(''); setVisionError('')
-              void api.learnDraftPortrait(Number(portraitSlot), Number(portraitHero)).then(() => {
-                setPortraitMessage('Saved. The next draft scans will compare against this portrait.')
-              }).catch((error: Error) => setVisionError(error.message.replace(/^Error invoking remote method '[^']+': Error: /, '')))
-                .finally(() => setPortraitSaving(false))
-            }}>Remember portrait</button>
-          </div>
-          <Feedback message={portraitMessage} />
-        </details>}
-      </div>}
     </section>}
     <div className="detail-grid live-grid">
       <section className="panel form-panel policy-panel">

@@ -1,7 +1,7 @@
-import type { Build, MatchPlayer, MatchReview, MatchSummary, Matchups, ParseProgress, SourceResult } from '../shared/model.js'
+import type { Build, MatchPlayer, MatchReview, MatchSummary, Matchups, ParseProgress, PlayerProfile, SourceResult } from '../shared/model.js'
 import type { HeroData } from '../shared/coach.js'
 import { comparable, practicePace } from '../shared/analysis.js'
-import { asRecord, normalizeBuild, normalizeHistory, normalizeMatch, normalizeMatchups } from './data.js'
+import { asRecord, normalizeBuild, normalizeHistory, normalizeMatch, normalizeMatchups, normalizePlayerProfile } from './data.js'
 import { Store } from './store.js'
 import { hostAllowed } from '../shared/guard.js'
 
@@ -96,6 +96,11 @@ export class OpenDota {
     if (refresh) await this.request('/players/' + id + '/refresh', 'POST').catch(() => {})
     const result = await this.load('/players/' + id + '/matches?' + historyQuery, hour / 2, normalizeHistory, refresh)
     return { ...result, data: this.withRoles(id, this.mergeHistory(id, result.data)) }
+  }
+
+  /** Steam avatar and rank badge only — the Overview page's player scorecard, not match history. */
+  profile(id: string): Promise<SourceResult<PlayerProfile>> {
+    return this.load('/players/' + id, 24 * hour, normalizePlayerProfile)
   }
 
   historySnapshot(id: string) {

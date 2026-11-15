@@ -90,12 +90,24 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   timingAlerts: { group: 'Overlay modules', label: 'Map timing alerts', help: 'A short banner for fixed map clock events: bounty runes (everyone), water/power runes and day/night (mid-focused for runes, everyone for day/night), and a 15-second stacking heads-up for supports. Pure clock math from public game rules, approximate like the Roshan/Aegis timer.' },
   deathSnapshot: { group: 'Overlay modules', label: 'Death snapshot', help: 'One screenshot of your own screen the moment you die, shown for 20 seconds so you can see what you actually saw right before it happened. No analysis is run on it — it is only a self-review aid, same Screen Recording permission as Draft Vision, and it fires once per death, never continuously.' },
 }
+/** The compact in-game overlay's optional rows below the header/stat-row, in display order. Reorderable by the
+ * player (Overlay tab, drag to reorder) — purely a priority order for the compact card; the large/detailed card's
+ * layout is unrelated and not reorderable, since its sections are structurally interleaved (score ring, pace,
+ * phase-adaptive trimming) in a way a free reorder would break. */
+export const compactModules = ['status', 'outlook', 'performance', 'items', 'tip', 'nextGoal'] as const
+export type CompactModule = typeof compactModules[number]
+export const compactModuleInfo: Record<CompactModule, string> = {
+  status: 'Status chips (stunned, buyback, ult ready...)', outlook: 'Live win estimate', performance: 'Performance meter',
+  items: 'Item recommendations', tip: 'Coach tip', nextGoal: 'Next achievement goal',
+}
 export type LiveSettings = {
   display: 'Overlay' | 'Companion'; size: 'Compact' | 'Large'; placement: Placement; monitor: string;
   role: Role; coachingBracket?: Bracket; heroRoles: Record<number, Role>; cues: boolean; coach: boolean; opacity: number; detailed: boolean; saveOwnMatches: boolean; features: Features
+  compactOrder: CompactModule[]
 }
 export const defaultLiveSettings: LiveSettings = {
   display: 'Overlay', size: 'Compact', placement: 'Auto', monitor: 'auto', role: 'Carry', heroRoles: {}, cues: false, coach: false, opacity: 0.94, detailed: true, saveOwnMatches: false, features: defaultFeatures,
+  compactOrder: [...compactModules],
 }
 export type Lane = {
   clock: number; heroSlug: string | null; lastHits: number | null; denies: number | null;
@@ -180,10 +192,23 @@ export type Bootstrap = {
   displays: DisplayChoice[]; desktop: boolean; local: LocalStatus
 }
 export type ParseProgress = { jobId: string; pending: boolean }
+/** Steam/Dota's own public player summary (OpenDota /players/{id}) — avatar and rank badge only, for the
+ * Overview page's player scorecard. Never match history or anything private: that's the existing history() call. */
+export type PlayerProfile = { name: string | null; avatar: string | null; rankTier: number | null; leaderboardRank: number | null }
+const rankNames = ['Herald', 'Guardian', 'Crusader', 'Archon', 'Legend', 'Ancient', 'Divine', 'Immortal']
+export function rankTierLabel(tier: number | null, leaderboardRank: number | null): string | null {
+  if (tier == null || tier <= 0) return null
+  const major = Math.floor(tier / 10), stars = tier % 10
+  const name = rankNames[major - 1]
+  if (!name) return null
+  if (major === 8) return leaderboardRank ? 'Immortal · rank ' + leaderboardRank.toLocaleString() : 'Immortal'
+  return name + (stars ? ' ' + stars : '')
+}
 export interface AppApi {
   bootstrap(): Promise<Bootstrap>;
   saveAccount(id: string): Promise<string>;
   history(id: string, refresh?: boolean): Promise<SourceResult<MatchSummary[]>>;
+  playerProfile(): Promise<PlayerProfile | null>;
   match(id: string, refresh?: boolean): Promise<SourceResult<MatchReview>>;
   requestParse(id: string): Promise<ParseProgress>;
   parseStatus(id: string): Promise<ParseProgress>;

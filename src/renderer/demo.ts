@@ -26,6 +26,7 @@ export const browserApi: AppApi = {
   async bootstrap() { return { desktop: false, accountId: '', catalog: builtInCatalog, live: sampleLive, displays: [{ id: 'primary', name: 'Primary display' }], local: { installFound: false, gsiInstalled: false, steamFound: false, build: null, localBuilds: 0 } } },
   async saveAccount() { throw new Error('Open the desktop app to load a Dota account.') },
   async history() { throw new Error('Open the desktop app to load match history.') },
+  async playerProfile() { return null },
   async match() { throw new Error('Open the desktop app to load a match by ID.') },
   async requestParse() { throw new Error('Open the desktop app to request a replay parse.') },
   async parseStatus() { return { jobId: '', pending: false } },

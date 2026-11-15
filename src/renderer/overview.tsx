@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, ArrowRight, CheckCircle2, ChevronRight, Coins, Crosshair, Flame, Gamepad2, History, RefreshCw, Swords, Target, TrendingUp, Trophy, XCircle, Zap } from 'lucide-react'
-import type { AppApi, Catalog, LocalStatus, MatchSummary, SessionRecord, SourceResult } from '../shared/model'
+import type { AppApi, Catalog, LocalStatus, MatchSummary, PlayerProfile, SessionRecord, SourceResult } from '../shared/model'
 import { roleLabels, roles } from '../shared/model'
 import { available, summarize } from '../shared/analysis'
 import { day, HistoryChart, rollingWins, Sparkline } from './charts'
@@ -23,6 +23,13 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, h
     void api.sessionHistory().then((entries) => { if (active) setSessions(entries) }).catch(() => {})
     return () => { active = false }
   }, [api, historyChangedAt, account])
+  const [profile, setProfile] = useState<PlayerProfile | null>(null)
+  useEffect(() => {
+    let active = true
+    if (!account) { setProfile(null); return }
+    void api.playerProfile().then((value) => { if (active) setProfile(value) }).catch(() => { if (active) setProfile(null) })
+    return () => { active = false }
+  }, [api, account])
   const [parsing, setParsing] = useState<Set<string>>(new Set())
   useEffect(() => {
     let active = true
@@ -77,8 +84,11 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, h
   const currentPage = Math.min(page, lastPage)
   const filter = (change: (value: string) => void) => (event: React.ChangeEvent<HTMLSelectElement>) => { change(event.target.value); setPage(0) }
 
+  const overall30 = summarize(matches.slice(0, 30))
+
   return <>
-    <FeaturedStage f={f} catalog={catalog} account={account} localInstall={local.installFound} localBuilds={local.localBuilds} onAccount={onAccount} onImport={onImport} onUseHero={onUseHero} onOpenGame={onOpenGame} onDraft={onDraft} />
+    <FeaturedStage f={f} catalog={catalog} account={account} localInstall={local.installFound} localBuilds={local.localBuilds} onAccount={onAccount} onImport={onImport} onUseHero={onUseHero} onOpenGame={onOpenGame} onDraft={onDraft}
+      profile={profile} overall30={{ ...overall30, games: matches.slice(0, 30).length }} />
 
     <section aria-labelledby="performance-title">
       <div className="section-heading">

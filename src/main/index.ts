@@ -7,7 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Display, IpcMainInvokeEvent } from 'electron'
 import type { Bootstrap, Checkpoint, TeamPick, DraftView, DraftWindowShare, GameType, KnowledgeContext, Lane, LiveSettings, LiveState, Matchups, OverlayView, Placement, PuterStatus, Role, SessionRecord, UpdateInfo, VisionStats } from '../shared/model.js'
-import { defaultFeatures, defaultLiveSettings, featureKeys, gameTypes, placements, roleLabels, roles } from '../shared/model.js'
+import { compactModules, defaultFeatures, defaultLiveSettings, featureKeys, gameTypes, placements, roleLabels, roles } from '../shared/model.js'
 import { draftLineup, mergeDraftSlots, mergePicks } from '../shared/draft-picks.js'
 import { chooseRole, observeAchievement, recoveryAdvice } from '../shared/live-coach.js'
 import type { AwardRecord } from '../shared/live-coach.js'
@@ -1629,6 +1629,11 @@ function readSettings(value: unknown): LiveSettings {
     detailed: input.detailed !== false,
     features: Object.fromEntries(featureKeys.map((k) => [k, typeof featureInput[k] === 'boolean' ? featureInput[k] : defaultFeatures[k]])) as typeof defaultFeatures,
     opacity: typeof input.opacity === 'number' ? Math.min(1, Math.max(0.5, input.opacity)) : defaultLiveSettings.opacity,
+    compactOrder: (() => {
+      const order = input.compactOrder
+      return Array.isArray(order) && order.length === compactModules.length && compactModules.every((m) => order.includes(m))
+        ? order as LiveSettings['compactOrder'] : defaultLiveSettings.compactOrder
+    })(),
   }
 }
 
@@ -2147,6 +2152,7 @@ function handlers() {
     return historySnapshot(who)
   })
   handle('history:cached', () => account ? historySnapshot(account) : undefined)
+  handle('player:profile', async () => account ? provider.profile(account).then(({ data }) => data).catch(() => null) : null)
   handle('history:sessions', () => store.get<SessionRecord[]>(profileKey('sessions')) ?? [])
   handle('history:parsing', () => provider.pendingParseIds())
   handle('match:get', async (id, refresh) => {

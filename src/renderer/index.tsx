@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Activity, ArrowDownToLine, ArrowRight, Award, BookOpen, BrainCircuit, CircleHelp, Database, Gamepad2, LayoutDashboard, Radio, Settings2, ShieldCheck, Swords, UserRound } from 'lucide-react'
+import { Activity, ArrowDownToLine, ArrowRight, Award, BookOpen, BrainCircuit, CircleHelp, Database, Gamepad2, LayoutDashboard, Layers3, Radio, Settings2, ShieldCheck, Swords, UserRound } from 'lucide-react'
 import type { AppApi, Bootstrap, FeatureKey, LiveState, MatchSummary, PuterStatus, SourceResult, UpdateInfo } from '../shared/model'
 import { featureInfo } from '../shared/model'
 import { browserApi, builtInCatalog, initialLive } from './demo'
@@ -21,6 +21,7 @@ declare global {
 }
 const Draft = lazy(() => import('./draft').then((module) => ({ default: module.Draft })))
 const LiveSetup = lazy(() => import('./live').then((module) => ({ default: module.LiveSetup })))
+const OverlaySetup = lazy(() => import('./overlay-settings').then((module) => ({ default: module.OverlaySetup })))
 const Review = lazy(() => import('./review').then((module) => ({ default: module.Review })))
 const Heroes = lazy(() => import('./heroes').then((module) => ({ default: module.Heroes })))
 const Know = lazy(() => import('./know').then((module) => ({ default: module.Know })))
@@ -31,6 +32,7 @@ const pages = [
   { id: 'draft', label: 'Draft & Builds', icon: Swords },
   { id: 'heroes', label: 'Heroes', icon: Database },
   { id: 'live', label: 'Live & Coach', icon: Radio },
+  { id: 'overlaySettings', label: 'Overlay', icon: Layers3 },
   { id: 'achievements', label: 'Achievements', icon: Award },
   { id: 'review', label: 'Match Review', icon: Activity },
   { id: 'know', label: 'Know', icon: BookOpen },
@@ -374,6 +376,7 @@ function App() {
           {page === 'heroes' && <Heroes api={api} live={live} catalog={context.catalog} onDraft={(id) => { void api.draft({ pool: [...new Set([...latestLive.current.draft.pool, id])] }); navigate('draft') }} />}
           {page === 'achievements' && <Achievements catalog={context.catalog} live={live} />}
           {page === 'live' && <LiveSetup api={api} context={context} live={live} onState={setLive} onAccount={() => showModal('account')} />}
+          {page === 'overlaySettings' && <OverlaySetup api={api} context={context} live={live} onState={setLive} />}
           {page === 'know' && <Know api={api} catalog={context.catalog} live={live} puter={puter} />}
           </Suspense>
         </main>

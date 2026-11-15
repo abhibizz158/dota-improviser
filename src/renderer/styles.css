@@ -189,6 +189,14 @@ dialog.dialog:has(.welcome-dialog) { width: min(640px, 94vw); max-width: calc(10
 .eligibility { display: flex; gap: 8px; align-items: center; color: var(--good); } .eligibility.pending { color: var(--gold); }
 .overlay-stage { min-height: 170px; border: 1px dashed var(--line-strong); border-radius: 10px; padding: 14px; display: grid; place-items: center; background: repeating-linear-gradient(135deg, #14181e 0 18px, #11141a 18px 36px); }
 .overlay-preview > .button { margin-top: 12px; }
+.overlay-preview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.overlay-preview-box { display: grid; gap: 6px; } .overlay-preview-box > small { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
+.reorder-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.reorder-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--s2); border: 1px solid var(--hairline); border-radius: 8px; cursor: grab; }
+.reorder-list li.dragging { opacity: .45; }
+.reorder-handle { color: var(--muted); display: flex; }
+.reorder-label { flex: 1; font-size: 13px; }
+.reorder-buttons { display: flex; gap: 4px; }
 
 /* overlay cards (also used on the dashboard preview) */
 .card, .lane-card, .draft-card, .coach-card { width: 100%; max-width: 380px; background: rgba(10,12,15,.9); border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: 8px; padding: 9px 11px; display: grid; gap: 8px; color: var(--text); font-size: 12px; }
@@ -300,6 +308,11 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .stage-others { list-style: none; margin: 0; padding: 0; display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); } .stage-others li { display: inline-flex; gap: 8px; align-items: center; } .stage-others b { font: 700 13px var(--serif); color: var(--gold); } .stage-others em { font-style: normal; color: var(--dim); font-size: 11.5px; }
 .stage.stage-empty { min-height: 0; padding-bottom: 34px; }
 .stage-empty .stage-copy { max-width: min(760px, 76%); min-width: 0; padding: clamp(22px, 3vw, 42px) clamp(20px, 3vw, 40px) 8px; gap: 10px; }
+.stage-toggle { position: absolute; z-index: 3; top: 18px; right: 18px; }
+.scorecard-head { display: flex; align-items: center; gap: 14px; }
+.scorecard-avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid var(--line-strong); }
+.scorecard-avatar.placeholder { display: grid; place-items: center; background: var(--s2); color: var(--muted); }
+.rank-badge { display: inline-block; margin-top: 4px; padding: 2px 9px; border-radius: 999px; background: var(--s2); border: 1px solid var(--line-strong); font-size: 11px; font-weight: 600; color: var(--accent-hi); }
 .stage-empty .stage-name { max-width: 18ch; font-size: clamp(30px, 3vw, 44px); text-wrap: balance; }
 .stage-empty .stage-hype { max-width: 66ch; margin: 0; }
 .local-source-row { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--dim); font-size: 11.5px; }

@@ -34,6 +34,7 @@ if (location.hash === '#achievements') {
     bootstrap: () => ipcRenderer.invoke('app:bootstrap'),
     saveAccount: (id) => ipcRenderer.invoke('profile:save', id),
     history: (id, refresh) => ipcRenderer.invoke('history:get', id, refresh),
+    playerProfile: () => ipcRenderer.invoke('player:profile'),
     match: (id, refresh) => ipcRenderer.invoke('match:get', id, refresh),
     requestParse: (id) => ipcRenderer.invoke('parse:request', id),
     parseStatus: (id) => ipcRenderer.invoke('parse:status', id),
