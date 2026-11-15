@@ -63,3 +63,16 @@ export function achievementBounds(workArea: Rect, game: Rect | null, settings: P
   const height = Math.max(60, measuredHeight ?? 60)
   return place(workArea, game, mirrored, width, height)
 }
+
+/** Map-mechanic alerts (rune spawns, day/night, the stack/pull heads-up) sit top-center of Dota's own window —
+ * distinct from both the main card (a side corner) and achievement pop-ups (the mirror corner) — since these are
+ * clock-driven mechanics the whole screen should notice, the same place Dota's own kill-feed/game banners sit,
+ * not a corner celebration about something you personally did. */
+export function mapTimerBounds(workArea: Rect, game: Rect | null, measuredHeight: number | null): Rect {
+  const clipped = game && intersection(workArea, game)
+  const area = clipped && clipped.width >= 3 && clipped.height >= 3 ? clipped : workArea
+  const width = Math.min(420, Math.max(260, Math.round(area.width * 0.32)))
+  const height = Math.max(60, measuredHeight ?? 60)
+  const inset = Math.max(8, Math.round(area.height * 0.02))
+  return { x: Math.round(area.x + (area.width - width) / 2), y: Math.ceil(area.y + inset), width, height }
+}

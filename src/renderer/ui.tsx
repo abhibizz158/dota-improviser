@@ -15,6 +15,7 @@ import type { ItemInfo } from '../shared/items.js'
 import type { Recovery } from '../shared/live-coach.js'
 import itemCatalog from 'virtual:dota-items'
 import { OutlookCard } from './match-outlook'
+import { wardSpotsFor } from '../shared/warding.js'
 
 const base = import.meta.env.BASE_URL
 const bundled = new Set(Object.keys(import.meta.glob('../../public/heroes/*.png')).map((path) => path.split('/').at(-1)?.replace('.png', '')))
@@ -199,7 +200,7 @@ const tone = (p: number | null) => p == null ? 'var(--dim)' : p >= 66 ? 'var(--g
 function Pace({ label, value, median, pct }: { label: string; value: string; median?: string; pct: number | null }) {
   return <div className="pace-row"><span>{label} <em>{value}{median ? ' / ' + median : ''}</em></span><div className="meter"><i style={{ width: (pct ?? 0) + '%', background: tone(pct) }} /></div><b>{pct == null ? '—' : Math.round(pct)}</b></div>
 }
-const toastIcon = (kind: string) => kind === 'first-blood' ? '🩸' : kind === 'multikill' ? '⚔' : kind === 'streak' ? '🔥' : (kind === 'item' || kind === 'comeback') ? '★' : kind === 'alert' ? '⚠' : kind === 'summary' ? '🏁' : '✓'
+const toastIcon = (kind: string) => kind === 'first-blood' ? '🩸' : kind === 'multikill' ? '⚔' : kind === 'streak' ? '🔥' : (kind === 'item' || kind === 'comeback') ? '★' : kind === 'alert' ? '⚠' : kind === 'map-timer' ? '⏱' : kind === 'summary' ? '🏁' : '✓'
 
 /** Animated achievement/alert banners. Each fades itself out via CSS; the overlay just stops receiving them once
  * TOAST_MS elapses. Several landing at once (a multikill plus a streak, say) stack instead of replacing each other. */
@@ -258,6 +259,26 @@ export function RoshanTimer({ roshan }: { roshan: RoshanState }) {
     {roshan.roshanAt != null && <span className={'chip ' + (rosh.state === 'open' ? 'hot' : rosh.state === 'unknown' ? '' : '')}>
       <Shield size={11} /> Roshan {rosh.state === 'waiting' ? 'in ' + roshanClock(rosh.minLeft!) : rosh.state === 'open' ? 'may be up' : 'window passed'}</span>}
     {roshan.aegisAt != null && !aegis.expired && <span className="chip epic"><Shield size={11} /> Aegis {roshanClock(aegis.left!)}</span>}
+  </div>
+}
+
+/** Support-only warding reference, collapsed behind its own toggle so it only takes overlay space when a
+ * support player actually wants it (below the main card, never on by default). Static spot descriptions only —
+ * never derived from live map/vision state, same guardrail as everything else in this file; a map rework just
+ * means updating `src/shared/warding.ts`. */
+export function WardingWidget({ side }: { side: 'Radiant' | 'Dire' | null }) {
+  const [show, setShow] = useState(false)
+  const spots = wardSpotsFor(side)
+  return <div className="warding-widget">
+    <button type="button" className="warding-toggle" onClick={() => setShow((on) => !on)}>
+      <Shield size={11} /> {show ? 'Hide ward spots' : 'Show ward spots'}
+    </button>
+    {show && <div className="warding-list">
+      {spots.map((spot) => <div key={spot.id} className={'warding-spot ' + spot.kind}>
+        <b>{spot.kind === 'sentry' ? '◆' : '◇'} {spot.label}</b><small>{spot.area} · {spot.sub}</small>
+      </div>)}
+      <small className="draft-note">Common spots — Valve has reworked the map before; recheck after a big patch.</small>
+    </div>}
   </div>
 }
 

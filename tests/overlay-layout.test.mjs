@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { gameDisplay, overlayBounds } from '../dist/main/main/overlay-layout.js'
+import { gameDisplay, mapTimerBounds, overlayBounds } from '../dist/main/main/overlay-layout.js'
 
 const primary = { id: 1, bounds: { x: 0, y: 0, width: 1440, height: 900 }, workArea: { x: 0, y: 38, width: 1440, height: 822 } }
 const secondary = { id: 2, bounds: { x: -1280, y: -200, width: 1280, height: 1024 }, workArea: { x: -1280, y: -176, width: 1280, height: 1000 } }
@@ -33,6 +33,16 @@ test('passive card is capped and a larger editor remains within a small screen',
   assert.equal(editor.x + editor.width, passive.x + passive.width)
   assert.equal(editor.y + editor.height, passive.y + passive.height)
   assert.ok(editor.x + editor.width < work.x + work.width && editor.y + editor.height < work.y + work.height)
+})
+
+test('map-timer alerts sit horizontally centered at the top of the game window, not a corner', () => {
+  const game = { x: 100, y: 50, width: 1000, height: 700 }
+  const bounds = mapTimerBounds(primary.workArea, game, 60)
+  assert.equal(bounds.x + bounds.width / 2, game.x + game.width / 2)
+  assert.ok(bounds.y > game.y && bounds.y < game.y + 40)
+  assert.ok(bounds.width >= 260 && bounds.width <= 420)
+  const noGame = mapTimerBounds(primary.workArea, null, null)
+  assert.equal(noGame.x + noGame.width / 2, primary.workArea.x + primary.workArea.width / 2)
 })
 
 test('the clickable match setup opens at form size and the coach returns to compact size', () => {

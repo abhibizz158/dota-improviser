@@ -5,7 +5,7 @@ import type { AppApi, Bootstrap, FeatureKey, LiveState, MatchSummary, PuterStatu
 import { featureInfo } from '../shared/model'
 import { browserApi, builtInCatalog, initialLive } from './demo'
 import { Overview } from './overview'
-import { AssistantCard, CoachCard, DeathSnapshotCard, Dialog, DraftCard, Feedback, LaneCard, RecoveryCard, RoshanTimer, SessionPrompt, Toasts, clock } from './ui'
+import { AssistantCard, CoachCard, DeathSnapshotCard, Dialog, DraftCard, Feedback, LaneCard, RecoveryCard, RoshanTimer, SessionPrompt, Toasts, WardingWidget, clock } from './ui'
 import { fairPlay } from '../shared/guard'
 import { playAchievementChime } from './sound'
 import '@fontsource-variable/inter/wght.css'
@@ -80,6 +80,7 @@ function Overlay() {
   const editorial = live.view === 'lane'
   const acceptsInput = live.interactive || live.view === 'setup'
   const recovery = editorial && live.settings.features.deathAdvice ? live.recovery : null
+  const support = live.settings.role === 'Soft support' || live.settings.role === 'Hard support'
   return <div className={'overlay-scroll' + (acceptsInput ? ' interactive' : '')}><div className="overlay-view" ref={card}>
     {live.needsSessionInfo
       ? <SessionPrompt onSubmit={window.overlayApi?.sessionInfo} onSkip={window.overlayApi?.skipSession} />
@@ -92,6 +93,7 @@ function Overlay() {
     {recovery && <RecoveryCard recovery={recovery} />}
     {live.settings.features.deathSnapshot && editorial && live.deathSnapshot && <DeathSnapshotCard deathSnapshot={live.deathSnapshot} />}
     {live.settings.features.roshanTimer && editorial && <RoshanTimer roshan={live.roshan} />}
+    {support && editorial && <WardingWidget side={live.game?.team ?? null} />}
     {!compact && live.settings.features.toasts && editorial && <Toasts toasts={live.toasts.filter((t) => t.kind === 'alert')} />}
   </div></div>
 }
@@ -101,7 +103,16 @@ function Overlay() {
 function AchievementOverlay() {
   const { live, card } = useOverlayLive(false)
   return <div className="overlay-scroll"><div className="overlay-view achievement-view" ref={card}>
-    <Toasts toasts={live.toasts.filter((t) => t.kind !== 'alert')} />
+    <Toasts toasts={live.toasts.filter((t) => t.kind !== 'alert' && t.kind !== 'map-timer')} />
+  </div></div>
+}
+
+/** Top-center window for map-timer alerts (rune spawns, day/night, stack/pull heads-up) — the whole screen
+ * should notice a clock-driven mechanic, same place Dota's own kill-feed/game banners sit. */
+function MapAlertOverlay() {
+  const { live, card } = useOverlayLive(false)
+  return <div className="overlay-scroll"><div className="overlay-view map-alert-view" ref={card}>
+    <Toasts toasts={live.toasts.filter((t) => t.kind === 'map-timer')} />
   </div></div>
 }
 
@@ -488,4 +499,5 @@ function App() {
 
 if (window.dota) document.documentElement.classList.add(navigator.userAgent.includes('Mac') ? 'mac' : 'win')
 createRoot(document.getElementById('root')!).render(
-  location.hash === '#overlay' ? <Overlay /> : location.hash === '#achievements' ? <AchievementOverlay /> : <App />)
+  location.hash === '#overlay' ? <Overlay /> : location.hash === '#achievements' ? <AchievementOverlay /> :
+  location.hash === '#map-alert' ? <MapAlertOverlay /> : <App />)

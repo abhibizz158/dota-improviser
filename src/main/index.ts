@@ -53,7 +53,7 @@ import { OpenDota } from './opendota.js'
 import { Store } from './store.js'
 import { ReleaseUpdates } from './release-updates.js'
 import { localHistoryKey, mergeHistory, parsePrivateHistory } from './private-history.js'
-import { achievementBounds, gameDisplay, overlayBounds } from './overlay-layout.js'
+import { achievementBounds, gameDisplay, mapTimerBounds, overlayBounds } from './overlay-layout.js'
 import type { Rect } from './overlay-layout.js'
 
 app.setName('Dota Improviser')
@@ -154,6 +154,8 @@ const DEATH_SNAPSHOT_MS = 20000
 let portraitMemory: PortraitMemory[] = []
 let achievementWindow: BrowserWindow | null = null
 let achievementHeight: number | null = null
+let mapAlertWindow: BrowserWindow | null = null
+let mapAlertHeight: number | null = null
 let editFocusTimer: NodeJS.Timeout | undefined
 let windowProbe: {
   foregroundBounds: () => Rect | null
@@ -602,7 +604,13 @@ function broadcastSoon() {
 /** Whether there's an achievement banner worth showing right now — the achievement window still gets the same
  * full LiveState as everything else over 'live:update'; this only decides whether to show/hide it. */
 function achievementState(value: LiveState) {
-  return value.toasts.filter((toast) => toast.kind !== 'alert')
+  return value.toasts.filter((toast) => toast.kind !== 'alert' && toast.kind !== 'map-timer')
+}
+
+/** Map-timer alerts (rune spawns, day/night, the stack/pull heads-up) get their own top-center window instead
+ * of the achievement corner, since these are clock-driven mechanics the whole screen should notice. */
+function mapAlertState(value: LiveState) {
+  return value.toasts.filter((toast) => toast.kind === 'map-timer')
 }
 
 function broadcast() {
@@ -626,6 +634,16 @@ function broadcast() {
   } else if (achievementWindow) {
     achievementWindow.webContents.send('live:update', value)
     achievementWindow.hide()
+  }
+  const mapAlerts = settings.display === 'Overlay' && settings.features.toasts ? mapAlertState(value) : []
+  if (mapAlerts.length && overlay?.isVisible() && !clearTask) {
+    const alertWindow = mapAlertWindow ?? makeMapAlertWindow()
+    placeMapAlertWindow()
+    alertWindow.webContents.send('live:update', value)
+    if (!alertWindow.isVisible()) alertWindow.showInactive()
+  } else if (mapAlertWindow) {
+    mapAlertWindow.webContents.send('live:update', value)
+    mapAlertWindow.hide()
   }
   return value
 }
@@ -1006,7 +1024,7 @@ function receive(value: unknown) {
     } else if (!result?.lowPace) lowPaceAlerted = null
     if (settings.features.timingAlerts && nextFrame && !nextFrame.paused && !newPractice) {
       for (const timer of dueMapTimers(frameBefore?.clock ?? -1, nextFrame.clock, roleChoice().role, sessionGameType)) {
-        emitAlert({ id: timer.id, kind: 'alert', label: timer.label, sub: timer.sub, at: nextFrame.clock })
+        emitAlert({ id: timer.id, kind: 'map-timer', label: timer.label, sub: timer.sub, at: nextFrame.clock })
       }
     }
   }
@@ -1200,7 +1218,7 @@ function placeOverlay(window: BrowserWindow) {
   const bounds = overlayBounds(display.workArea, detected ? gameBounds : null, settings, view, overlayHeight, interactive)
   const old = window.getBounds()
   if (old.x !== bounds.x || old.y !== bounds.y || old.width !== bounds.width || old.height !== bounds.height) window.setBounds(bounds)
-  if (window === overlay) placeAchievementWindow()
+  if (window === overlay) { placeAchievementWindow(); placeMapAlertWindow() }
 }
 
 function placeAchievementWindow() {
@@ -1209,6 +1227,14 @@ function placeAchievementWindow() {
   const bounds = achievementBounds(display.workArea, detected ? gameBounds : null, settings, view, achievementHeight)
   const old = achievementWindow.getBounds()
   if (old.x !== bounds.x || old.y !== bounds.y || old.width !== bounds.width || old.height !== bounds.height) achievementWindow.setBounds(bounds)
+}
+
+function placeMapAlertWindow() {
+  if (!mapAlertWindow || mapAlertWindow.isDestroyed()) return
+  const { display, detected } = resolveOverlayDisplay()
+  const bounds = mapTimerBounds(display.workArea, detected ? gameBounds : null, mapAlertHeight)
+  const old = mapAlertWindow.getBounds()
+  if (old.x !== bounds.x || old.y !== bounds.y || old.width !== bounds.width || old.height !== bounds.height) mapAlertWindow.setBounds(bounds)
 }
 
 function trackOverlay() {
@@ -1226,6 +1252,7 @@ function trackOverlay() {
   } else if (gameBounds && ++foregroundMisses >= 3 && overlay.isVisible()) {
     overlay.hide()
     achievementWindow?.hide()
+    mapAlertWindow?.hide()
   }
   if (previous?.name !== overlayDisplay?.name || previous?.following !== overlayDisplay?.following) broadcastSoon()
 }
@@ -1266,6 +1293,7 @@ function reassertOverlayZOrder() {
   if (process.platform !== 'win32' || !overlayRequested || interactive || !detectDotaBounds()) return
   if (overlay && !overlay.isDestroyed() && overlay.isVisible()) overlay.moveTop()
   if (achievementWindow && !achievementWindow.isDestroyed() && achievementWindow.isVisible()) achievementWindow.moveTop()
+  if (mapAlertWindow && !mapAlertWindow.isDestroyed() && mapAlertWindow.isVisible()) mapAlertWindow.moveTop()
 }
 
 function updateOverlayTracking() {
@@ -1344,6 +1372,7 @@ function makeOverlay() {
     assistantReturn = null
     clearTimeout(editFocusTimer)
     if (achievementWindow && !achievementWindow.isDestroyed()) achievementWindow.close()
+    if (mapAlertWindow && !mapAlertWindow.isDestroyed()) mapAlertWindow.close()
     updateOverlayTracking()
   })
   void window.loadFile(ui, { hash: 'overlay' })
@@ -1368,6 +1397,28 @@ function makeAchievementWindow() {
   window.webContents.on('render-process-gone', () => { window.destroy() })
   window.on('closed', () => { if (achievementWindow === window) { achievementWindow = null; achievementHeight = null } })
   void window.loadFile(ui, { hash: 'achievements' })
+  return window
+}
+
+/** Map-timer alerts (runes, day/night, stack/pull) live in their own top-center window so the whole screen
+ * notices a clock-driven mechanic, same place Dota's own kill-feed/game banners sit. Purely decorative: never
+ * focusable or clickable, same as the achievement window above. */
+function makeMapAlertWindow() {
+  const window = new BrowserWindow({
+    width: 300, height: 60, show: false, frame: false, transparent: true, resizable: false, focusable: false,
+    skipTaskbar: true, hasShadow: false, fullscreenable: false,
+    type: process.platform === 'darwin' ? 'panel' : undefined,
+    webPreferences: { ...webPreferences, spellcheck: false, backgroundThrottling: false },
+  })
+  mapAlertWindow = window
+  mapAlertHeight = null
+  windowGuard(window)
+  window.setAlwaysOnTop(true, 'screen-saver')
+  window.setIgnoreMouseEvents(true, { forward: true })
+  if (process.platform === 'darwin') window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+  window.webContents.on('render-process-gone', () => { window.destroy() })
+  window.on('closed', () => { if (mapAlertWindow === window) { mapAlertWindow = null; mapAlertHeight = null } })
+  void window.loadFile(ui, { hash: 'map-alert' })
   return window
 }
 
@@ -1446,6 +1497,7 @@ function hideOverlay() {
   overlay?.hide()
   toasts = []
   achievementWindow?.hide()
+  mapAlertWindow?.hide()
   overlayDisplay = undefined
   updateOverlayTracking()
 }
@@ -1989,7 +2041,7 @@ function handlers() {
     })
   }
   ipcMain.handle('live:snapshot', (event: IpcMainInvokeEvent) => {
-    if (event.senderFrame === event.sender.mainFrame && (event.sender === overlay?.webContents || event.sender === achievementWindow?.webContents)) {
+    if (event.senderFrame === event.sender.mainFrame && (event.sender === overlay?.webContents || event.sender === achievementWindow?.webContents || event.sender === mapAlertWindow?.webContents)) {
       return state()
     }
     throw new Error('This action is only available in the overlay.')
@@ -2004,6 +2056,9 @@ function handlers() {
     } else if (achievementWindow && event.sender === achievementWindow.webContents && event.senderFrame === achievementWindow.webContents.mainFrame) {
       achievementHeight = measured
       placeAchievementWindow()
+    } else if (mapAlertWindow && event.sender === mapAlertWindow.webContents && event.senderFrame === mapAlertWindow.webContents.mainFrame) {
+      mapAlertHeight = measured
+      placeMapAlertWindow()
     }
   })
   ipcMain.handle('overlay:draft', (event: IpcMainInvokeEvent, input: unknown) => {

@@ -13,7 +13,7 @@ const overlayState = {
   onLive,
 }
 
-if (location.hash === '#achievements') {
+if (location.hash === '#achievements' || location.hash === '#map-alert') {
   contextBridge.exposeInMainWorld('overlayApi', overlayState)
 } else if (location.hash === '#overlay') {
   contextBridge.exposeInMainWorld('overlayApi', {

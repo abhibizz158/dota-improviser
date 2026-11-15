@@ -61,5 +61,13 @@ export function dueMapTimers(before: number, after: number, role: Role | null, m
     const t = crossing(before, after, 45, 60)
     if (t != null) alerts.push({ id: 'stack-' + t, label: 'Stack window soon', sub: support ? 'Get to a camp — pull in the next ~15s' : 'A camp may get stacked — plan your next clear around it' })
   }
+  // Lane pull: a distinct heads-up from stacking above, around :15 past each minute during the laning phase
+  // only (before 10:00) — the usual early window to pull the wave into a jungle camp off the lane, same clock
+  // math a support already keeps in their head, not read from the game. Stops once laning phase is over, same
+  // as the rest of lanePlan's laning-only advice.
+  if (support && after < 600) {
+    const t = crossing(before, after, 15, 60)
+    if (t != null) alerts.push({ id: 'pull-' + t, label: 'Pull window soon', sub: 'Pull the wave into a camp — now' })
+  }
   return alerts
 }

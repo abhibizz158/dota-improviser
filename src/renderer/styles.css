@@ -428,15 +428,23 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .toast b { display: block; font: 800 15px var(--display); letter-spacing: .1em; } .toast small { color: var(--muted); font-size: 11px; }
 .toast.epic { border-color: rgba(217,172,79,.6); background: linear-gradient(110deg, rgba(60,40,10,.96), rgba(18,14,10,.96)); animation: toastIn .3s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 6.5s ease-in forwards, pulseGlow .8s 2; pointer-events: none; }
 .toast.epic .toast-icon { background: var(--grad-gold); color: #3a2400; } .toast.epic b { background: linear-gradient(90deg, #fff, #ffe08a, #fff); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 1.3s linear infinite; }
-.achievement-view .toasts { margin-bottom: 0; }
+.achievement-view .toasts, .map-alert-view .toasts { margin-bottom: 0; }
 .vision-debug { display: grid; gap: 8px; } .vision-debug img { width: 100%; border-radius: 8px; border: 1px solid var(--hairline); background: #000; }
 .vision-rows p { margin: 0; font-size: 12.5px; color: var(--muted); } .vision-rows strong { color: var(--text); }
 .toast.first-blood { border-color: rgba(224,87,75,.6); }
 .toast.alert { border-color: rgba(224,87,75,.5); } .toast.alert .toast-icon { background: rgba(224,87,75,.18); color: var(--bad); }
+.toast.map-timer { border-color: rgba(79,172,217,.5); } .toast.map-timer .toast-icon { background: rgba(79,172,217,.18); color: #4fb0d9; }
 
 .momentum { display: grid; gap: 3px; } .momentum-head { display: flex; justify-content: space-between; align-items: baseline; } .momentum small { font: 700 9.5px var(--display); letter-spacing: .16em; color: var(--muted); } .momentum b { font: 800 15px var(--display); }
 .momentum svg { width: 100%; height: 44px; display: block; }
 .game-strip, .objective-chips, .roshan-timer { display: flex; flex-wrap: wrap; gap: 5px; }
+.warding-widget { margin-top: 6px; }
+.warding-toggle { display: flex; align-items: center; gap: 5px; font: 700 10.5px var(--display); letter-spacing: .08em; color: var(--muted); background: rgba(255,255,255,.05); border: 1px solid var(--hairline); border-radius: 7px; padding: 5px 9px; cursor: pointer; }
+.warding-toggle:hover { color: var(--text); background: rgba(255,255,255,.09); }
+.warding-list { display: grid; gap: 6px; margin-top: 6px; }
+.warding-spot { display: grid; gap: 1px; padding: 6px 8px; border: 1px solid var(--hairline); border-radius: 7px; background: rgba(255,255,255,.03); }
+.warding-spot b { font-size: 12px; } .warding-spot small { color: var(--muted); font-size: 11px; }
+.warding-spot.sentry b { color: #d9ac4f; }
 .roshan-timer .chip svg { margin-right: 2px; }
 .chip { display: inline-flex; gap: 5px; align-items: center; padding: 3px 9px; border-radius: 99px; background: rgba(255,255,255,.07); border: 1px solid var(--hairline); font-size: 11px; font-weight: 600; animation: pageIn .4s both; }
 .chip.epic { border-color: rgba(217,172,79,.55); color: var(--gold); background: rgba(217,172,79,.1); } .chip.hot { border-color: rgba(224,87,75,.5); color: #ff9a8e; background: rgba(224,87,75,.1); } .chip.good { color: var(--good); } .chip.bad { color: var(--bad); }

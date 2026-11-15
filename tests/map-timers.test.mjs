@@ -35,6 +35,14 @@ test('the stacking heads-up fires for every role 15s before each minute, worded 
   assert.match(dueMapTimers(44, 45, 'Carry', 'Normal')[0].sub, /clear/)
 })
 
+test('the pull heads-up fires for supports only, at :15 past each minute, only during the laning phase', () => {
+  assert.deepEqual(ids(dueMapTimers(14, 15, 'Hard support', 'Normal')), ['pull-15'])
+  assert.deepEqual(ids(dueMapTimers(14, 15, 'Soft support', 'Normal')), ['pull-15'])
+  assert.deepEqual(ids(dueMapTimers(14, 15, 'Carry', 'Normal')), [])
+  assert.deepEqual(ids(dueMapTimers(74, 75, 'Hard support', 'Normal')), ['pull-75'])
+  assert.deepEqual(ids(dueMapTimers(599, 615, 'Hard support', 'Normal')).filter((id) => id.startsWith('pull')), [])
+})
+
 test('a big tick jump still fires the crossed event exactly once, and nothing fires in Ability Draft', () => {
   assert.deepEqual(ids(dueMapTimers(0, 245, 'Hard support', 'Normal')).filter((id) => id.startsWith('bounty')), ['bounty-240'])
   assert.deepEqual(dueMapTimers(0, 400, 'Mid', 'Ability Draft'), [])
