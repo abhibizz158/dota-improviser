@@ -222,7 +222,6 @@ dialog.dialog:has(.welcome-dialog) { width: min(640px, 94vw); max-width: calc(10
 .tips { display: grid; gap: 5px; } .tip { padding: 5px 8px; border-radius: 5px; background: var(--s2); border-left: 2px solid var(--info); line-height: 1.35; } .tip.warn { border-color: var(--gold); } .tip.good { border-color: var(--good); }
 .ach { display: flex; flex-wrap: wrap; gap: 5px; } .ach span { display: inline-flex; gap: 5px; align-items: center; padding: 2px 8px; border-radius: 99px; background: var(--s2); border: 1px solid var(--line-strong); font-size: 11px; color: var(--muted); } .ach .done { border-color: var(--good); color: var(--good); } .ach .late-done { border-color: var(--dim); } .ach .missed { opacity: .5; text-decoration: line-through; } .ach .live { border-color: var(--gold); color: var(--gold); }
 .overlay-document, .overlay-document body { background: transparent; min-width: 0; overflow: hidden; }
-.overlay-view { padding: 4px; display: grid; justify-items: end; }
 
 /* ===== v3: glass / macOS-style layer ===== */
 :root {
@@ -279,7 +278,6 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .score-ring { width: 72px; height: 72px; box-shadow: 0 0 18px rgba(217,172,79,.18); } .score-ring span { width: 58px; height: 58px; background: #0d0f14; font-size: 26px; }
 .tip { background: rgba(255,255,255,.06); border-radius: 8px; border-left-width: 3px; }
 .ach span { background: rgba(255,255,255,.06); }
-.overlay-view { padding: 6px; }
 
 /* ===== v4: hero-poster stage, torn paper, graphs, motion ===== */
 :root { --paper: #ece7de; --ink: #14110f; --ink-soft: #4a433a; --serif: 'Cinzel', 'Trajan Pro 3', 'Iowan Old Style', Palatino, 'Palatino Linotype', Georgia, serif; }
@@ -438,6 +436,10 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .momentum { display: grid; gap: 3px; } .momentum-head { display: flex; justify-content: space-between; align-items: baseline; } .momentum small { font: 700 9.5px var(--display); letter-spacing: .16em; color: var(--muted); } .momentum b { font: 800 15px var(--display); }
 .momentum svg { width: 100%; height: 44px; display: block; }
 .game-strip, .objective-chips, .roshan-timer { display: flex; flex-wrap: wrap; gap: 5px; }
+.match-summary-card { position: relative; display: grid; gap: 7px; padding: 10px 12px; background: var(--glass-strong); border: 1px solid var(--line); border-left: 2px solid var(--gold); border-radius: 9px; min-width: 260px; }
+.match-summary-card .stat-row b { display: block; }
+.match-summary-close { position: absolute; top: 7px; right: 7px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--muted); cursor: pointer; }
+.match-summary-close:hover { color: var(--text); background: rgba(255,255,255,.12); }
 .warding-widget { margin-top: 6px; }
 .warding-toggle { display: flex; align-items: center; gap: 5px; font: 700 10.5px var(--display); letter-spacing: .08em; color: var(--muted); background: rgba(255,255,255,.05); border: 1px solid var(--hairline); border-radius: 7px; padding: 5px 9px; cursor: pointer; }
 .warding-toggle:hover { color: var(--text); background: rgba(255,255,255,.09); }
@@ -534,7 +536,6 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 @media (prefers-reduced-motion: reduce) { .death-snapshot-card { animation: none; } }
 .death-snapshot-card img { width: 100%; border-radius: 5px; display: block; }
 .obj-table td:not(:first-child) { font-variant-numeric: tabular-nums; } .obj-sub { margin: 14px 0 6px; }
-.overlay-view { display: grid; align-content: start; justify-items: end; }
 .overlay-view .toasts { align-self: stretch; }
 
 .style-card { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(220px, 280px) 1fr; gap: 6px 26px; align-items: center; }
@@ -610,11 +611,14 @@ body { font-size: clamp(13px, 0.22vw + 11.2px, 16px); }
 .overlay-scroll { max-height: 100dvh; overflow: hidden; }
 .overlay-scroll:not(.interactive) { pointer-events: none; user-select: none; }
 .overlay-scroll.interactive { overflow-y: auto; scrollbar-width: thin; }
-.overlay-view { padding: 4px; gap: 5px; justify-items: stretch; }
+/* Single canonical rule — this used to be split across four separate, partially-overriding `.overlay-view`
+ * declarations left behind by earlier style passes (v3/v4 layers below), so the actual edge padding depended
+ * on cascade order instead of being stated once; consolidated here with a bit more breathing room. */
+.overlay-view { padding: 7px; gap: 5px; display: grid; align-content: start; justify-items: stretch; }
 .overlay-view .lane-card, .overlay-view .draft-card, .overlay-view .coach-card {
   min-width: 0; max-width: none; box-shadow: 0 3px 10px #0007; padding: 10px 10px 9px 12px;
 }
-.overlay-view .compact-coach .stat-row { margin-top: 4px; }
+.overlay-view .compact-coach .stat-row { margin-top: 4px; grid-template-columns: repeat(5, 1fr); }
 /* The lane card's "Compact" size setting used to have no visual effect at all (lane-large carried no rule of its
  * own, and the un-suffixed class was already the full-detail look) — this is the actual compact variant: tighter
  * padding/type and the per-minute pace targets dropped, same spirit as compact-coach trimming the in-game card. */
@@ -693,6 +697,9 @@ body { font-size: clamp(13px, 0.22vw + 11.2px, 16px); }
 .coach-context-stats:empty { display: none; }
 .overlay-preview > .button + .button { margin-left: 6px; }
 
+.match-items-compact { display: flex; gap: 6px; flex-wrap: wrap; }
+.match-item-chip { display: flex; align-items: center; gap: 4px; padding: 2px 6px 2px 2px; border-radius: 6px; border: 1px solid rgba(217,172,79,.3); background: rgba(217,172,79,.08); }
+.match-item-chip small { font: 700 10px var(--display); color: var(--gold); font-variant-numeric: tabular-nums; }
 .match-items { display: grid; gap: 4px; }
 .match-items > div { min-width: 0; padding: 5px 7px; border-left: 2px solid var(--gold); border-radius: 4px; background: var(--s1); }
 .match-items header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 7px; }
@@ -706,9 +713,11 @@ body { font-size: clamp(13px, 0.22vw + 11.2px, 16px); }
 .match-outlook header strong { font: 800 18px var(--display); color: var(--good); font-variant-numeric: tabular-nums; }
 .match-outlook.trailing header strong { color: var(--bad); }
 .match-outlook small, .outlook-axis, .outlook-scrub { font-size: 10px; color: var(--muted); }
-.match-outlook.compact:has(.outlook-graph) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; column-gap: 10px; }
+.match-outlook.compact:has(.win-tick) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; column-gap: 10px; }
 .match-outlook.compact small { grid-column: 1 / -1; }
-.match-outlook.compact .outlook-graph svg { height: 22px; }
+.win-tick-track { position: relative; height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--bad), var(--line-strong) 50%, var(--good)); }
+.win-tick-mid { position: absolute; left: 50%; top: -2px; width: 1px; height: 9px; background: var(--muted); }
+.win-tick-mark { position: absolute; top: -3px; width: 7px; height: 11px; margin-left: -3.5px; border-radius: 3px; background: var(--text); box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
 .outlook-graph svg { width: 100%; display: block; height: 36px; }
 .outlook-graph.detailed svg { height: clamp(100px, 18vw, 180px); }
 .outlook-gridline { stroke: var(--line-strong); stroke-dasharray: 4 4; }

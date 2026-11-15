@@ -1,7 +1,8 @@
 import type { Hero, MatchReview, MatchSummary, Matchups, Role } from './model.js'
 import { roleFit } from './analysis.js'
 import { allyCombination, counterInteraction } from './draft-reasons.js'
-import type { FeatureName, Kit, MechModel } from './mechanics.js'
+import type { FeatureName, Fix, Kit, KitsDb, MechModel } from './mechanics.js'
+import { controlScore, damageMix, rectify, teamProfile } from './mechanics.js'
 
 // Win-rate blend for "my hero C vs enemy E". Sources, strongest-first:
 //  live  = fresh OpenDota aggregate (fetched this session / cached <24h)
@@ -119,6 +120,25 @@ export function compositionPoints(levels: number[] | undefined, allyLevels: numb
   return clamp(COMP_POINTS * (2 * (gain / total) - 0.5) * Math.min(1, allyLevels.length / 3), -2.5, COMP_POINTS)
 }
 
+const POOL_POINTS = 4 // max points a pick can gain for addressing the team/enemy lineup's real gaps
+
+/** Whether a hero's own kit actually answers a lineup fix (`rectify`'s own analysis, reused here instead of a
+ * second hand-tuned list): matching damage type for a 'too much phys/magic' read, or enough control for a
+ * 'team lacks disables' read. This is the same cross-role "fills what the pool needs" read the user asked for
+ * mid, generalized to every role: a support sees the carry's gaps the same way the carry sees the support's. */
+function poolFitPoints(kit: Kit | undefined, fixes: Fix[]): number {
+  if (!kit || !fixes.length) return 0
+  const mix = damageMix(kit), control = clamp(controlScore(kit) / 4, 0, 1)
+  let points = 0
+  for (const fix of fixes) {
+    if (fix.id === 'physical') points += fix.severity * mix.phys
+    else if (fix.id === 'magic' || fix.id === 'nomagic') points += fix.severity * mix.mag
+    else if (fix.id === 'nophys') points += fix.severity * mix.phys
+    else if (fix.id === 'lowcontrol') points += fix.severity * control
+  }
+  return clamp(points, 0, 1) * POOL_POINTS
+}
+
 type Pair = { g: number; w: number; source: Why['source'] }
 
 function rankAll(input: BrainInput): Suggestion[] {
@@ -139,6 +159,11 @@ function rankAll(input: BrainInput): Suggestion[] {
     return hero ? [{ hero, kit: input.kits?.[id] }] : []
   })
   const allyRows = allied.map((id) => input.levels?.[id]).filter((l): l is number[] => Boolean(l))
+  // Same lineup read the item-coaching "what to change" list already uses (teamProfile/rectify in mechanics.ts),
+  // reused here so a pick can be scored on whether it actually answers the team's and enemy's real gaps — not
+  // just "mid picks last so check the pools", every role sees the same read of both pools.
+  const kitsDb: KitsDb | null = input.kits ? { builtAt: 0, heroes: input.kits } : null
+  const poolFixes = kitsDb && (allied.length || enemy.length) ? rectify(teamProfile(enemy, kitsDb), teamProfile(allied, kitsDb)) : []
 
   const pairOf = (hero: Hero, e: number): Pair => {
     const liveRow = liveRows.get(e)?.get(hero.id) // wins are the ENEMY's
@@ -185,12 +210,13 @@ function rankAll(input: BrainInput): Suggestion[] {
     const mine = profile.heroes[hero.id]
     const comfort = mine && mine.g >= 3 ? ((mine.w + 5) / (mine.g + 10) - 0.5) * 100 : null
     const combo = allyCombination(hero, input.kits?.[hero.id], allies)
-    const comp = compositionPoints(levels, allyRows) + (combo?.points ?? 0)
+    const poolFit = poolFitPoints(input.kits?.[hero.id], poolFixes)
+    const comp = compositionPoints(levels, allyRows) + (combo?.points ?? 0) + poolFit
     const fitPts = (fitScore - 0.45) * 6 * weights.fit
     const score = counter + meta + comp + fitPts + interactionPoints + (comfort ?? 0) * weights.comfort
     return {
       heroId: hero.id, teamWin: teamWinProb([...allied, hero.id], enemy, index, input.base), score, fit: fitScore >= 0.4, fitScore, comfort, why, games,
-      edge, base: input.base ? base(hero.id) * 100 : null, comp, synergy: combo?.text,
+      edge, base: input.base ? base(hero.id) * 100 : null, comp, synergy: combo?.text ?? (poolFit >= 1.5 ? 'Covers a gap in the current lineup' : undefined),
       mech: input.mech && why.length ? { edge: mean((x) => x.mech ?? 0), parts: [...mechParts].map(([label, points]) => ({ label, points: points / why.length })).filter((p) => Math.abs(p.points) >= 0.05).sort((a, b) => Math.abs(b.points) - Math.abs(a.points)).slice(0, 4) } : undefined,
       winRate: why.length ? 100 * mean((x) => x.rate) : null,
       confidence: clamp(games / (K * Math.max(1, enemy.length)), 0, 1),

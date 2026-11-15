@@ -177,6 +177,18 @@ export type LiveState = {
   /** True once a game is live but you haven't said this session's lane/role and game type yet — the overlay should prompt. */
   performance?: PersonalPerformance; coaching?: CoachingContext; draftVisionActive?: boolean; draftWindowShare?: DraftWindowShare;
   needsSessionInfo: boolean; confirmedKiller?: number | null; sessionInfo: { gameType: GameType | null; lane: Role | null }
+  /** A completed match's own real numbers, kept visible (dismissed by the player, not a timer) until the next
+   * game starts — large enough to actually read, not a 7s toast. */
+  matchSummary: MatchSummaryView | null
+}
+/** Same stat names everywhere else in the app, compared against this player's own average on this hero
+ * (`profile.stats`, already computed from their saved history) so "better/worse than before" is a real number,
+ * not a guess — null deltas just mean not enough of your own games on this hero yet. */
+export type MatchSummaryView = {
+  matchId?: string; won: boolean | null; kills: number; deaths: number; assists: number; gpm: number; xpm: number; lastHits: number
+  focus: string | null
+  deltas: { gpm: number | null; xpm: number | null; lastHits: number | null }
+  sampleGames: number
 }
 
 export type MechRow = { heroId: number; edge: number; parts: { label: FeatureName; points: number }[] }

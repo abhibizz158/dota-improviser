@@ -32,13 +32,20 @@ export function matchEstimate(input: {
   const pace = scored && coach?.gpmPct != null && coach.xpmPct != null && time >= 300
     ? clamp((coach.gpmPct + coach.xpmPct - 100) / 1250, -0.08, 0.08) : 0
   const dead = scored && frame.alive === false && frame.respawnSeconds != null && time >= 600 ? -Math.min(0.12, frame.respawnSeconds / 500) : 0
-  const win = Math.round(clamp(100 / (1 + Math.exp(-(prior + live + scaling + balance + pace + dead))), 8, 92))
+  // Your own KDA (the only kill/death detail GSI ever gives beyond the team score above) — a hero snowballing
+  // kills and assists with few deaths is pulling its own weight regardless of what the raw kill lead says.
+  // Deliberately small and personal-only: GSI carries no other player's net worth, items or KDA (same ceiling
+  // documented in AGENTS.md for towers/buildings), so this can never become a full "team KDA" read.
+  const kda = scored && frame.kills != null && frame.deaths != null && time >= 300
+    ? clamp(((frame.kills + (frame.assists ?? 0)) / (frame.deaths + 1) - 2) / 40, -0.06, 0.06) : 0
+  const win = Math.round(clamp(100 / (1 + Math.exp(-(prior + live + scaling + balance + pace + dead + kda))), 8, 92))
   const factors = [
     lead == null ? null : lead === 0 ? 'Even team kills' : lead > 0 ? `+${lead} team kills` : `${lead} team kills`,
     lineupWin == null ? null : 'Revealed lineup',
     completeLineups ? (time >= 900 ? 'Scaling and team balance' : 'Team balance') : null,
     pace !== 0 ? 'Your GPM/XPM pace' : null,
     dead !== 0 ? 'Respawn downtime' : null,
+    kda !== 0 ? 'Your KDA' : null,
   ].filter((factor): factor is string => factor !== null)
   return { win, lead, scope: scored ? 'Live team scores' : 'Lineup only', factors }
 }

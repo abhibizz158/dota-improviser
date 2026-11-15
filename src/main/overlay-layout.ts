@@ -45,9 +45,13 @@ export function overlayBounds(workArea: Rect, game: Rect | null, settings: Pick<
   const { area, inset } = cornerArea(workArea, game)
   const expanded = editing || view === 'setup'
   const large = settings.size === 'Large'
-  const width = Math.min(Math.max(1, Math.floor(area.width - 2 * inset)), expanded ? 440 :
-    Math.min(large ? 416 : 336, Math.max(224, Math.round(area.width * (large ? 0.34 : 0.28)))))
-  const heightLimit = Math.min(area.height - 2 * inset,
+  // Hard ceiling, regardless of view/size/editing: the overlay is a companion HUD, never half the monitor it
+  // sits on (so it can never visually compete with Dota's own screen) — every other width/height limit below
+  // this line is a *smaller* target the overlay prefers; this one is the absolute cap nothing may exceed.
+  const maxWidth = Math.floor(workArea.width * 0.5), maxHeight = Math.floor(workArea.height * 0.5)
+  const width = Math.min(maxWidth, Math.min(Math.max(1, Math.floor(area.width - 2 * inset)), expanded ? 440 :
+    Math.min(large ? 416 : 336, Math.max(224, Math.round(area.width * (large ? 0.34 : 0.28))))))
+  const heightLimit = Math.min(maxHeight, area.height - 2 * inset,
     Math.max(190, Math.round(area.height * (expanded ? 0.78 : large ? 0.60 : 0.50))))
   const height = Math.max(1, Math.min(Math.floor(heightLimit), measuredHeight ?? (expanded ? 360 : view === 'draft' ? 320 : 220)))
   return place(workArea, game, resolvePlacement(settings, view), width, height)

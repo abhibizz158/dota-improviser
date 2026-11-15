@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ArrowDown, ArrowUp, BrainCircuit, Clock3, Gamepad2, Minus, Radio, Shield, Swords, Trophy, X } from 'lucide-react'
-import type { CompactModule, DraftInput, GameType, GameView, Hero, LiveSettings, LiveState, Role, Toast } from '../shared/model.js'
+import type { CompactModule, DraftInput, GameType, GameView, Hero, LiveSettings, LiveState, MatchSummaryView, Role, Toast } from '../shared/model.js'
 import { compactModules, gameTypes, roleLabels, roles } from '../shared/model.js'
 import { aegisView, clockText as roshanClock, roshanView } from '../shared/roshan.js'
 import type { RoshanState } from '../shared/roshan.js'
@@ -301,9 +301,20 @@ function PerformanceMeter({ performance, detailed }: { performance: PersonalPerf
   </section>
 }
 
+/** Compact shows just the icon and when it's done (not the full sentence) — there's no room there for prose,
+ * and the icon already says what the item is; the reason text still drives which item gets picked. */
 function MatchItems({ items, compact }: { items: ItemRecommendation[]; compact?: boolean }) {
+  if (compact) {
+    return <div className="match-items-compact" aria-label="Matchup items">
+      {items.slice(0, 2).map((item) => <span key={item.key} className="match-item-chip" title={item.reason}>
+        <ItemIcon itemKey={item.key} name={item.name} /><small>{item.etaMinutes == null ? 'now' : '~' + item.etaMinutes + 'm'}</small>
+      </span>)}
+    </div>
+  }
+  // Only the single highest-priority item in full prose — a second full card was pure vertical weight; the
+  // compact chip row above already covers "what else is coming" with no text at all.
   return <section className="match-items" aria-label="Matchup items">
-    {items.slice(0, compact ? 1 : 2).map((item) => <div key={item.key}>
+    {items.slice(0, 1).map((item) => <div key={item.key}>
       <header><span className="match-item-name"><ItemIcon itemKey={item.key} name={item.name} /><b>{item.name}</b></span><small>{item.timing}</small></header>
       <p>{item.reason}</p><small>{item.goal}</small>
     </div>)}
@@ -374,7 +385,9 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
     (f.laneWatch ? support?.tips[0] : undefined)
   const med = (v: number | null, d = 0) => v == null ? undefined : fmt(v, d)
   if (compact) {
-    const showTip = detailed && primaryTip && (!items.length || primaryTip.level === 'warn')
+    // Item chips are now a single icon+ETA row (not prose), so there's room to also show the tip even when
+    // items are present — only true overflow (several warn tips stacking) needs trimming, not this pairing.
+    const showTip = detailed && primaryTip
     const showNextGoal = detailed && !primaryTip && coach.nextGoal && f.achievements
     // Reorderable by the player (Overlay tab): only these optional rows move, never Head or the stat-row core.
     const order = settings.compactOrder?.length === compactModules.length ? settings.compactOrder : compactModules
@@ -392,7 +405,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
       <Head icon={<Trophy size={13} />} tag={heroName} sub={clockText} />
       <div className="stat-row">
         <span><b>{fmt(s.lastHits)}/{fmt(s.denies)}</b><small>LH/DN</small></span><span><b>{fmt(s.deaths)}</b><small>Deaths</small></span>
-        <span><b>{fmt(s.level)}</b><small>Level</small></span><span><b>{fmt(coach.gpm)}</b><small>GPM</small></span>
+        <span><b>{fmt(s.level)}</b><small>Level</small></span><span><b>{fmt(coach.gpm)}</b><small>GPM</small></span><span><b>{fmt(coach.xpm)}</b><small>XPM</small></span>
       </div>
       {order.map(renderModule)}
       {detailed && coach.benchmarkLabel && <small className="draft-note">{coach.benchmarkLabel} · {coach.role.includes('support') ? 'support' : 'core'} benchmarks</small>}
@@ -460,6 +473,28 @@ export function DeathSnapshotCard({ deathSnapshot }: { deathSnapshot: { at: numb
   return <article className="death-snapshot-card">
     <Head icon={<Clock3 size={13} />} tag="What you saw" sub="Closes on its own" />
     <img src={deathSnapshot.dataUrl} alt="Your screen the moment you died" />
+  </article>
+}
+
+/** Large, dismissible end-of-game card — replaces relying on the short achievement toast alone for the result.
+ * Stays up until you close it (or the next match replaces it), and compares this game against your own average
+ * on this hero so "better or worse than before" is a real number from your own saved history, not a guess. */
+export function MatchSummaryCard({ summary, onClose }: { summary: MatchSummaryView; onClose?: () => void }) {
+  const delta = (value: number, d: number | null, decimals = 0) => <span>
+    <b>{fmt(value, decimals)}</b>
+    {d != null && d !== 0 && <small className={d > 0 ? 'positive' : 'negative'}> {d > 0 ? '+' : ''}{fmt(d, decimals)} vs your avg</small>}
+  </span>
+  return <article className="match-summary-card">
+    <Head icon={<Trophy size={13} />} tag={summary.won == null ? 'Match ended' : summary.won ? 'Victory' : 'Defeat'}
+      sub={summary.sampleGames >= 3 ? `vs your last ${summary.sampleGames} games on this hero` : 'Not enough games on this hero yet to compare'} />
+    {onClose && <button type="button" className="match-summary-close" aria-label="Close match summary" onClick={onClose}><X size={14} /></button>}
+    <div className="stat-row">
+      <span><b>{summary.kills}/{summary.deaths}/{summary.assists}</b><small>K/D/A</small></span>
+      <span>{delta(summary.gpm, summary.deltas.gpm)}<small>GPM</small></span>
+      <span>{delta(summary.xpm, summary.deltas.xpm)}<small>XPM</small></span>
+      <span>{delta(summary.lastHits, summary.deltas.lastHits)}<small>LAST HITS</small></span>
+    </div>
+    {summary.focus ? <p>{summary.focus}</p> : <p>Solid pace across the board this game.</p>}
   </article>
 }
 

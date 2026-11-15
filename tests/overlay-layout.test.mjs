@@ -28,7 +28,8 @@ test('passive card is capped and a larger editor remains within a small screen',
   const settings = { size: 'Compact', placement: 'Bottom right' }
   const passive = overlayBounds(work, null, settings, 'draft', 2000, false)
   const editor = overlayBounds(work, null, settings, 'draft', 2000, true)
-  assert.ok(passive.height < editor.height && passive.width < editor.width)
+  // Both can tie at the shared half-monitor ceiling on a small screen; width still strictly grows for editing.
+  assert.ok(passive.height <= editor.height && passive.width < editor.width)
   assert.ok(editor.x >= work.x && editor.y >= work.y)
   assert.equal(editor.x + editor.width, passive.x + passive.width)
   assert.equal(editor.y + editor.height, passive.y + passive.height)
@@ -43,6 +44,14 @@ test('map-timer alerts sit horizontally centered at the top of the game window, 
   assert.ok(bounds.width >= 260 && bounds.width <= 420)
   const noGame = mapTimerBounds(primary.workArea, null, null)
   assert.equal(noGame.x + noGame.width / 2, primary.workArea.x + primary.workArea.width / 2)
+})
+
+test('the overlay never exceeds half the monitor in either dimension, even expanded/editing/large', () => {
+  const small = { x: 0, y: 0, width: 640, height: 480 }
+  const settings = { size: 'Large', placement: 'Bottom right' }
+  const editing = overlayBounds(small, null, settings, 'setup', 5000, true)
+  assert.ok(editing.width <= small.width * 0.5)
+  assert.ok(editing.height <= small.height * 0.5)
 })
 
 test('the clickable match setup opens at form size and the coach returns to compact size', () => {

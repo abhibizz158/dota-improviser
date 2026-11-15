@@ -31,10 +31,19 @@ export const OutlookGraph = memo(function OutlookGraph({ points, detailed = fals
   </div>
 })
 
+/** A single-line gauge instead of a chart — the overlay has no room for a scrubbable graph (that's what the
+ * dashboard's own OutlookGraph, `detailed`, is for); this just needs to say "ahead or behind, by how much" at
+ * a glance, so a marker on a 0-100 track against the 50% baseline does the whole job in one row. */
+function WinTick({ win }: { win: number }) {
+  return <div className="win-tick" role="img" aria-label={`Win estimate ${win}%`}>
+    <div className="win-tick-track"><span className="win-tick-mid" /><span className="win-tick-mark" style={{ left: win + '%' }} /></div>
+  </div>
+}
+
 export function OutlookCard({ outlook, compact = false }: { outlook: MatchOutlook; compact?: boolean }) {
   return <section className={'match-outlook ' + (outlook.win < 50 ? 'trailing' : 'leading') + (compact ? ' compact' : '')} aria-label="Estimated team win chance">
     <header><span>Win estimate</span><strong>{outlook.win}%</strong></header>
-    <OutlookGraph points={outlook.points} />
+    <WinTick win={outlook.win} />
     {outlook.scope === 'Lineup only' && <small>Lineup only</small>}
     {!compact && outlook.scope !== 'Lineup only' && <small>{outlook.factors.join(' · ')}</small>}
   </section>

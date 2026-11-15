@@ -6,6 +6,9 @@ import type { Frame, Role } from './model.js'
 
 export type ItemRecommendation = {
   key: string; name: string; reason: string; timing: string; remaining: number; goal: string;
+  /** Minutes until affordable at the current GPM (null once it's already affordable or GPM is unknown) — the
+   * compact overlay shows this instead of the full `goal` sentence, so an icon reads at a glance mid-game. */
+  etaMinutes: number | null
 }
 
 type Candidate = { key: string; reason: string; priority: number }
@@ -75,8 +78,8 @@ export function counterItems(frame: Frame, role: Role, phase: CoachView['phase']
       const goal = affordable ? (remaining === item.c ? `${item.c.toLocaleString('en-US')} gold` : `About ${remaining.toLocaleString('en-US')} gold left`)
         : window == null || goldShort == null ? `About ${remaining.toLocaleString('en-US')} gold remaining`
           : `About ${goldShort.toLocaleString('en-US')} more gold · ~${window} min at current GPM`
-      return [{ key, name: item.n, reason, timing, remaining, goal,
+      return [{ key, name: item.n, reason, timing, remaining, goal, etaMinutes: affordable ? null : window,
         score: priority + (affordable ? 8 : 0) + components.length * 5 - (window != null ? Math.min(16, window * (support ? 2 : 1)) : 0) }]
     }).sort((a, b) => b.score - a.score).slice(0, 2)
-    .map(({ key, name, reason, timing, remaining, goal }) => ({ key, name, reason, timing, remaining, goal }))
+    .map(({ key, name, reason, timing, remaining, goal, etaMinutes }) => ({ key, name, reason, timing, remaining, goal, etaMinutes }))
 }

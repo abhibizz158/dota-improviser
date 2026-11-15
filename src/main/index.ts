@@ -223,6 +223,12 @@ let awards: Record<string, AwardRecord> = {}
 let visionStats: VisionStats = { observer: 0, sentry: 0, matches: 0 }
 let awarded = new Set<string>()
 let toastTimer: NodeJS.Timeout | undefined
+let matchSummaryView: LiveState['matchSummary'] = null
+let matchSummaryTimer: NodeJS.Timeout | undefined
+// The close button only receives clicks while the overlay happens to be in interactive mode (click-through
+// otherwise, same as everything else passive in this window) — this auto-clear is the fallback so the card
+// can't get stuck forever if the player never opens the assistant/draft editor to reach that button.
+const MATCH_SUMMARY_MS = 60000
 let coachView: CoachView | null = null
 let coaching: LiveState['coaching']
 let deathCase: { frame: Frame; role: Role; phase: CoachView['phase']; killer: number | null; repeats: number; threat: ReturnType<typeof knownThreat> } | null = null
@@ -541,6 +547,11 @@ function finishGame() {
     clearTimeout(toastTimer)
     toastTimer = setTimeout(() => broadcast(), SUMMARY_TOAST_MS + 300)
   }
+  if (sessionCompleted) {
+    matchSummaryView = matchSummaryCard(record)
+    clearTimeout(matchSummaryTimer)
+    matchSummaryTimer = setTimeout(() => { matchSummaryView = null; broadcast() }, MATCH_SUMMARY_MS)
+  }
   historyChangedAt = Date.now()
 }
 
@@ -556,6 +567,27 @@ function matchSummaryToast(record: SessionRecord): GameEvent {
     id: 'summary-' + (record.matchId ?? record.at), kind: 'summary',
     label: (sessionWon == null ? 'Match ended' : sessionWon ? 'Victory' : 'Defeat') + ' · ' + [record.kills, record.deaths, record.assists].map((n) => n ?? 0).join('/'),
     sub: `${record.gpm ?? 0} GPM · ${record.xpm ?? 0} XPM · ${focus}`, at: record.clock,
+  }
+}
+
+/** The large, dismissible end-of-game card (replaces relying on the 7s toast alone): same real numbers, plus
+ * this match against YOUR OWN average on this hero (profile.stats, from your own saved history) so "better or
+ * worse than before" is an actual delta, not a guess. Needs no new data source — profile() already learns this
+ * from history on every run; this is the first place it's compared to a single match instead of just displayed. */
+function matchSummaryCard(record: SessionRecord): LiveState['matchSummary'] {
+  const pct = coachView
+  const weakest = pct && [['GPM', pct.gpmPct], ['XPM', pct.xpmPct], ['last hits', pct.lhPct]]
+    .filter((entry): entry is [string, number] => typeof entry[1] === 'number')
+    .sort((a, b) => a[1] - b[1])[0]
+  const focus = weakest && weakest[1] < 50 ? `Focus next: ${weakest[0]} (${Math.round(weakest[1])}th percentile for this hero)` : null
+  const stats = record.heroId ? profile().stats?.[record.heroId] : undefined
+  const lhpm = record.lastHits != null && record.clock > 0 ? record.lastHits / (record.clock / 60) : null
+  const delta = (value: number | null, avg: number | undefined) => value == null || avg == null ? null : Math.round(value - avg)
+  return {
+    matchId: record.matchId, won: sessionWon, kills: record.kills ?? 0, deaths: record.deaths ?? 0, assists: record.assists ?? 0,
+    gpm: record.gpm ?? 0, xpm: record.xpm ?? 0, lastHits: record.lastHits ?? 0, focus,
+    deltas: { gpm: delta(record.gpm, stats?.gpm), xpm: delta(record.xpm, stats?.xpm), lastHits: delta(lhpm, stats?.lhpm) },
+    sampleGames: stats ? Math.round(stats.n) : 0,
   }
 }
 
@@ -579,6 +611,7 @@ function state(): LiveState {
     open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
     needsSessionInfo: view === 'setup' && Boolean(frame || draftStarted), confirmedKiller: deathCase?.killer ?? null, sessionInfo: { gameType: sessionGameType, lane: sessionLane },
     sessionRevision, detectionAvailable: windowProbe !== null, performance: performanceView(), coaching, draftVisionActive, draftWindowShare: windowProbe?.draftWindowShareState?.(),
+    matchSummary: matchSummaryView,
   }
 }
 
@@ -2073,6 +2106,12 @@ function handlers() {
   })
   ipcMain.handle('overlay:skip-session', (event: IpcMainInvokeEvent) => {
     if (overlay && event.sender === overlay.webContents && event.senderFrame === overlay.webContents.mainFrame && view === 'setup' && (frame || draftStarted) && !clearTask) finishSessionSetup()
+  })
+  ipcMain.handle('overlay:dismiss-summary', (event: IpcMainInvokeEvent) => {
+    if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame) return
+    clearTimeout(matchSummaryTimer)
+    matchSummaryView = null
+    broadcast()
   })
   ipcMain.handle('overlay:ask', (event: IpcMainInvokeEvent, question: unknown) => {
     if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame || !interactive || view !== 'assistant' || clearTask) {

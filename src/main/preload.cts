@@ -23,6 +23,7 @@ if (location.hash === '#achievements' || location.hash === '#map-alert') {
     ask: (question: string) => ipcRenderer.invoke('overlay:ask', question),
     sessionInfo: (gameType: string, lane: string) => ipcRenderer.invoke('overlay:session-info', gameType, lane),
     skipSession: () => ipcRenderer.invoke('overlay:skip-session'),
+    dismissSummary: () => ipcRenderer.invoke('overlay:dismiss-summary'),
     onAchievementSound: (callback: () => void) => {
       const listener = () => callback()
       ipcRenderer.on('achievement:sound', listener)

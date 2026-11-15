@@ -97,6 +97,7 @@ export function contextualCoach(input: {
     if (ownControl && !partner) tips.push({ level: 'info', text: `Hold ${ownControl.n} for a trade your teammate can follow up on.` })
   } else if (phase === 'Mid game') {
     tips.push({ level: 'info', text: behind && !support ? 'Take safe waves near your team and wait for a fight that favours you.' :
+      role === 'Mid' ? 'Check the river rune before you commit to a rotation — it is often the difference between arriving with or without a spell up.' :
       role === 'Offlane' ? 'Set up the next initiation with an ally in range to follow up.' : support ? 'Move with a core and establish vision around the next objective.' :
       'Push a safe wave before rotating toward the next objective.' })
     if (ultimate && frame.level != null && frame.level >= 6 && mode !== 'Ability Draft') {
