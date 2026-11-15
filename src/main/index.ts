@@ -114,6 +114,14 @@ let performanceSamples: PerformanceSample[] = []
 let performanceHistory: PerformanceMatch[] | null = null
 let performanceMemo: { samples: PerformanceSample[]; history: PerformanceMatch[]; role: Role; mode: PerformanceMatch['mode']; value: LiveState['performance'] } | null = null
 let lowPaceAlerted: 'gpm' | 'xpm' | null = null
+// The clock last checked for a due map timer (rune/day-night/stack/pull) — deliberately NOT `frameBefore`, which
+// is only the single raw GSI frame right before this call. Map timers used to be checked only inside the
+// `refreshCoach`-gated block using `frameBefore`, so on a tick where nothing else changed `refreshCoach` stayed
+// false for up to ~1s (its own throttle) while `frame` kept advancing underneath every raw GSI post — a crossing
+// that landed in one of those skipped windows was simply never checked against, dropping the alert entirely
+// rather than being late. This variable instead tracks exactly how far `dueMapTimers` has already checked, so
+// every tick's window is covered contiguously no matter how `refreshCoach` throttles.
+let mapTimerClock: number | null = null
 
 async function openSteam() {
   const launcher = steamLauncher()
@@ -470,11 +478,11 @@ function emitAlert(event: GameEvent) {
  * shown, the same text won't come back until TIP_MS has actually passed (i.e. the previous reminder already
  * disappeared), so it reads as a periodic nudge rather than something permanently glued to the screen. */
 const tipLastShown = new Map<string, number>()
-function emitTip(text: string, important: boolean, clock: number) {
+function emitTip(text: string, important: boolean, clock: number, dedupeKey: string = text) {
   if (!settings.features.toasts || !settings.features.coachTips) return
   const now = Date.now()
-  if (now - (tipLastShown.get(text) ?? -Infinity) < TIP_MS) return
-  tipLastShown.set(text, now)
+  if (now - (tipLastShown.get(dedupeKey) ?? -Infinity) < TIP_MS) return
+  tipLastShown.set(dedupeKey, now)
   const active = toasts.filter((t) => t.kind === 'tip' && now - t.shownAt < TIP_MS)
   const sameCategory = active.filter((t) => Boolean(t.epic) === important)
   const evict = sameCategory.length >= (important ? TIP_IMPORTANT_CAP : tipNormalCap())
@@ -789,6 +797,7 @@ function resetSession(next: LiveState['status']) {
   performanceMemo = null
   bracketBench = null
   lowPaceAlerted = null
+  mapTimerClock = null
   updateDraftVision()
 }
 
@@ -1013,7 +1022,7 @@ function refreshCoachView() {
   // per-role lane plan) are situational facts that hold for an entire phase, not events — routing those through
   // the same 60s-cooldown toast used to make them "refresh" as a fresh reminder every 60s for as long as the
   // phase lasted, which never actually went away. Those render inline in the card instead (ui.tsx's CoachCard).
-  for (const tip of coachView.tips) emitTip(tip.text, tip.level === 'warn', frame.clock)
+  for (const tip of coachView.tips) emitTip(tip.text, tip.level === 'warn', frame.clock, tip.id)
   return result
 }
 
@@ -1127,11 +1136,14 @@ function receive(value: unknown) {
         label: (result.lowPace === 'gpm' ? 'GPM' : 'XPM') + ' pace is dropping',
         sub: 'Below your own average on this hero and most players at this point', at: nextFrame.clock })
     } else if (!result?.lowPace) lowPaceAlerted = null
-    if (settings.features.timingAlerts && nextFrame && !nextFrame.paused && !newPractice) {
-      for (const timer of dueMapTimers(frameBefore?.clock ?? -1, nextFrame.clock, roleChoice().role, sessionGameType)) {
-        emitAlert({ id: timer.id, kind: 'map-timer', label: timer.label, sub: timer.sub, at: nextFrame.clock })
-      }
+  }
+  // Deliberately outside the `refreshCoach` gate above (see mapTimerClock's own comment) — every tick's window
+  // needs checking, not just the ticks that happen to also need a coach-card refresh.
+  if (settings.features.timingAlerts && nextFrame && !nextFrame.paused && !newPractice) {
+    for (const timer of dueMapTimers(mapTimerClock ?? -1, nextFrame.clock, roleChoice().role, sessionGameType)) {
+      emitAlert({ id: timer.id, kind: 'map-timer', label: timer.label, sub: timer.sub, at: nextFrame.clock })
     }
+    mapTimerClock = nextFrame.clock
   }
   if (nextFrame && !nextFrame.alive && !deathCase && nextFrame.clock >= 0 && nextFrame.respawnSeconds !== 0) {
     // `before` is the last frame while still alive — the dead frame itself (`nextFrame`) already has its status

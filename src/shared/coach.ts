@@ -7,7 +7,11 @@ export type HeroData = {
   items: Record<'starting' | 'early' | 'mid' | 'late', [string, number][]>
 }
 export type HeroDb = { builtAt: number; patch: string; percentiles: number[]; heroes: Record<number, HeroData> }
-export type Tip = { level: 'good' | 'warn' | 'info'; text: string; items?: string[] }
+/** `id`, when set, is a stable per-category key for the reminder-toast dedup cooldown (emitTip in index.ts) —
+ * most of these tips embed a live, ever-changing number (GPM/XPM/gold/health) in their own text, so deduping on
+ * the literal rendered string let the same situation re-fire as a "new" toast on every tick the number moved,
+ * spamming near-identical reminders (e.g. "XPM 911 beats your usual 800" then "XPM 912..." a second later). */
+export type Tip = { level: 'good' | 'warn' | 'info'; text: string; items?: string[]; id?: string }
 export type Achievement = { id: string; label: string; par: number; got: number | null; state: 'done' | 'late-done' | 'live' | 'missed'; elite: boolean }
 /** item -> [bucket seconds, games, wins] from OpenDota scenarios/itemTimings for one hero. */
 export type Timings = Record<string, [number, number, number][]>
@@ -96,46 +100,46 @@ export function coach(frame: Frame, data: HeroData | undefined, percentiles: num
     tips.push({ level: 'warn', text: 'Last-hit pace is low for this hero: protect health, take uncontested creeps and stay in experience range instead of forcing trades.', items: ['tango', 'infused_raindrops', 'magic_stick'] })
   }
   if (warm && data) {
-    if (gpmPct != null && gpmPct < 30) tips.push({ level: 'warn', text: `GPM ${frame.gpm} is under the 30th percentile for ${heroName} (median ${Math.round(data.bench.gpm[2] ?? 0)}). Take more creep waves and camps.` })
+    if (gpmPct != null && gpmPct < 30) tips.push({ id: 'bench-gpm-low', level: 'warn', text: `GPM ${frame.gpm} is under the 30th percentile for ${heroName} (median ${Math.round(data.bench.gpm[2] ?? 0)}). Take more creep waves and camps.` })
     if (core && lhPct != null && lhPct < 30) {
       const medianRate = data.bench.lhpm[2] ?? 0
       const nextMark = (Math.floor(minutes / 5) + 1) * 5
       const target = Math.round(medianRate * nextMark)
       const need = frame.lastHits != null ? Math.max(0, target - frame.lastHits) : null
-      tips.push({ level: 'warn', text: `Last hits are behind: ${lhpm!.toFixed(1)}/min vs median ${medianRate.toFixed(1)}.${need != null && need > 0 ? ` Need about ${need} more by ${nextMark}:00 to catch the median pace.` : ' Prioritise lane CS over trading.'}` })
+      tips.push({ id: 'bench-lh-low', level: 'warn', text: `Last hits are behind: ${lhpm!.toFixed(1)}/min vs median ${medianRate.toFixed(1)}.${need != null && need > 0 ? ` Need about ${need} more by ${nextMark}:00 to catch the median pace.` : ' Prioritise lane CS over trading.'}` })
     }
-    if (xpmPct != null && xpmPct < 30) tips.push({ level: 'warn', text: `XPM ${frame.xpm} is low. Rotate into XP, stay near allies in fights.` })
-    if (score != null && score >= 70) tips.push({ level: 'good', text: `Ahead of pace for ${heroName} (${score}/100). Convert it into objectives.` })
+    if (xpmPct != null && xpmPct < 30) tips.push({ id: 'bench-xpm-low', level: 'warn', text: `XPM ${frame.xpm} is low. Rotate into XP, stay near allies in fights.` })
+    if (score != null && score >= 70) tips.push({ id: 'ahead-of-pace', level: 'good', text: `Ahead of pace for ${heroName} (${score}/100). Convert it into objectives.` })
   }
   // Self-learned baseline: your own recent average on this hero (patch- and recency-weighted).
   let lowPace: CoachView['lowPace'] = null
   if (mine && mine.n >= 3 && minutes >= 8) {
     if (frame.gpm != null) {
       if (frame.gpm < mine.gpm * 0.85) {
-        tips.push({ level: 'warn', text: `GPM ${frame.gpm} is below your own average on this hero (${Math.round(mine.gpm)}).` })
+        tips.push({ id: 'own-gpm-below', level: 'warn', text: `GPM ${frame.gpm} is below your own average on this hero (${Math.round(mine.gpm)}).` })
         if (gpmPct != null && gpmPct < 30) lowPace = 'gpm'
-      } else if (frame.gpm > mine.gpm * 1.1) tips.push({ level: 'good', text: `GPM ${frame.gpm} beats your usual ${Math.round(mine.gpm)} on this hero.` })
+      } else if (frame.gpm > mine.gpm * 1.1) tips.push({ id: 'own-gpm-beats', level: 'good', text: `GPM ${frame.gpm} beats your usual ${Math.round(mine.gpm)} on this hero.` })
     }
     if (frame.xpm != null) {
       if (frame.xpm < mine.xpm * 0.85) {
-        tips.push({ level: 'warn', text: `XPM ${frame.xpm} is below your own average on this hero (${Math.round(mine.xpm)}).` })
+        tips.push({ id: 'own-xpm-below', level: 'warn', text: `XPM ${frame.xpm} is below your own average on this hero (${Math.round(mine.xpm)}).` })
         if (!lowPace && xpmPct != null && xpmPct < 30) lowPace = 'xpm'
-      } else if (frame.xpm > mine.xpm * 1.1) tips.push({ level: 'good', text: `XPM ${frame.xpm} beats your usual ${Math.round(mine.xpm)} on this hero.` })
+      } else if (frame.xpm > mine.xpm * 1.1) tips.push({ id: 'own-xpm-beats', level: 'good', text: `XPM ${frame.xpm} beats your usual ${Math.round(mine.xpm)} on this hero.` })
     }
   }
   if (frame.gold != null && frame.gold >= 1500 && frame.alive) {
     // gold_reliable survives death, gold_unreliable doesn't — when GSI reports the split, say what's actually
     // at risk instead of a flat "unspent gold" that can't tell the difference.
-    tips.push({ level: 'warn', text: frame.goldUnreliable != null && frame.goldUnreliable > 0
+    tips.push({ id: 'gold-unspent', level: 'warn', text: frame.goldUnreliable != null && frame.goldUnreliable > 0
       ? `${frame.gold} gold unspent, ${frame.goldUnreliable} of it unreliable (lost on death). Buy your next item or hold buyback fund.`
       : `${frame.gold} gold unspent. Buy your next item or buyback fund.` })
   }
-  if (deaths != null && excess >= 1) tips.push({ level: 'warn', text: `${deaths} deaths is above pace. Play around vision and your escapes.` })
-  if (frame.alive && frame.healthPct != null && frame.healthPct < 25) tips.push({ level: 'warn', text: `Health at ${frame.healthPct}%. Disengage before committing to anything.` })
-  else if (frame.alive && frame.manaPct != null && frame.manaPct < 15 && minutes >= 3) tips.push({ level: 'info', text: `Mana at ${frame.manaPct}%. Hold key spells until it regenerates or you can refill.` })
+  if (deaths != null && excess >= 1) tips.push({ id: 'deaths-above-pace', level: 'warn', text: `${deaths} deaths is above pace. Play around vision and your escapes.` })
+  if (frame.alive && frame.healthPct != null && frame.healthPct < 25) tips.push({ id: 'health-low', level: 'warn', text: `Health at ${frame.healthPct}%. Disengage before committing to anything.` })
+  else if (frame.alive && frame.manaPct != null && frame.manaPct < 15 && minutes >= 3) tips.push({ id: 'mana-low', level: 'info', text: `Mana at ${frame.manaPct}%. Hold key spells until it regenerates or you can refill.` })
   {
     const ult = (frame.abilities ?? []).find((a) => a.ultimate)
-    if (ult && ult.canCast && (ult.cooldown == null || ult.cooldown === 0) && frame.alive) tips.push({ level: 'good', text: 'Ultimate is ready. Look for a window to use it.' })
+    if (ult && ult.canCast && (ult.cooldown == null || ult.cooldown === 0) && frame.alive) tips.push({ id: 'ult-ready', level: 'good', text: 'Ultimate is ready. Look for a window to use it.' })
   }
   if (!tips.length && data && minutes < 10) {
     const mid = data.items.mid.slice(0, 3).map(([k]) => PAR[k]?.[1] ?? k.replaceAll('_', ' ')).join(', ')
