@@ -434,15 +434,19 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .style-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; } .style-head b { font-size: 22px; letter-spacing: .06em; text-transform: uppercase; } .style-head small { color: var(--muted); }
 .style-advice { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); font-size: 12.5px; line-height: 1.5; } .style-advice li::marker { color: var(--gold); }
 .style-card .radar { max-width: 230px; }
-.trophies { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; } .trophy { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.05); border: 1px solid var(--hairline); animation: rise .5s both; animation-delay: calc(var(--i, 0) * 50ms); }
-.trophy b { font: 800 24px var(--display); color: var(--text); min-width: 28px; } .trophy span { font-size: 12px; color: var(--muted); line-height: 1.25; }
-.trophy { position: relative; }
-.trophy-rarity { position: absolute; top: 8px; right: 10px; font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: var(--dim); }
-.trophy.rare { border-color: rgba(90,149,224,.45); background: linear-gradient(110deg, rgba(90,149,224,.14), rgba(90,149,224,.03)); } .trophy.rare b { color: var(--info); } .trophy.rare .trophy-rarity { color: var(--info); }
-.trophy.epic { border-color: rgba(217,172,79,.5); background: linear-gradient(110deg, rgba(217,172,79,.16), rgba(217,172,79,.03)); } .trophy.epic b { background: var(--grad-gold); -webkit-background-clip: text; background-clip: text; color: transparent; } .trophy.epic .trophy-rarity { color: var(--gold); }
+.trophies { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.trophy { display: flex; gap: 10px; align-items: flex-start; padding: 11px 13px; border-radius: 12px; background: rgba(255,255,255,.05); border: 1px solid var(--hairline); animation: rise .5s both; animation-delay: calc(var(--i, 0) * 50ms); min-width: 0; }
+.trophy-icon { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: rgba(255,255,255,.07); color: var(--muted); }
+.trophy-body { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.trophy-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.trophy-top b { font: 800 22px var(--display); color: var(--text); }
+.trophy-name { font-size: 12px; color: var(--muted); line-height: 1.3; }
+.trophy-rarity { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: var(--dim); white-space: nowrap; }
+.trophy.rare { border-color: rgba(90,149,224,.45); background: linear-gradient(110deg, rgba(90,149,224,.14), rgba(90,149,224,.03)); } .trophy.rare .trophy-top b { color: var(--info); } .trophy.rare .trophy-rarity { color: var(--info); } .trophy.rare .trophy-icon { color: var(--info); }
+.trophy.epic { border-color: rgba(217,172,79,.5); background: linear-gradient(110deg, rgba(217,172,79,.16), rgba(217,172,79,.03)); } .trophy.epic .trophy-top b { background: var(--grad-gold); -webkit-background-clip: text; background-clip: text; color: transparent; } .trophy.epic .trophy-rarity, .trophy.epic .trophy-icon { color: var(--gold); }
 .trophy.legendary { border-color: rgba(238,84,70,.55); background: linear-gradient(110deg, rgba(238,84,70,.18), rgba(217,172,79,.08)); box-shadow: 0 0 0 1px rgba(238,84,70,.25), 0 6px 20px -6px rgba(238,84,70,.35); }
-.trophy.legendary b { background: linear-gradient(100deg, var(--accent-hi), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.trophy.legendary .trophy-rarity { color: var(--accent-hi); }
+.trophy.legendary .trophy-top b { background: linear-gradient(100deg, var(--accent-hi), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.trophy.legendary .trophy-rarity, .trophy.legendary .trophy-icon { color: var(--accent-hi); }
 .trophy-section { margin-bottom: 14px; } .trophy-section:last-child { margin-bottom: 0; }
 .trophy-section h3 { margin: 0 0 8px; }
 

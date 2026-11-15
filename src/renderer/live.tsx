@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowUpRight, CheckCircle2, CircleHelp, Download, FileDown, Layers3, Monitor, Radio, Shield, ShieldCheck } from 'lucide-react'
+import { ArrowUpRight, CheckCircle2, CircleHelp, Download, Droplet, Eye, FileDown, Flame, Layers3, Monitor, Radio, Shield, ShieldCheck, Swords, Target, TrendingUp } from 'lucide-react'
 import type { AppApi, Bootstrap, FeatureKey, LiveSettings, LiveState, Placement } from '../shared/model'
 import { featureInfo, featureKeys, placements, roleLabels, roles } from '../shared/model'
 import { brackets } from '../shared/contextual-coach'
@@ -30,6 +30,10 @@ const trophyRarity = (id: string): 'common' | 'rare' | 'epic' | 'legendary' => {
 const trophySection = (id: string): string => id.startsWith('multi-') ? 'Multi-kills' : id.startsWith('streak-') ? 'Kill streaks'
   : id === 'comeback' ? 'Comebacks' : id.startsWith('vision-') ? 'Vision' : 'Milestones'
 const SECTION_ORDER = ['Kill streaks', 'Multi-kills', 'Milestones', 'Vision', 'Comebacks']
+/** One small icon per achievement kind, not just per section — a Rampage and a Double Kill are both "multi-kills"
+ * but Swords reads the same for both, which is fine: the rarity badge and count are what tell them apart. */
+const trophyIcon = (id: string) => id === 'first-blood' ? Droplet : id.startsWith('multi-') ? Swords : id.startsWith('streak-') ? Flame
+  : id === 'comeback' ? TrendingUp : id.startsWith('vision-') ? Eye : id.startsWith('cs-') ? Target : id === 'no-death-10' ? ShieldCheck : Target
 
 /** Career trophy case: every achievement your own game feed has recorded on this device, grouped by kind and
  * tagged by how rare it actually is to pull off. */
@@ -45,7 +49,14 @@ export function Trophies({ career }: { career: Record<string, number> }) {
       <h3>{name}</h3>
       <div className="trophies">{group.map(([id, n]) => {
         const rarity = trophyRarity(id)
-        return <div key={id} className={'trophy ' + rarity} style={{ ['--i' as string]: i++ }}><b>{n}</b><span>{trophyName(id)}</span><small className="trophy-rarity">{rarity}</small></div>
+        const Icon = trophyIcon(id)
+        return <div key={id} className={'trophy ' + rarity} style={{ ['--i' as string]: i++ }}>
+          <span className="trophy-icon"><Icon size={16} /></span>
+          <div className="trophy-body">
+            <div className="trophy-top"><b>{n}</b><small className="trophy-rarity">{rarity}</small></div>
+            <span className="trophy-name">{trophyName(id)}</span>
+          </div>
+        </div>
       })}</div>
     </div>)
       : <p className="fine-print">Play a game with the listener on: first blood, double/triple/ultra kills, rampages, streaks and item goals show up here.</p>}
@@ -226,7 +237,6 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
       <p className="fine-print">{live.game.outlook.factors.join(' · ')}</p>
       <p className="fine-print">Built from team kills, lineup and your own pace — Dota's own feed never reports tower, Roshan or barracks state during a live match (that's spectator-only data, blocked by this app's fair-play guardrail), so a tower or Roshan lead only shows up here if it also shows up in kills or your pace. The full picture, including towers and net worth, is in Match Review after the game.</p>
     </section>}
-    <Trophies career={live.career} />
     <section className="panel form-panel">
       <header className="panel-heading"><div><h2>Features</h2><p>Switch anything off. Changes apply instantly to the overlay and the app.</p></div>
         <div className="actions"><button className="button slim" disabled={!!busy} onClick={() => setting('detailed', !settings.detailed)}>{settings.detailed ? 'Detailed overlay: on' : 'Detailed overlay: off'}</button></div></header>
