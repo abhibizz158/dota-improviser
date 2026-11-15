@@ -142,6 +142,7 @@ let overlayHeight: number | null = null
 let overlayRequested = false
 let overlayTimer: NodeJS.Timeout | undefined
 let hoverTimer: NodeJS.Timeout | undefined
+let moveTopTimer: NodeJS.Timeout | undefined
 let visionTimer: NodeJS.Timeout | undefined
 let draftVisionActive = false
 let visionInFlight = false
@@ -719,7 +720,7 @@ function canReadDraft() {
  * the raw frame back. Skips silently (no prompt) if Screen Recording was never granted, since firing a permission
  * dialog mid-death would be a worse interruption than just not having the snapshot that one time. */
 function captureDeathSnapshotNow() {
-  if (!settings.features.deathSnapshot || deathSnapshotInFlight || quitting || screenAccessStatus() !== 'granted') return
+  if (!settings.features.deathSnapshot || deathSnapshotInFlight || quitting || !canAttemptScreenCapture()) return
   const bounds = detectDotaBounds() ?? gameBounds
   const target = { windowID: windowProbe?.dotaWindowID?.(), requireWindowID: false,
     width: bounds?.width ?? 1440, height: bounds?.height ?? 900, active: () => !quitting,
@@ -755,7 +756,7 @@ function updateDraftVision() {
       broadcastSoon()
     }
     if (visionInFlight || screenPrompt || share === 'choosing' || share === 'starting' ||
-        (share !== 'sharing' && screenAccessStatus() !== 'granted')) return
+        (share !== 'sharing' && !canAttemptScreenCapture())) return
     visionInFlight = true
     const active = () => visionTimer === timer && canReadDraft()
     void captureDraftPicks(active(), draftVisionTarget(active)).then((result) => {
@@ -1111,6 +1112,21 @@ function screenAccessStatus(): 'granted' | 'denied' | 'not-determined' | 'restri
   try { return systemPreferences.getMediaAccessStatus('screen') } catch { return 'unknown' }
 }
 
+/** Whether a background capture attempt (the draft-vision poll, or a death snapshot) should even try — as
+ * opposed to `screenAccessStatus() === 'granted'`, which both callers below used to gate on directly. That
+ * gate was wrong: this status can read stale 'denied' for a while after a grant (see screenAccessStatus's own
+ * comment) or after this app's auto-updater replaces the binary (AGENTS.md's Draft vision section), so gating
+ * the actual attempt on it meant a real, already-working grant could leave both features silently doing nothing
+ * forever, with no error shown, until the user found and followed the manual reset instructions. The only state
+ * that actually matters here is 'not-determined': the real capture call (see draft-vision.ts) pops macOS's
+ * native permission dialog immediately in that state, which would be a surprise outside this app's own deliberate prompts
+ * (maybePromptScreenRecording, "Request Screen Recording") — anything else (denied, restricted, unknown, granted)
+ * is safe to just attempt, since checkedBar()'s existing blank-frame check already turns a real denial into a
+ * quiet no-op this cycle, exactly like any other capture failure. */
+function canAttemptScreenCapture() {
+  return screenAccessStatus() !== 'not-determined'
+}
+
 async function openScreenRecordingSettings() {
   await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
 }
@@ -1238,10 +1254,30 @@ function updateHoverFade() {
   hoverTimer.unref()
 }
 
+/** Windows only: a borderless/windowed Dota session can still end up drawn above the overlay even at the
+ * 'screen-saver' always-on-top level (the highest cross-platform level Electron exposes) — some games and other
+ * always-on-top tools reassert their own z-order, and whichever one does it most recently wins. Periodically
+ * calling moveTop() while Dota is the verified foreground window is the standard mitigation other overlay tools
+ * use for the same reason; it's a native OS call on this app's own windows, not a hook into Dota. Deliberately not
+ * gated on "Follow Dota" monitor tracking below — it has nothing to do with multi-monitor placement and should
+ * run even when the player picked a fixed monitor. Exclusive Fullscreen still bypasses the desktop compositor
+ * entirely on Windows (DXGI), so no window level or z-order call reaches it; Companion mode is still the answer there. */
+function reassertOverlayZOrder() {
+  if (process.platform !== 'win32' || !overlayRequested || interactive || !detectDotaBounds()) return
+  if (overlay && !overlay.isDestroyed() && overlay.isVisible()) overlay.moveTop()
+  if (achievementWindow && !achievementWindow.isDestroyed() && achievementWindow.isVisible()) achievementWindow.moveTop()
+}
+
 function updateOverlayTracking() {
   updateHoverFade()
   clearInterval(overlayTimer)
   overlayTimer = undefined
+  clearInterval(moveTopTimer)
+  moveTopTimer = undefined
+  if (process.platform === 'win32' && overlayRequested && !interactive && windowProbe !== null) {
+    moveTopTimer = setInterval(reassertOverlayZOrder, 1600)
+    moveTopTimer.unref()
+  }
   if (!overlayRequested || settings.monitor !== 'auto' || interactive || windowProbe === null) return
   overlayTimer = setInterval(trackOverlay, 800)
   overlayTimer.unref()
@@ -1282,10 +1318,13 @@ function makeOverlay() {
   overlay = window
   overlayHeight = null
   windowGuard(window)
-  // A high window level keeps the overlay above borderless games. An exclusive Fullscreen game can still cover
-  // it entirely on Windows (that mode bypasses the desktop compositor) — Borderless Windowed/Windowed mode, or
+  // 'screen-saver' is the highest always-on-top level Electron exposes on both platforms, and on Windows it was
+  // needed: 'floating' could still lose to a borderless/windowed game or another always-on-top tool (Discord's
+  // overlay, for one) re-asserting z-order after this window did — reassertOverlayZOrder() above handles the
+  // ongoing contention on Windows; this sets the starting level. An exclusive Fullscreen game can still cover it
+  // entirely on Windows (that mode bypasses the desktop compositor) — Borderless Windowed/Windowed mode, or
   // switching Display to "Companion" in Settings, is the real workaround; there's no window level that fixes it.
-  window.setAlwaysOnTop(true, 'floating')
+  window.setAlwaysOnTop(true, 'screen-saver')
   // forward:true keeps mousemove events reaching the renderer so hover/leave still fire; without it the OS can
   // leave the game's cursor stuck on whatever it showed when the pointer last crossed the (invisible) overlay.
   window.setIgnoreMouseEvents(true, { forward: true })
@@ -1323,7 +1362,7 @@ function makeAchievementWindow() {
   achievementWindow = window
   achievementHeight = null
   windowGuard(window)
-  window.setAlwaysOnTop(true, 'floating')
+  window.setAlwaysOnTop(true, 'screen-saver')
   window.setIgnoreMouseEvents(true, { forward: true })
   if (process.platform === 'darwin') window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
   window.webContents.on('render-process-gone', () => { window.destroy() })
@@ -2211,10 +2250,10 @@ function handlers() {
     if (visionInFlight || screenPrompt || share === 'choosing' || share === 'starting') {
       throw new Error('Finish the current draft scan or window selection and try again.')
     }
-    if (share !== 'sharing' && screenAccessStatus() !== 'granted') {
+    if (share !== 'sharing' && !canAttemptScreenCapture()) {
       throw new Error(share && share !== 'unsupported'
-        ? 'macOS has no active grant for this build. Choose Share Dota window, then select Dota 2.'
-        : 'macOS has no active grant for this build. Use Reset instructions below, then request access during the next draft.')
+        ? 'macOS has not asked for Screen Recording yet. Choose Share Dota window, then select Dota 2.'
+        : 'macOS has not asked for Screen Recording yet. Use Request Screen Recording below, then capture again.')
     }
     visionInFlight = true
     let result

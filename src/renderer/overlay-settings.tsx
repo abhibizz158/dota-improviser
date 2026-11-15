@@ -105,13 +105,13 @@ export function OverlaySetup({ api, context, live, onState }: Props) {
       <header className="panel-heading"><div><h2>Display preferences</h2><p>Choose the screen and placement for windowed or borderless play.</p></div></header>
       <div className="settings-grid">
         <label className="field">Layout<select disabled={busy} value={settings.display} onChange={(event) => setting('display', event.target.value as LiveSettings['display'])}><option>Overlay</option><option>Companion</option></select></label>
-        {settings.display === 'Overlay' && !/Mac/.test(navigator.platform) && <p className="fine-print">On Windows, an exclusive Fullscreen Dota window can cover the overlay entirely — Borderless Windowed or Windowed mode (Settings → Video → Display Mode in Dota) keeps it visible. If you need exclusive Fullscreen, use "Companion" here instead.</p>}
         <label className="field">Monitor<select disabled={busy || settings.display === 'Companion'} value={settings.monitor} onChange={(event) => setting('monitor', event.target.value)}>
           {!(live.displays ?? context.displays).some(({ id }) => id === settings.monitor) && <option value={settings.monitor}>{settings.monitor === 'auto' ? 'Follow Dota' : 'Saved display unavailable'}</option>}
           {(live.displays ?? context.displays).map((display) => <option key={display.id} value={display.id}>{display.name}</option>)}</select></label>
         <label className="field">Placement<select disabled={busy || settings.display === 'Companion'} value={settings.placement} onChange={(event) => setting('placement', event.target.value as Placement)}>{placements.map((position) => <option key={position} value={position}>{position === 'Auto' ? 'Auto · draft left, lane right' : position}</option>)}</select></label>
         <label className="field">Card size<select disabled={busy} value={settings.size} onChange={(event) => setting('size', event.target.value as LiveSettings['size'])}><option>Compact</option><option>Large</option></select></label>
       </div>
+      {settings.display === 'Overlay' && !/Mac/.test(navigator.platform) && <p className="fine-print">On Windows, an exclusive Fullscreen Dota window can cover the overlay entirely — Borderless Windowed or Windowed mode (Settings → Video → Display Mode in Dota) keeps it visible. If you need exclusive Fullscreen, use "Companion" here instead.</p>}
       {settings.display === 'Overlay' && settings.monitor === 'auto' && (
         !live.detectionAvailable
           ? <p className="fine-print">Automatic window detection isn't available on this build (its native module failed to load). Pick a monitor above instead of "Follow Dota".</p>
