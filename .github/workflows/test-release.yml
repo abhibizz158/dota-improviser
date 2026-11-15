@@ -35,6 +35,26 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      # setup-node's own npm cache only covers the registry tarball cache, not Electron's own prebuilt binary zip
+      # (~100-200MB, fetched by a separate direct download during npm ci's postinstall) — that one was being
+      # re-fetched from scratch on every single run. Keyed on package-lock.json so a bumped Electron version
+      # invalidates it automatically instead of serving a stale binary.
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/AppData/Local/electron/Cache
+          key: electron-binary-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      # The Windows leg's `choco install nsis` below otherwise re-downloads and reinstalls NSIS from scratch every
+      # run (it only has a chance to be already present when choco pre-bundles it, which isn't guaranteed) — a
+      # static key is fine here since the compiler itself is pinned by whatever choco resolves, and a cache miss
+      # just falls back to the choco install exactly as before.
+      - name: Cache NSIS
+        if: runner.os == 'Windows'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: C:\Program Files (x86)\NSIS
+          key: nsis-${{ runner.os }}-v1
       - run: npm ci
       - name: Prepare the development Electron runtime for native smoke tests
         run: node node_modules/electron/install.js
