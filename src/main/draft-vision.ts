@@ -1,6 +1,17 @@
 import { desktopCapturer, nativeImage } from 'electron'
 import type { NativeImage } from 'electron'
 import type { Hero } from '../shared/model.js'
+import { currentMode } from './resource-monitor.js'
+
+/** Every slot is matched down to a 16x16 feature (THUMB below) regardless of capture resolution, so requesting
+ * desktopCapturer's thumbnail at near-full window size (previously up to 1600x1000) was paying real GPU
+ * readback/encode cost — and tripping the OS "screen recording" indicator at that cost — for detail none of the
+ * matching ever uses. Capped much lower here; cut further still in the RAM-adaptive 'minimal' resource mode,
+ * same lever resource-monitor.ts already applies to the overlay windows. Cross-platform: both the window-
+ * thumbnail path and the Windows-only full-screen fallback share this, so macOS gets the same reduction. */
+function maxCaptureSize() {
+  return currentMode() === 'minimal' ? { width: 640, height: 400 } : { width: 960, height: 600 }
+}
 
 /** Draft Vision compares only the pick-bar strip from the player's Dota window. Both capture entry points
  * require a verified Hero Selection or Strategy Time packet and discard frames when the phase changes. */
@@ -203,7 +214,8 @@ async function racedSources(types: ('window' | 'screen')[], width: number, heigh
 }
 
 async function captureWindowBar(target: VisionTarget, heightFraction: number) {
-  const scale = Math.min(1, 1600 / target.width, 1000 / target.height)
+  const cap = maxCaptureSize()
+  const scale = Math.min(1, cap.width / target.width, cap.height / target.height)
   const sources = await racedSources(['window'], Math.round(target.width * scale), Math.round(target.height * scale))
   if (!target.active()) return null
   const source = sources.find((candidate) => target.windowID != null
@@ -222,7 +234,8 @@ async function captureWindowBar(target: VisionTarget, heightFraction: number) {
  * duplication), which does see an exclusive-fullscreen game, so it can recover the same pick-bar strip — Dota
  * fills the whole monitor in that mode, so the crop fractions are identical to the window-thumbnail case. */
 async function captureScreenBar(target: VisionTarget, heightFraction: number) {
-  const scale = Math.min(1, 1600 / target.width, 1000 / target.height)
+  const cap = maxCaptureSize()
+  const scale = Math.min(1, cap.width / target.width, cap.height / target.height)
   const sources = await racedSources(['screen'], Math.round(target.width * scale), Math.round(target.height * scale))
   if (!target.active()) return null
   const source = (target.displayId != null ? sources.find((candidate) => String(candidate.display_id) === String(target.displayId)) : null)
