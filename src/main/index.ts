@@ -53,7 +53,7 @@ import { OpenDota } from './opendota.js'
 import { Store } from './store.js'
 import { ReleaseUpdates } from './release-updates.js'
 import { localHistoryKey, mergeHistory, parsePrivateHistory } from './private-history.js'
-import { achievementBounds, gameDisplay, mapTimerBounds, overlayBounds } from './overlay-layout.js'
+import { achievementBounds, gameDisplay, mapTimerBounds, overlayBounds, tipBounds } from './overlay-layout.js'
 import type { Rect } from './overlay-layout.js'
 
 app.setName('Dota Improviser')
@@ -156,6 +156,8 @@ let achievementWindow: BrowserWindow | null = null
 let achievementHeight: number | null = null
 let mapAlertWindow: BrowserWindow | null = null
 let mapAlertHeight: number | null = null
+let tipWindow: BrowserWindow | null = null
+let tipHeight: number | null = null
 let editFocusTimer: NodeJS.Timeout | undefined
 let windowProbe: {
   foregroundBounds: () => Rect | null
@@ -236,6 +238,7 @@ function scheduleAuxWindowIdleClose() {
   auxWindowIdleTimer = setTimeout(() => {
     if (achievementWindow && !achievementWindow.isDestroyed() && !achievementWindow.isVisible()) achievementWindow.close()
     if (mapAlertWindow && !mapAlertWindow.isDestroyed() && !mapAlertWindow.isVisible()) mapAlertWindow.close()
+    if (tipWindow && !tipWindow.isDestroyed() && !tipWindow.isVisible()) tipWindow.close()
   }, AUX_WINDOW_IDLE_MS)
   auxWindowIdleTimer.unref()
 }
@@ -411,6 +414,13 @@ function refreshDraftMatchups() {
 
 const TOAST_MS = 7000
 const SUMMARY_TOAST_MS = 7000
+// Coach-tip reminders: shown for up to a minute, then gone — never permanently docked in the main card. At
+// most 3 ordinary reminders plus 1 extra slot reserved for a warn-level ("important") one; a new reminder
+// past that cap evicts the oldest in its own category rather than piling up.
+const TIP_MS = 60000
+const TIP_NORMAL_CAP = 3
+const TIP_IMPORTANT_CAP = 1
+const toastTTL = (kind: Toast['kind']) => kind === 'summary' ? SUMMARY_TOAST_MS : kind === 'tip' ? TIP_MS : TOAST_MS
 
 /** Record an achievement/event: toast for the overlay, career counter for the trophy case, and — for a per-hero
  * item/timing achievement — a per-hero award record (every hero's own data, never a fixed hero list). */
@@ -448,6 +458,24 @@ function emitAlert(event: GameEvent) {
   toasts = [...toasts, { ...event, shownAt: Date.now() }].slice(-6)
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => broadcast(), TOAST_MS + 300)
+}
+
+/** Per-text cooldown so a tip that's still true every tick doesn't re-emit a fresh reminder every tick — once
+ * shown, the same text won't come back until TIP_MS has actually passed (i.e. the previous reminder already
+ * disappeared), so it reads as a periodic nudge rather than something permanently glued to the screen. */
+const tipLastShown = new Map<string, number>()
+function emitTip(text: string, important: boolean, clock: number) {
+  if (!settings.features.toasts || !settings.features.coachTips) return
+  const now = Date.now()
+  if (now - (tipLastShown.get(text) ?? -Infinity) < TIP_MS) return
+  tipLastShown.set(text, now)
+  const active = toasts.filter((t) => t.kind === 'tip' && now - t.shownAt < TIP_MS)
+  const sameCategory = active.filter((t) => Boolean(t.epic) === important)
+  const evict = sameCategory.length >= (important ? TIP_IMPORTANT_CAP : TIP_NORMAL_CAP)
+    ? sameCategory.reduce((oldest, t) => t.shownAt < oldest.shownAt ? t : oldest) : null
+  toasts = [...toasts.filter((t) => t !== evict), { id: 'tip-' + now, kind: 'tip', label: text, epic: important, at: clock, shownAt: now }]
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => broadcast(), TIP_MS + 300)
 }
 
 function updateMatchOutlook(current: Frame) {
@@ -620,7 +648,7 @@ function state(): LiveState {
   }) : null
   return {
     view, interactive, draft: draftView(), pick, coach: coachView, data: dataStatus, support: supportView(), game: gameView(), career, recovery, awards, vision: visionStats, assistantShortcutAvailable, deathSnapshot,
-    toasts: toasts.filter((t) => Date.now() - t.shownAt < (t.kind === 'summary' ? SUMMARY_TOAST_MS : TOAST_MS)),
+    toasts: toasts.filter((t) => Date.now() - t.shownAt < toastTTL(t.kind)),
     status, lane, receivedAt, settings, armed, shortcutAvailable, checkpoints, roshan,
     open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
     needsSessionInfo: view === 'setup' && Boolean(frame || draftStarted), confirmedKiller: deathCase?.killer ?? null, sessionInfo: { gameType: sessionGameType, lane: sessionLane },
@@ -651,13 +679,19 @@ function broadcastSoon() {
 /** Whether there's an achievement banner worth showing right now — the achievement window still gets the same
  * full LiveState as everything else over 'live:update'; this only decides whether to show/hide it. */
 function achievementState(value: LiveState) {
-  return value.toasts.filter((toast) => toast.kind !== 'alert' && toast.kind !== 'map-timer')
+  return value.toasts.filter((toast) => toast.kind !== 'alert' && toast.kind !== 'map-timer' && toast.kind !== 'tip')
 }
 
 /** Map-timer alerts (rune spawns, day/night, the stack/pull heads-up) get their own top-center window instead
  * of the achievement corner, since these are clock-driven mechanics the whole screen should notice. */
 function mapAlertState(value: LiveState) {
   return value.toasts.filter((toast) => toast.kind === 'map-timer')
+}
+
+/** Coach-tip reminders (emitTip) get their own strip below the main card — never mixed into the achievement
+ * corner, and never permanently part of the main card's own layout. */
+function tipState(value: LiveState) {
+  return value.toasts.filter((toast) => toast.kind === 'tip')
 }
 
 function broadcast() {
@@ -691,6 +725,16 @@ function broadcast() {
   } else if (mapAlertWindow) {
     mapAlertWindow.webContents.send('live:update', value)
     mapAlertWindow.hide()
+  }
+  const tips = settings.display === 'Overlay' && settings.features.toasts ? tipState(value) : []
+  if (tips.length && overlay?.isVisible() && !clearTask) {
+    const reminderWindow = tipWindow ?? makeTipWindow()
+    placeTipWindow()
+    reminderWindow.webContents.send('live:update', value)
+    if (!reminderWindow.isVisible()) reminderWindow.showInactive()
+  } else if (tipWindow) {
+    tipWindow.webContents.send('live:update', value)
+    tipWindow.hide()
   }
   return value
 }
@@ -956,6 +1000,9 @@ function refreshCoachView() {
     tips: features.coachTips ? result.tips : [], achievements: features.achievements ? result.achievements : [],
     personal: features.personal ? result.personal : null, nextGoal: features.achievements ? result.nextGoal : null,
   }
+  // Tips are never docked permanently in the overlay — each one surfaces as its own timed reminder instead
+  // (emitTip's own per-text cooldown + cap keep them from spamming), same list the UI would otherwise show inline.
+  for (const tip of coaching?.tips ?? coachView.tips) emitTip(tip.text, tip.level === 'warn', frame.clock)
   return result
 }
 
@@ -1265,7 +1312,7 @@ function placeOverlay(window: BrowserWindow) {
   const bounds = overlayBounds(display.workArea, detected ? gameBounds : null, settings, view, overlayHeight, interactive)
   const old = window.getBounds()
   if (old.x !== bounds.x || old.y !== bounds.y || old.width !== bounds.width || old.height !== bounds.height) window.setBounds(bounds)
-  if (window === overlay) { placeAchievementWindow(); placeMapAlertWindow() }
+  if (window === overlay) { placeAchievementWindow(); placeMapAlertWindow(); placeTipWindow() }
 }
 
 function placeAchievementWindow() {
@@ -1284,6 +1331,14 @@ function placeMapAlertWindow() {
   if (old.x !== bounds.x || old.y !== bounds.y || old.width !== bounds.width || old.height !== bounds.height) mapAlertWindow.setBounds(bounds)
 }
 
+function placeTipWindow() {
+  if (!tipWindow || tipWindow.isDestroyed() || !overlay || overlay.isDestroyed()) return
+  const { display } = resolveOverlayDisplay()
+  const bounds = tipBounds(display.workArea, overlay.getBounds(), tipHeight)
+  const old = tipWindow.getBounds()
+  if (old.x !== bounds.x || old.y !== bounds.y || old.width !== bounds.width || old.height !== bounds.height) tipWindow.setBounds(bounds)
+}
+
 function trackOverlay() {
   if (!overlayRequested || !overlay || overlay.isDestroyed() || interactive || settings.monitor !== 'auto' || (view === 'setup' && overlay.isFocused())) return
   const detected = detectDotaBounds()
@@ -1300,6 +1355,7 @@ function trackOverlay() {
     overlay.hide()
     achievementWindow?.hide()
     mapAlertWindow?.hide()
+    tipWindow?.hide()
   }
   if (previous?.name !== overlayDisplay?.name || previous?.following !== overlayDisplay?.following) broadcastSoon()
 }
@@ -1341,6 +1397,7 @@ function reassertOverlayZOrder() {
   if (overlay && !overlay.isDestroyed() && overlay.isVisible()) overlay.moveTop()
   if (achievementWindow && !achievementWindow.isDestroyed() && achievementWindow.isVisible()) achievementWindow.moveTop()
   if (mapAlertWindow && !mapAlertWindow.isDestroyed() && mapAlertWindow.isVisible()) mapAlertWindow.moveTop()
+  if (tipWindow && !tipWindow.isDestroyed() && tipWindow.isVisible()) tipWindow.moveTop()
 }
 
 function updateOverlayTracking() {
@@ -1421,6 +1478,7 @@ function makeOverlay() {
     clearTimeout(editFocusTimer)
     if (achievementWindow && !achievementWindow.isDestroyed()) achievementWindow.close()
     if (mapAlertWindow && !mapAlertWindow.isDestroyed()) mapAlertWindow.close()
+    if (tipWindow && !tipWindow.isDestroyed()) tipWindow.close()
     updateOverlayTracking()
   })
   void window.loadFile(ui, { hash: 'overlay' })
@@ -1467,6 +1525,27 @@ function makeMapAlertWindow() {
   window.webContents.on('render-process-gone', () => { window.destroy() })
   window.on('closed', () => { if (mapAlertWindow === window) { mapAlertWindow = null; mapAlertHeight = null } })
   void window.loadFile(ui, { hash: 'map-alert' })
+  return window
+}
+
+/** Coach-tip reminders live in their own strip directly below the main card (placeTipWindow), never docked
+ * inside it — same throwaway-window pattern as the achievement/map-alert windows above. */
+function makeTipWindow() {
+  const window = new BrowserWindow({
+    width: 300, height: 60, show: false, frame: false, transparent: true, resizable: false, focusable: false,
+    skipTaskbar: true, hasShadow: false, fullscreenable: false,
+    type: process.platform === 'darwin' ? 'panel' : undefined,
+    webPreferences: { ...webPreferences, spellcheck: false, backgroundThrottling: false },
+  })
+  tipWindow = window
+  tipHeight = null
+  windowGuard(window)
+  window.setAlwaysOnTop(true, 'screen-saver')
+  window.setIgnoreMouseEvents(true, { forward: true })
+  if (process.platform === 'darwin') window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+  window.webContents.on('render-process-gone', () => { window.destroy() })
+  window.on('closed', () => { if (tipWindow === window) { tipWindow = null; tipHeight = null } })
+  void window.loadFile(ui, { hash: 'tip-alert' })
   return window
 }
 
@@ -1546,6 +1625,7 @@ function hideOverlay() {
   toasts = []
   achievementWindow?.hide()
   mapAlertWindow?.hide()
+  tipWindow?.hide()
   overlayDisplay = undefined
   updateOverlayTracking()
   scheduleAuxWindowIdleClose()
@@ -2090,7 +2170,7 @@ function handlers() {
     })
   }
   ipcMain.handle('live:snapshot', (event: IpcMainInvokeEvent) => {
-    if (event.senderFrame === event.sender.mainFrame && (event.sender === overlay?.webContents || event.sender === achievementWindow?.webContents || event.sender === mapAlertWindow?.webContents)) {
+    if (event.senderFrame === event.sender.mainFrame && (event.sender === overlay?.webContents || event.sender === achievementWindow?.webContents || event.sender === mapAlertWindow?.webContents || event.sender === tipWindow?.webContents)) {
       return state()
     }
     throw new Error('This action is only available in the overlay.')
@@ -2108,6 +2188,9 @@ function handlers() {
     } else if (mapAlertWindow && event.sender === mapAlertWindow.webContents && event.senderFrame === mapAlertWindow.webContents.mainFrame) {
       mapAlertHeight = measured
       placeMapAlertWindow()
+    } else if (tipWindow && event.sender === tipWindow.webContents && event.senderFrame === tipWindow.webContents.mainFrame) {
+      tipHeight = measured
+      placeTipWindow()
     }
   })
   ipcMain.handle('overlay:draft', (event: IpcMainInvokeEvent, input: unknown) => {

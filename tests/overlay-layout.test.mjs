@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { gameDisplay, mapTimerBounds, overlayBounds } from '../dist/main/main/overlay-layout.js'
+import { gameDisplay, mapTimerBounds, overlayBounds, tipBounds } from '../dist/main/main/overlay-layout.js'
 
 const primary = { id: 1, bounds: { x: 0, y: 0, width: 1440, height: 900 }, workArea: { x: 0, y: 38, width: 1440, height: 822 } }
 const secondary = { id: 2, bounds: { x: -1280, y: -200, width: 1280, height: 1024 }, workArea: { x: -1280, y: -176, width: 1280, height: 1000 } }
@@ -52,6 +52,16 @@ test('the overlay never exceeds half the monitor in either dimension, even expan
   const editing = overlayBounds(small, null, settings, 'setup', 5000, true)
   assert.ok(editing.width <= small.width * 0.5)
   assert.ok(editing.height <= small.height * 0.5)
+})
+
+test('tip reminders sit directly below the main card, matching its x/width, clamped to the work area bottom', () => {
+  const anchor = { x: 40, y: 500, width: 280, height: 160 }
+  const below = tipBounds(primary.workArea, anchor, 50)
+  assert.equal(below.x, anchor.x)
+  assert.equal(below.width, anchor.width)
+  assert.equal(below.y, anchor.y + anchor.height + 8)
+  const nearBottom = tipBounds(primary.workArea, { x: 0, y: primary.workArea.y + primary.workArea.height - 30, width: 200, height: 20 }, 50)
+  assert.ok(nearBottom.y + nearBottom.height <= primary.workArea.y + primary.workArea.height)
 })
 
 test('the clickable match setup opens at form size and the coach returns to compact size', () => {

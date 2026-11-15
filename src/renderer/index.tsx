@@ -104,7 +104,7 @@ function Overlay() {
 function AchievementOverlay() {
   const { live, card } = useOverlayLive(false)
   return <div className="overlay-scroll"><div className="overlay-view achievement-view" ref={card}>
-    <Toasts toasts={live.toasts.filter((t) => t.kind !== 'alert' && t.kind !== 'map-timer')} />
+    <Toasts toasts={live.toasts.filter((t) => t.kind !== 'alert' && t.kind !== 'map-timer' && t.kind !== 'tip')} />
   </div></div>
 }
 
@@ -114,6 +114,14 @@ function MapAlertOverlay() {
   const { live, card } = useOverlayLive(false)
   return <div className="overlay-scroll"><div className="overlay-view map-alert-view" ref={card}>
     <Toasts toasts={live.toasts.filter((t) => t.kind === 'map-timer')} />
+  </div></div>
+}
+
+/** Coach-tip reminders, in their own strip below the main card — never permanently part of it. */
+function TipOverlay() {
+  const { live, card } = useOverlayLive(false)
+  return <div className="overlay-scroll"><div className="overlay-view tip-alert-view" ref={card}>
+    <Toasts toasts={live.toasts.filter((t) => t.kind === 'tip')} />
   </div></div>
 }
 
@@ -501,4 +509,4 @@ function App() {
 if (window.dota) document.documentElement.classList.add(navigator.userAgent.includes('Mac') ? 'mac' : 'win')
 createRoot(document.getElementById('root')!).render(
   location.hash === '#overlay' ? <Overlay /> : location.hash === '#achievements' ? <AchievementOverlay /> :
-  location.hash === '#map-alert' ? <MapAlertOverlay /> : <App />)
+  location.hash === '#map-alert' ? <MapAlertOverlay /> : location.hash === '#tip-alert' ? <TipOverlay /> : <App />)

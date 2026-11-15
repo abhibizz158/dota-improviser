@@ -222,7 +222,8 @@ dialog.dialog:has(.welcome-dialog) { width: min(640px, 94vw); max-width: calc(10
 .coach-top { display: flex; gap: 12px; align-items: center; } .coach-top > div:last-child { flex: 1; display: grid; gap: 5px; }
 .pace-row { display: grid; grid-template-columns: 34px 1fr 30px; gap: 8px; align-items: center; color: var(--muted); font-size: 11px; } .pace-row .meter { height: 5px; } .pace-row .meter i { background: var(--gold); } .pace-row b { color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
 .tips { display: grid; gap: 5px; } .tip { padding: 5px 8px; border-radius: 5px; background: var(--s2); border-left: 2px solid var(--info); line-height: 1.35; } .tip.warn { border-color: var(--gold); } .tip.good { border-color: var(--good); }
-.ach { display: flex; flex-wrap: wrap; gap: 5px; } .ach span { display: inline-flex; gap: 5px; align-items: center; padding: 2px 8px; border-radius: 99px; background: var(--s2); border: 1px solid var(--line-strong); font-size: 11px; color: var(--muted); } .ach .done { border-color: var(--good); color: var(--good); } .ach .late-done { border-color: var(--dim); } .ach .missed { opacity: .5; text-decoration: line-through; } .ach .live { border-color: var(--gold); color: var(--gold); }
+.ach { display: flex; flex-wrap: wrap; gap: 5px; } .ach span { display: inline-flex; gap: 5px; align-items: center; padding: 2px 8px; border-radius: 99px; background: var(--s2); border: 1px solid var(--line-strong); font-size: 11px; color: var(--muted); animation: rise .3s cubic-bezier(.2,1.2,.3,1) both; } .ach .done { border-color: var(--good); color: var(--good); } .ach .late-done { border-color: var(--dim); } .ach .missed { opacity: .5; text-decoration: line-through; } .ach .live { border-color: var(--gold); color: var(--gold); }
+@media (prefers-reduced-motion: reduce) { .ach span { animation: none; } }
 .overlay-document, .overlay-document body { background: transparent; min-width: 0; overflow: hidden; }
 
 /* ===== v3: glass / macOS-style layer ===== */
@@ -450,12 +451,19 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .toast b { display: block; font: 800 15px var(--display); letter-spacing: .1em; } .toast small { color: var(--muted); font-size: 11px; }
 .toast.epic { border-color: rgba(217,172,79,.6); background: linear-gradient(110deg, rgba(60,40,10,.96), rgba(18,14,10,.96)); animation: toastIn .3s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 6.5s ease-in forwards, pulseGlow .8s 2; pointer-events: none; }
 .toast.epic .toast-icon { background: var(--grad-gold); color: #3a2400; } .toast.epic b { background: linear-gradient(90deg, #fff, #ffe08a, #fff); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 1.3s linear infinite; }
-.achievement-view .toasts, .map-alert-view .toasts { margin-bottom: 0; }
+.achievement-view .toasts, .map-alert-view .toasts, .tip-alert-view .toasts { margin-bottom: 0; }
+.tip-alert-view .toasts { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+.tip-alert-view .toast { max-width: 220px; }
+/* Tips live 60s (TIP_MS in index.ts), not the 7s every other toast uses — same "CSS delay must match the JS
+ * TTL" rule AGENTS.md already documents for the others, just a different number for this kind. */
+.toast.tip { animation: toastIn .3s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 59.5s ease-in forwards; }
 .vision-debug { display: grid; gap: 8px; } .vision-debug img { width: 100%; border-radius: 8px; border: 1px solid var(--hairline); background: #000; }
 .vision-rows p { margin: 0; font-size: 12.5px; color: var(--muted); } .vision-rows strong { color: var(--text); }
 .toast.first-blood { border-color: rgba(224,87,75,.6); }
 .toast.alert { border-color: rgba(224,87,75,.5); } .toast.alert .toast-icon { background: rgba(224,87,75,.18); color: var(--bad); }
 .toast.map-timer { border-color: rgba(79,172,217,.5); } .toast.map-timer .toast-icon { background: rgba(79,172,217,.18); color: #4fb0d9; }
+.toast.tip { border-color: rgba(217,172,79,.4); } .toast.tip .toast-icon { background: rgba(217,172,79,.14); color: var(--gold); }
+.toast.tip.epic { border-color: rgba(224,87,75,.55); } .toast.tip.epic .toast-icon { background: rgba(224,87,75,.16); color: var(--bad); }
 
 .momentum { display: grid; gap: 3px; } .momentum-head { display: flex; justify-content: space-between; align-items: baseline; } .momentum small { font: 700 9.5px var(--display); letter-spacing: .16em; color: var(--muted); } .momentum b { font: 800 15px var(--display); }
 .momentum svg { width: 100%; height: 44px; display: block; }
@@ -476,7 +484,9 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .chip.epic { border-color: rgba(217,172,79,.55); color: var(--gold); background: rgba(217,172,79,.1); } .chip.hot { border-color: rgba(224,87,75,.5); color: #ff9a8e; background: rgba(224,87,75,.1); } .chip.good { color: var(--good); } .chip.bad { color: var(--bad); }
 .role-chip { justify-self: start; font: 700 9.5px var(--display); letter-spacing: .16em; text-transform: uppercase; color: var(--accent-hi); padding: 2px 8px; border-radius: 99px; background: rgba(210,60,48,.14); }
 .status-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.status-chip { font: 700 9px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--text); padding: 2px 7px; border-radius: 99px; background: rgba(210,60,48,.22); border: 1px solid rgba(210,60,48,.4); }
+.status-chip { font: 700 9px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--text); padding: 2px 7px; border-radius: 99px; background: rgba(210,60,48,.22); border: 1px solid rgba(210,60,48,.4); animation: rise .25s cubic-bezier(.2,1.2,.3,1) both; }
+@media (prefers-reduced-motion: reduce) { .status-chip { animation: none; } }
+.win-tick-mark { transition: left .5s cubic-bezier(.2,.8,.2,1); }
 .status-chip.buyback { color: var(--gold); background: rgba(212,175,55,.14); border-color: rgba(212,175,55,.4); }
 .status-chip.ult-ready { color: var(--good); background: rgba(107,191,89,.14); border-color: rgba(107,191,89,.4); }
 .vital-bars { display: flex; gap: 3px; width: 44px; flex: none; }

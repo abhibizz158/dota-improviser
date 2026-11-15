@@ -38,6 +38,11 @@ export function OverlaySetup({ api, context, live, onState }: Props) {
   const settings = live.settings
   const hero = context.catalog.heroes.find((hero) => hero.slug === live.lane?.heroSlug)
   const active = live.status === 'Live' || live.status === 'Paused'
+  // Only preview real coach data while a game is actually live — a finished/disconnected session can leave
+  // `live.coach` holding its last (sometimes contradictory, e.g. GSI's final frame before disconnect) values,
+  // which this preview would otherwise keep showing forever as if it were a sane example. "No game running"
+  // always means the placeholder LaneCard preview here, never stale real numbers.
+  const previewCoach = active ? live.coach : null
 
   async function act(operation: () => Promise<string | void>) {
     setBusy(true)
@@ -80,11 +85,11 @@ export function OverlaySetup({ api, context, live, onState }: Props) {
         </div>
         <div className="overlay-preview-box">
           <small>In-game · compact</small>
-          <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} compact {...previewCoachProps} /> : <LaneCard live={live} preview compact hero={hero} />}</div>
+          <div className="overlay-stage">{previewCoach ? <CoachCard coach={previewCoach} compact {...previewCoachProps} /> : <LaneCard live={live} preview compact hero={hero} />}</div>
         </div>
         <div className="overlay-preview-box">
           <small>In-game · large</small>
-          <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} compact={false} {...previewCoachProps} /> : <LaneCard live={live} preview compact={false} hero={hero} />}</div>
+          <div className="overlay-stage">{previewCoach ? <CoachCard coach={previewCoach} compact={false} {...previewCoachProps} /> : <LaneCard live={live} preview compact={false} hero={hero} />}</div>
         </div>
       </div>
       <div className="actions">

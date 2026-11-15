@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ArrowDown, ArrowUp, BrainCircuit, Clock3, Gamepad2, Minus, Radio, Shield, Swords, Trophy, X } from 'lucide-react'
 import type { CompactModule, DraftInput, GameType, GameView, Hero, LiveSettings, LiveState, MatchSummaryView, Role, Toast } from '../shared/model.js'
@@ -200,7 +200,7 @@ const tone = (p: number | null) => p == null ? 'var(--dim)' : p >= 66 ? 'var(--g
 function Pace({ label, value, median, pct }: { label: string; value: string; median?: string; pct: number | null }) {
   return <div className="pace-row"><span>{label} <em>{value}{median ? ' / ' + median : ''}</em></span><div className="meter"><i style={{ width: (pct ?? 0) + '%', background: tone(pct) }} /></div><b>{pct == null ? '—' : Math.round(pct)}</b></div>
 }
-const toastIcon = (kind: string) => kind === 'first-blood' ? '🩸' : kind === 'multikill' ? '⚔' : kind === 'streak' ? '🔥' : (kind === 'item' || kind === 'comeback') ? '★' : kind === 'alert' ? '⚠' : kind === 'map-timer' ? '⏱' : kind === 'summary' ? '🏁' : '✓'
+const toastIcon = (kind: string) => kind === 'first-blood' ? '🩸' : kind === 'multikill' ? '⚔' : kind === 'streak' ? '🔥' : (kind === 'item' || kind === 'comeback') ? '★' : kind === 'alert' ? '⚠' : kind === 'map-timer' ? '⏱' : kind === 'tip' ? '💡' : kind === 'summary' ? '🏁' : '✓'
 
 /** Animated achievement/alert banners. Each fades itself out via CSS; the overlay just stops receiving them once
  * TOAST_MS elapses. Several landing at once (a multikill plus a streak, say) stack instead of replacing each other. */
@@ -373,22 +373,37 @@ function TalentTiers({ talents }: { talents: boolean[] }) {
 }
 
 /** Live coach: percentile score vs this hero's benchmarks, goals, tips, achievements. Own-player GSI data only. Detail mode (Settings) adds stats and medians. */
+/** A finished goal (done/late-done/elite) fades out 25s after it first completes instead of sitting in this
+ * row for the rest of the match — still-live or missed goals never fade, there's nothing "finished" about
+ * them. Per-id completion time is tracked locally (the achievement list itself has no such timestamp). */
+function AchievementRow({ achievements }: { achievements: CoachView['achievements'] }) {
+  const doneAt = useRef(new Map<string, number>())
+  const [, tick] = useState(0)
+  const now = Date.now()
+  const visible = achievements.filter((a) => {
+    if (a.state !== 'done' && a.state !== 'late-done') return true
+    if (!doneAt.current.has(a.id)) {
+      doneAt.current.set(a.id, now)
+      setTimeout(() => tick((n) => n + 1), 25000)
+    }
+    return now - doneAt.current.get(a.id)! < 25000
+  })
+  if (!visible.length) return null
+  return <div className="ach">{visible.map((a) => <span key={a.id} className={a.state}>{a.elite ? '★' : a.state === 'done' ? '✓' : a.state === 'late-done' ? '•' : a.state === 'live' ? '◔' : '×'} {a.label}</span>)}</div>
+}
+
 export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, performance, coaching, compact = false, recoveryMode = false }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; performance?: PersonalPerformance; coaching?: CoachingContext; compact?: boolean; recoveryMode?: boolean }) {
   const f = settings.features, s = coach.stats
   // Phase-adaptive layout: laning = lane tools, mid game = goals + momentum, late game = essentials only.
   const adaptive = f.phaseAdaptive, late = adaptive && coach.phase === 'Late game', laning = !adaptive || coach.phase === 'Laning'
   const detailed = settings.detailed && !late
-  const contextualTips = coaching?.tips ?? coach.tips
   const outlook = !recoveryMode && f.matchOutlook ? game?.outlook : undefined
   const items = !recoveryMode && f.itemCoach ? coaching?.items ?? [] : []
-  const primaryTip = (f.coachTips ? contextualTips.find((tip) => tip.level === 'warn') ?? contextualTips[0] : undefined) ??
-    (f.laneWatch ? support?.tips[0] : undefined)
   const med = (v: number | null, d = 0) => v == null ? undefined : fmt(v, d)
   if (compact) {
-    // Item chips are now a single icon+ETA row (not prose), so there's room to also show the tip even when
-    // items are present — only true overflow (several warn tips stacking) needs trimming, not this pairing.
-    const showTip = detailed && primaryTip
-    const showNextGoal = detailed && !primaryTip && coach.nextGoal && f.achievements
+    // Tips surface as their own timed reminders in a separate overlay window now (emitTip in index.ts) —
+    // never permanently docked here, so there's no 'tip' module to render any more.
+    const showNextGoal = detailed && coach.nextGoal && f.achievements
     // Reorderable by the player (Overlay tab): only these optional rows move, never Head or the stat-row core.
     const order = settings.compactOrder?.length === compactModules.length ? settings.compactOrder : compactModules
     const renderModule = (m: CompactModule): ReactNode => {
@@ -397,7 +412,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
         case 'outlook': return outlook ? <OutlookCard key={m} outlook={outlook} compact /> : null
         case 'performance': return !recoveryMode && performance ? <PerformanceMeter key={m} performance={performance} detailed={false} /> : null
         case 'items': return items.length > 0 ? <MatchItems key={m} items={items} compact /> : null
-        case 'tip': return showTip ? <div className="tips" key={m}>{renderTip(primaryTip!)}</div> : null
+        case 'tip': return null
         case 'nextGoal': return showNextGoal ? <div className="next-goal" key={m}><b>{coach.nextGoal!.label}</b><em>{mmss(coach.nextGoal!.left)} left</em></div> : null
       }
     }
@@ -423,12 +438,11 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
         <Pace label="XPM" value={fmt(coach.xpm)} median={detailed ? med(coach.medians.xpm) : undefined} pct={coach.xpmPct} />
         <Pace label="LH/m" value={fmt(coach.lhpm, 1)} median={detailed ? med(coach.medians.lhpm, 1) : undefined} pct={coach.lhPct} /></div>
     </div>
-    {f.coachTips && coaching && <div className="coach-context">
+    {f.coachTips && coaching && (coaching.bracket || coaching.matchup) && <div className="coach-context">
       <div className="coach-context-stats">
         {coaching.bracket && <small title={coaching.bracket.games.toLocaleString() + ' public games'}>{coaching.bracket.name} · {coaching.bracket.rate}% overall</small>}
         {coaching.matchup && <small title={coaching.matchup.games.toLocaleString() + ' public games'}>vs. {coaching.matchup.name} · {coaching.matchup.rate}%</small>}
       </div>
-      <div className="tips">{coaching.tips.slice(0, detailed ? 4 : 2).map(renderTip)}</div>
     </div>}
     {items.length > 0 && <MatchItems items={items} />}
     {!recoveryMode && game && <GameStrip game={game} />}
@@ -446,9 +460,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
     {!recoveryMode && coach.nextGoal && f.achievements && <div className="next-goal"><small>NEXT GOAL</small><b>{coach.nextGoal.label}</b><em>{mmss(coach.nextGoal.left)} left</em></div>}
     {!recoveryMode && f.laneWatch && laning && support && support.matchups.length > 0 && <div className="lane-watch"><small>LANE WATCH · you vs revealed enemies</small>
       <div>{support.matchups.map((m) => <span key={m.enemy} className={m.rate >= 52 ? 'good' : m.rate < 48 ? 'bad' : ''} title={heroes.find((h) => h.id === m.enemy)?.name}><Portrait hero={heroes.find((h) => h.id === m.enemy)} />{fmt(m.rate, 0)}%</span>)}</div></div>}
-    {!recoveryMode && f.laneWatch && !coaching && support && support.tips.length > 0 && <div className="tips">{support.tips.slice(0, detailed ? 3 : 1).map(renderTip)}</div>}
-    {!recoveryMode && f.coachTips && !coaching && coach.tips.length > 0 && <div className="tips">{coach.tips.slice(0, detailed ? 3 : 1).map(renderTip)}</div>}
-    {!recoveryMode && f.achievements && !late && coach.achievements.length > 0 && <div className="ach">{coach.achievements.map((a) => <span key={a.id} className={a.state}>{a.elite ? '★' : a.state === 'done' ? '✓' : a.state === 'late-done' ? '•' : a.state === 'live' ? '◔' : '×'} {a.label}</span>)}</div>}
+    {!recoveryMode && f.achievements && !late && coach.achievements.length > 0 && <AchievementRow achievements={coach.achievements} />}
     {!recoveryMode && f.personal && coach.personal && <small className="draft-note">Your avg on this hero: {coach.personal.gpm} GPM · {coach.personal.xpm} XPM ({coach.personal.n} games, patch-weighted)</small>}
     {!recoveryMode && !coach.benchmarkAvailable && <small className="draft-note">No benchmark data for this hero yet. Open Heroes → Update data now.</small>}
     {!recoveryMode && f.hints && <Foot>{coach.benchmarkLabel ? `Public benchmark · ${coach.benchmarkLabel} ${coach.role.includes('support') ? 'supports' : 'cores'}` : 'Public hero benchmark'} · <kbd>{mod}C</kbd> compact · <kbd>{mod}H</kbd> hide</Foot>}

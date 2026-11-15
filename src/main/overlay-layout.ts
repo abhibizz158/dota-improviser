@@ -80,3 +80,14 @@ export function mapTimerBounds(workArea: Rect, game: Rect | null, measuredHeight
   const inset = Math.max(8, Math.round(area.height * 0.02))
   return { x: Math.round(area.x + (area.width - width) / 2), y: Math.ceil(area.y + inset), width, height }
 }
+
+/** Coach-tip reminders sit directly below the main overlay card — same x/width, clamped to the work area's
+ * bottom edge — rather than the achievement/map-timer windows' own fixed corners/top-center, since this one is
+ * meant to read as "an extra strip under the card you're already looking at", not a separate notification. Not
+ * subject to the main card's own 50%-of-monitor cap: a handful of short-lived reminder chips are never going
+ * to approach that size, and capping them the same way would just clip a legitimate 3-wide row for no reason. */
+export function tipBounds(workArea: Rect, anchor: Rect, measuredHeight: number | null, gap = 8): Rect {
+  const height = Math.max(40, measuredHeight ?? 60)
+  const maxY = workArea.y + workArea.height - height
+  return { x: anchor.x, y: Math.min(anchor.y + anchor.height + gap, maxY), width: anchor.width, height }
+}

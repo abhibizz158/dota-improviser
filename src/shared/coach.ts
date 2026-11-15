@@ -75,7 +75,10 @@ export function coach(frame: Frame, data: HeroData | undefined, percentiles: num
   const minutes = frame.clock / 60
   const warm = minutes >= 4 // averages are noise before this
   const lhpm = frame.lastHits != null && minutes > 0 ? frame.lastHits / minutes : null
-  const pct = (v: number | null, key: keyof HeroData['bench']) => warm && v != null && data ? percentileOf(v, data.bench[key], percentiles) : null
+  // Percentiles are a real public ladder (ranked/normal/turbo pace), so they mean nothing against a practice
+  // lobby or hero demo — those can run bots, cheats or sandbox gold/XP rates that would otherwise compute a
+  // technically-correct but meaningless "99th percentile" off a GPM no real match ever produces.
+  const pct = (v: number | null, key: keyof HeroData['bench']) => warm && frame.matchmaking && v != null && data ? percentileOf(v, data.bench[key], percentiles) : null
   const gpmPct = pct(frame.gpm, 'gpm'), xpmPct = pct(frame.xpm, 'xpm'), lhPct = pct(lhpm, 'lhpm')
   const core = CORE.includes(role)
   const parts = [[gpmPct, core ? 0.4 : 0.25], [xpmPct, core ? 0.3 : 0.45], [lhPct, core ? 0.3 : 0]] as const
