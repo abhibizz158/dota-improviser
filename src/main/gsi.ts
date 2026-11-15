@@ -74,6 +74,32 @@ export function ownItems(value: unknown) {
   })
 }
 
+/** Per-item cooldown/charges, same inventory GSI already sends for ownItems above — just the fields that
+ * function throws away. Keyed the same way `items: string[]` already is (the item key, "bottle" not "item_bottle"). */
+export function ownItemState(value: unknown) {
+  const state: Record<string, { cooldown: number | null; charges: number | null }> = {}
+  for (const [slot, item] of Object.entries(asRecord(value))) {
+    const entry = asRecord(item)
+    const name = entry.name
+    if (!/^(slot|stash|neutral|teleport)\d*$/.test(slot) || typeof name !== 'string' || !/^item_[a-z0-9_]+$/.test(name)) continue
+    state[name.slice(5)] = { cooldown: stat(entry.cooldown), charges: stat(entry.charges) }
+  }
+  return state
+}
+
+/** Your own ability levels/cooldowns — same player-visible category as items/hero, nothing about anyone else.
+ * GSI's `abilities` section keys each slot "ability0".."ability5"; levelled-but-unnamed slots are skipped. */
+export function ownAbilities(value: unknown) {
+  return Object.entries(asRecord(value)).flatMap(([slot, ability]) => {
+    const entry = asRecord(ability)
+    const name = entry.name
+    if (!/^ability\d+$/.test(slot) || typeof name !== 'string' || !/^[a-z0-9_]+$/.test(name) || name === 'generic_hidden') return []
+    const level = stat(entry.level) ?? 0
+    if (level <= 0) return []
+    return [{ key: name, level, cooldown: stat(entry.cooldown), canCast: entry.can_cast !== false, ultimate: entry.ultimate === true }]
+  })
+}
+
 /** Full own-player frame for the live coach. matchmaking=false restricts to practice lobbies. */
 export function parseFrame(value: unknown, expectedSteamId: string, matchmaking: boolean): Frame | null {
   const g = gate(value, expectedSteamId, matchmaking)
@@ -105,6 +131,10 @@ function projectFrame(g: NonNullable<ReturnType<typeof gate>>): Frame {
       muted: hero.muted === true, broken: hero.break === true, magicImmune: hero.magicimmune === true, smoked: hero.smoked === true,
     },
     buybackCost: stat(player.buyback_cost), buybackCooldown: stat(player.buyback_cooldown),
+    healthPct: stat(hero.health_percent), manaPct: stat(hero.mana_percent),
+    goldReliable: stat(player.gold_reliable), goldUnreliable: stat(player.gold_unreliable),
+    talents: Array.from({ length: 8 }, (_, i) => hero['talent_' + (i + 1)] === true),
+    itemState: ownItemState(packet.items), abilities: ownAbilities(packet.abilities),
   }
 }
 

@@ -1,8 +1,8 @@
 // Fair-play guardrails. Enforced three ways: types/constants here, runtime checks (network allowlist, GSI section list),
 // and tests/guard.test.mjs which scans the source tree and fails the build on forbidden APIs.
 
-/** Only Valve-provided, player-visible GSI sections. Spectator/hidden-info sections (allplayers, buildings, wearables, minimap, events) are never requested. */
-export const allowedGsiSections = ['provider', 'map', 'player', 'hero', 'items', 'draft'] as const
+/** Only Valve-provided, player-visible GSI sections. Spectator/hidden-info sections (allplayers, buildings, wearables, minimap, events) are never requested. 'abilities' is the same category as 'items'/'hero' — your own spell levels/cooldowns, nothing about anyone else. */
+export const allowedGsiSections = ['provider', 'map', 'player', 'hero', 'abilities', 'items', 'draft'] as const
 
 /** Every outbound HTTP request from any window or the main process must target one of these hosts. */
 export const allowedHosts = ['api.opendota.com', 'api.github.com', 'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com', 'steamcommunity.com', 'api.puter.com', 'puter.com', 'cdn.cloudflare.steamstatic.com', 'www.dota2.com', 'support.overwolf.com', 'blog.opendota.com'] as const

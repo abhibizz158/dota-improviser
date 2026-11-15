@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { draftVisionPhase, gsiConfig, loadingDraft, parseFrame, parsePick, parseResultFrame, parsePracticeLane, redactedShape, startGsi, updateCheckpoints } from '../dist/main/main/gsi.js'
+import { draftVisionPhase, gsiConfig, loadingDraft, ownAbilities, ownItemState, parseFrame, parsePick, parseResultFrame, parsePracticeLane, redactedShape, startGsi, updateCheckpoints } from '../dist/main/main/gsi.js'
 
 const steamId = '76561198047011640'
 const practice = {
@@ -114,6 +114,40 @@ test('draft lineup can survive showcase and loading for the same player', () => 
     assert.equal(loadingDraft({ ...packet, map: { ...packet.map, replay: true } }, steamId), false)
   }
   assert.equal(loadingDraft(practice, steamId), false)
+})
+
+test('ownItemState and ownAbilities read cooldown/charges/ultimate straight from GSI, same categories as items/hero', () => {
+  const items = { slot0: { name: 'item_black_king_bar', cooldown: 45, charges: undefined }, slot1: { name: 'item_tango', charges: 3 }, stash0: { name: 'untrusted payload' } }
+  assert.deepEqual(ownItemState(items), { black_king_bar: { cooldown: 45, charges: null }, tango: { charges: 3, cooldown: null } })
+  const abilities = {
+    ability0: { name: 'phantom_assassin_stifling_dagger', level: 3, can_cast: true, cooldown: 2 },
+    ability1: { name: 'phantom_assassin_coup_de_grace', level: 0, can_cast: true },
+    ability5: { name: 'phantom_assassin_phantom_strike', level: 1, ultimate: true, can_cast: false },
+    ability6: { name: 'generic_hidden', level: 1 },
+  }
+  assert.deepEqual(ownAbilities(abilities), [
+    { key: 'phantom_assassin_stifling_dagger', level: 3, cooldown: 2, canCast: true, ultimate: false },
+    { key: 'phantom_assassin_phantom_strike', level: 1, cooldown: null, canCast: false, ultimate: true },
+  ])
+})
+
+test('a live frame carries health/mana percent, the reliable/unreliable gold split, talent flags, items and abilities', () => {
+  const live = {
+    ...practice, map: { ...practice.map, matchid: '9087439951', game_state: 'DOTA_GAMERULES_STATE_GAME_IN_PROGRESS' },
+    player: { ...practice.player, gold: 1800, gold_reliable: 300, gold_unreliable: 1500, buyback_cost: 200, buyback_cooldown: 0 },
+    hero: { ...practice.hero, health_percent: 42, mana_percent: 88, talent_1: true, talent_4: true, stunned: true },
+    items: { slot0: { name: 'item_power_treads', cooldown: 0 } },
+    abilities: { ability0: { name: 'phantom_assassin_stifling_dagger', level: 2, can_cast: true, cooldown: 0 } },
+  }
+  const frame = parseFrame(live, steamId, true)
+  assert.equal(frame.healthPct, 42)
+  assert.equal(frame.manaPct, 88)
+  assert.equal(frame.goldReliable, 300)
+  assert.equal(frame.goldUnreliable, 1500)
+  assert.deepEqual(frame.talents, [true, false, false, true, false, false, false, false])
+  assert.deepEqual(frame.itemState, { power_treads: { cooldown: 0, charges: null } })
+  assert.deepEqual(frame.abilities, [{ key: 'phantom_assassin_stifling_dagger', level: 2, cooldown: 0, canCast: true, ultimate: false }])
+  assert.equal(frame.status.stunned, true)
 })
 
 test('validated post-game totals can be saved without treating the game as live', () => {

@@ -297,10 +297,45 @@ function StatusStrip({ coach }: { coach: CoachView }) {
   const active = (Object.keys(coach.status) as (keyof typeof coach.status)[]).filter((key) => coach.status[key])
   const buyback = coach.buybackCooldown != null && coach.buybackCooldown > 0 ? 'Buyback in ' + mmss(coach.buybackCooldown)
     : coach.buybackCost != null && coach.buybackCost > 0 ? 'Buyback ready · ' + coach.buybackCost.toLocaleString('en-US') + 'g' : null
-  if (!active.length && !buyback) return null
+  const ult = coach.abilities.find((a) => a.ultimate)
+  const ultReady = ult && ult.canCast && (ult.cooldown == null || ult.cooldown === 0)
+  const bars = coach.healthPct != null || coach.manaPct != null
+  if (!active.length && !buyback && !ultReady && !bars) return null
   return <div className="status-strip">
+    {bars && <div className="vital-bars">
+      {coach.healthPct != null && <span className="vital-bar hp" style={{ ['--v' as string]: coach.healthPct }} aria-label={'Health ' + coach.healthPct + '%'} />}
+      {coach.manaPct != null && <span className="vital-bar mp" style={{ ['--v' as string]: coach.manaPct }} aria-label={'Mana ' + coach.manaPct + '%'} />}
+    </div>}
     {active.map((key) => <span key={key} className="status-chip">{statusLabels[key]}</span>)}
+    {ultReady && <span className="status-chip ult-ready">Ult ready</span>}
     {buyback && <span className="status-chip buyback">{buyback}</span>}
+  </div>
+}
+
+/** Your own inventory with any live cooldown, pulled from the same GSI item block the item-icon/name already
+ * came from — only shown when something is actually on cooldown, so it doesn't add a permanently-visible row. */
+function ItemCooldowns({ coach }: { coach: CoachView }) {
+  const onCooldown = coach.itemState ? Object.entries(coach.itemState).filter(([, state]) => (state.cooldown ?? 0) > 0) : []
+  if (!onCooldown.length) return null
+  return <div className="item-cooldowns" aria-label="Items on cooldown">
+    {onCooldown.map(([key, state]) => {
+      const item = (itemCatalog as Record<string, ItemInfo>)[key]
+      return <span key={key}><ItemIcon itemKey={key} name={item?.n ?? key} /><small>{mmss(state.cooldown!)}</small></span>
+    })}
+  </div>
+}
+
+/** Positional only: GSI's talent_1..talent_8 flags say which side was picked at each tier, never the talent's
+ * actual text (that data isn't in the feed), so this shows tier pips, not invented talent names. */
+function TalentTiers({ talents }: { talents: boolean[] }) {
+  if (!talents.some(Boolean)) return null
+  const tiers: [number, number][] = [[0, 1], [2, 3], [4, 5], [6, 7]]
+  const labels = [10, 15, 20, 25]
+  return <div className="talent-tiers" aria-label="Talent tree">
+    {tiers.map(([l, r], i) => {
+      const left = talents[l], right = talents[r]
+      return <span key={i} className={'talent-tier' + (left ? ' left' : right ? ' right' : '')}>{labels[i]}{left ? ' · L' : right ? ' · R' : ''}</span>
+    })}
   </div>
 }
 
@@ -355,6 +390,8 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
     {detailed && <div className="stat-row">
       <span><b>{fmt(s.kills)}/{fmt(s.deaths)}/{fmt(s.assists)}</b><small>K/D/A</small></span><span><b>{fmt(s.lastHits)}/{fmt(s.denies)}</b><small>LH/DN</small></span>
       <span><b>{fmt(s.level)}</b><small>LEVEL</small></span><span className={(s.gold ?? 0) >= 1500 ? 'warn' : ''}><b>{fmt(s.gold)}</b><small>GOLD</small></span></div>}
+    {detailed && !recoveryMode && <ItemCooldowns coach={coach} />}
+    {detailed && !recoveryMode && <TalentTiers talents={coach.talents} />}
     {!recoveryMode && !!coach.planned?.length && <div className="coach-plan">
       <small>APPROVED BUILD</small>
       <span>{coach.planned.find((item) => item.at == null)?.name ?? 'All planned items seen'}</span>

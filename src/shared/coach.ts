@@ -1,4 +1,4 @@
-import type { Frame, HeroStatus, Role } from './model.js'
+import type { AbilityState, Frame, HeroStatus, ItemState, Role } from './model.js'
 import type { HeroStats } from './brain.js'
 
 export type HeroData = {
@@ -30,6 +30,8 @@ export type CoachView = {
    * for it: two independent signals agreeing, not just noise against one baseline. Debounced into a toast by main. */
   lowPace: 'gpm' | 'xpm' | null
   status: HeroStatus; buybackCost: number | null; buybackCooldown: number | null
+  healthPct: number | null; manaPct: number | null; goldReliable: number | null; goldUnreliable: number | null
+  talents: boolean[]; itemState: Record<string, ItemState>; abilities: AbilityState[]
 }
 
 // Par times (seconds) for common power spikes in a normal All Pick game. Shown only when the hero's own item data lists them.
@@ -118,8 +120,20 @@ export function coach(frame: Frame, data: HeroData | undefined, percentiles: num
       } else if (frame.xpm > mine.xpm * 1.1) tips.push({ level: 'good', text: `XPM ${frame.xpm} beats your usual ${Math.round(mine.xpm)} on this hero.` })
     }
   }
-  if (frame.gold != null && frame.gold >= 1500 && frame.alive) tips.push({ level: 'warn', text: `${frame.gold} gold unspent. Buy your next item or buyback fund.` })
+  if (frame.gold != null && frame.gold >= 1500 && frame.alive) {
+    // gold_reliable survives death, gold_unreliable doesn't — when GSI reports the split, say what's actually
+    // at risk instead of a flat "unspent gold" that can't tell the difference.
+    tips.push({ level: 'warn', text: frame.goldUnreliable != null && frame.goldUnreliable > 0
+      ? `${frame.gold} gold unspent, ${frame.goldUnreliable} of it unreliable (lost on death). Buy your next item or hold buyback fund.`
+      : `${frame.gold} gold unspent. Buy your next item or buyback fund.` })
+  }
   if (deaths != null && excess >= 1) tips.push({ level: 'warn', text: `${deaths} deaths is above pace. Play around vision and your escapes.` })
+  if (frame.alive && frame.healthPct != null && frame.healthPct < 25) tips.push({ level: 'warn', text: `Health at ${frame.healthPct}%. Disengage before committing to anything.` })
+  else if (frame.alive && frame.manaPct != null && frame.manaPct < 15 && minutes >= 3) tips.push({ level: 'info', text: `Mana at ${frame.manaPct}%. Hold key spells until it regenerates or you can refill.` })
+  {
+    const ult = (frame.abilities ?? []).find((a) => a.ultimate)
+    if (ult && ult.canCast && (ult.cooldown == null || ult.cooldown === 0) && frame.alive) tips.push({ level: 'good', text: 'Ultimate is ready. Look for a window to use it.' })
+  }
   if (!tips.length && data && minutes < 10) {
     const mid = data.items.mid.slice(0, 3).map(([k]) => PAR[k]?.[1] ?? k.replaceAll('_', ' ')).join(', ')
     if (mid) tips.push({ level: 'info', text: `Popular mid-game items for this hero: ${mid}.` })
@@ -146,5 +160,7 @@ export function coach(frame: Frame, data: HeroData | undefined, percentiles: num
     stats: { kills: frame.kills, deaths: frame.deaths, assists: frame.assists, lastHits: frame.lastHits, denies: frame.denies, level: frame.level, gold: frame.gold },
     medians: { gpm: data?.bench.gpm[2] ?? null, xpm: data?.bench.xpm[2] ?? null, lhpm: data?.bench.lhpm[2] ?? null },
     personal: mine && mine.n >= 3 ? { gpm: Math.round(mine.gpm), xpm: Math.round(mine.xpm), n: Math.round(mine.n) } : null, lowPace,
-    status: frame.status, buybackCost: frame.buybackCost, buybackCooldown: frame.buybackCooldown }
+    status: frame.status, buybackCost: frame.buybackCost, buybackCooldown: frame.buybackCooldown,
+    healthPct: frame.healthPct, manaPct: frame.manaPct, goldReliable: frame.goldReliable, goldUnreliable: frame.goldUnreliable,
+    talents: frame.talents ?? [], itemState: frame.itemState ?? {}, abilities: frame.abilities ?? [] }
 }

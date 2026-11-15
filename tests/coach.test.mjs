@@ -31,6 +31,21 @@ test('coach scores pace, flags low farm and unspent gold, tracks item achievemen
   assert.equal(coach(frame({ clock: 700 }), data, P, 'Carry', {}).achievements.find((a) => a.id === 'bfury').state, 'missed')
 })
 
+test('low health/mana, the reliable/unreliable gold split, and an off-cooldown ultimate each get their own tip', () => {
+  const lowHp = coach(frame({ healthPct: 18 }), data, P, 'Carry', {})
+  assert.ok(lowHp.tips.some((t) => /Health at 18%/.test(t.text)))
+  const lowMana = coach(frame({ clock: 300, manaPct: 10 }), data, P, 'Carry', {})
+  assert.ok(lowMana.tips.some((t) => /Mana at 10%/.test(t.text)))
+  const riskyGold = coach(frame({ gold: 1800, goldUnreliable: 1600 }), data, P, 'Carry', {})
+  assert.ok(riskyGold.tips.some((t) => /1600 of it unreliable/.test(t.text)))
+  const plainGold = coach(frame({ gold: 1800, goldUnreliable: null }), data, P, 'Carry', {})
+  assert.ok(plainGold.tips.some((t) => t.text === '1800 gold unspent. Buy your next item or buyback fund.'))
+  const ready = coach(frame({ abilities: [{ key: 'x', level: 3, cooldown: null, canCast: true, ultimate: true }] }), data, P, 'Carry', {})
+  assert.ok(ready.tips.some((t) => t.text === 'Ultimate is ready. Look for a window to use it.'))
+  const onCooldown = coach(frame({ abilities: [{ key: 'x', level: 3, cooldown: 40, canCast: true, ultimate: true }] }), data, P, 'Carry', {})
+  assert.ok(!onCooldown.tips.some((t) => /Ultimate is ready/.test(t.text)))
+})
+
 test('coach stays quiet with no benchmark data or before minute 4', () => {
   assert.equal(coach(frame({ clock: 100 }), data, P, 'Carry', {}).score, null)
   assert.equal(coach(frame(), undefined, P, 'Carry', {}).benchmarkAvailable, false)
