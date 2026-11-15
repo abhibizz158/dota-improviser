@@ -86,14 +86,15 @@ export function Trend({ value, suffix = '', digits = 0 }: { value: number | null
     {rounded === 0 ? <Minus size={12} /> : rounded > 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}{fmt(Math.abs(rounded), digits)}{suffix}</span>
 }
 
-export function LaneCard({ live, preview = false, hero }: { live: LiveState; preview?: boolean; hero?: Hero }) {
+export function LaneCard({ live, preview = false, hero, compact }: { live: LiveState; preview?: boolean; hero?: Hero; compact?: boolean }) {
   const lane = preview ? { clock: 433, lastHits: 44, denies: 8, deaths: 1, level: 7, paused: false, heroSlug: 'phantom_assassin' } : live.lane
   const displayName = hero?.name ?? (preview ? 'Phantom Assassin' : 'Own-player stats')
   const pace = preview ? [{ minute: 5, lastHits: 30, matches: 4 }, { minute: 10, lastHits: 66, matches: 4 }] : live.pace
   const offset = lane ? ((lane.clock % 60) + 60) % 60 : 0
   const cue = !preview && live.settings.cues && lane && !lane.paused && lane.clock >= 60
     ? offset >= 53 && offset <= 55 ? 'Stack practice window' : offset >= 14 && offset <= 17 ? 'Pull practice window' : '' : ''
-  return <article className={'lane-card ' + (live.settings.size === 'Large' ? 'lane-large' : '')}>
+  const large = compact == null ? live.settings.size === 'Large' : !compact
+  return <article className={'lane-card ' + (large ? 'lane-large' : '')}>
     <div className="lane-head">
       <span className="lane-signal"><Radio size={15} /> {preview ? 'Preview' : lane ? (lane.paused ? 'Paused' : 'Practice') : live.status}</span>
       <span className="lane-clock"><Clock3 size={15} />{clock(lane?.clock ?? null)}</span>

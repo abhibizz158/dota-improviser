@@ -193,6 +193,7 @@ dialog.dialog:has(.welcome-dialog) { width: min(640px, 94vw); max-width: calc(10
 .overlay-preview-box { display: grid; gap: 6px; } .overlay-preview-box > small { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
 .reorder-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .reorder-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--s2); border: 1px solid var(--hairline); border-radius: 8px; cursor: grab; }
+.reorder-list li[draggable="false"] { cursor: default; }
 .reorder-list li.dragging { opacity: .45; }
 .reorder-handle { color: var(--muted); display: flex; }
 .reorder-label { flex: 1; font-size: 13px; }
@@ -605,6 +606,11 @@ body { font-size: clamp(13px, 0.22vw + 11.2px, 16px); }
   min-width: 0; max-width: none; box-shadow: 0 3px 10px #0007; padding: 10px 10px 9px 12px;
 }
 .overlay-view .compact-coach .stat-row { margin-top: 4px; }
+/* The lane card's "Compact" size setting used to have no visual effect at all (lane-large carried no rule of its
+ * own, and the un-suffixed class was already the full-detail look) — this is the actual compact variant: tighter
+ * padding/type and the per-minute pace targets dropped, same spirit as compact-coach trimming the in-game card. */
+.lane-card:not(.lane-large) { padding: 7px 9px; gap: 5px; font-size: 11px; }
+.lane-card:not(.lane-large) .lane-pace { display: none; }
 .overlay-edit { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--gold); font-size: 12px; }
 .overlay-edit button, .overlay-view .draft-entry button { color: var(--text); background: var(--s2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 7px; cursor: pointer; }
 .overlay-edit button:hover, .overlay-view .draft-entry button:hover { border-color: var(--gold); }

@@ -80,11 +80,11 @@ export function OverlaySetup({ api, context, live, onState }: Props) {
         </div>
         <div className="overlay-preview-box">
           <small>In-game · compact</small>
-          <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} compact {...previewCoachProps} /> : <LaneCard live={live} preview hero={hero} />}</div>
+          <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} compact {...previewCoachProps} /> : <LaneCard live={live} preview compact hero={hero} />}</div>
         </div>
         <div className="overlay-preview-box">
           <small>In-game · large</small>
-          <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} compact={false} {...previewCoachProps} /> : <LaneCard live={live} preview hero={hero} />}</div>
+          <div className="overlay-stage">{live.coach ? <CoachCard coach={live.coach} compact={false} {...previewCoachProps} /> : <LaneCard live={live} preview compact={false} hero={hero} />}</div>
         </div>
       </div>
       <div className="actions">
