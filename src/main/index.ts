@@ -1536,13 +1536,21 @@ async function loadData() {
   draftMemo = undefined
 }
 
+/** Whether the ~500-request OpenDota refetch (buildData, below) is actually warranted: a patch landed, a
+ * dataset is missing entirely, or the last refresh is older than 14 days. Shared by the background scheduler
+ * and the manual "Update data now" button, so clicking the button when none of this is true doesn't start a
+ * full refetch it doesn't need — it used to, every single time, regardless of how fresh the data already was. */
+function dataNeedsRefresh() {
+  return patchChanged || !heroDb || !timingsDb || !kitsDb || Date.now() - dataStatus.updatedAt > 14 * 86400000
+}
+
 /** Self-update after a Dota patch (or when data is old): refetch public aggregates in the background. */
 function scheduleDataRefresh() {
   clearTimeout(autoRefreshTimer)
   if (!settings.features.autoUpdate || quitting) return
   autoRefreshTimer = setTimeout(() => {
     if (pick || frame) scheduleDataRefresh()
-    else if (patchChanged || !heroDb || !timingsDb || !kitsDb || Date.now() - dataStatus.updatedAt > 14 * 86400000) void refreshData()
+    else if (dataNeedsRefresh()) void refreshData()
   }, 60000)
   autoRefreshTimer.unref()
 }
@@ -1994,6 +2002,11 @@ function handlers() {
   handle('draft:set', setDraft)
   handle('data:update', () => {
     if (pick || frame) return state()
+    if (!dataNeedsRefresh()) {
+      dataStatus = { ...dataStatus, message: 'Hero data is already up to date.' }
+      broadcastSoon()
+      return state()
+    }
     void refreshData()
     return state()
   })

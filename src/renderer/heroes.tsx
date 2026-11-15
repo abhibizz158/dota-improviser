@@ -52,6 +52,7 @@ export function Heroes({ api, catalog, live, onDraft }: { api: AppApi; catalog: 
   const totalPick = d ? d.pick.reduce((a, b) => a + b, 0) : 0
   return <>
     {live.data.state === 'error' && <Feedback error message={live.data.message} />}
+    {live.data.state !== 'error' && live.data.state !== 'updating' && <Feedback message={live.data.message} />}
     <div className="page-heading"><div><h1>Hero database</h1><p>Win rates, benchmarks and counters for every hero, from public OpenDota data.</p></div>
       <div className="actions">
         {live.data.state === 'updating' && <span className="status-pill"><i /> Updating {live.data.done}/{live.data.total}</span>}

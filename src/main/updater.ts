@@ -71,7 +71,12 @@ export async function buildData(dir: string, report: (state: Pick<DataStatus, 'd
   const resumeFile = path.join(dir, 'refresh-progress.json')
   const prior = await readFile(resumeFile, 'utf8').then(JSON.parse).catch(() => null) as { at: number; patch: string; values: Record<string, unknown> } | null
   const values = prior?.patch === catalog.patch && Date.now() - prior.at < 86400000 ? prior.values : {}
-  let total = heroes.length * 4 + 1
+  // Reserved upfront, not grown mid-run: the item-timing phase below needs up to 4 slots per hero, but which
+  // items qualify isn't known until the main per-hero loop finishes. Growing `total` after reporting had
+  // already started against the smaller number made the progress bar's own denominator jump partway through
+  // (509 could balloon past 800+) — reserving the worst case up front keeps it one stable number throughout;
+  // `done` just won't always reach it exactly, and the final explicit done=total below still closes it out.
+  const total = heroes.length * 4 + 1 + heroes.length * 4
   let done = 0
   const tick = () => report({ done: ++done, total })
   const saved = async (key: string, read: () => Promise<unknown>) => {
@@ -134,7 +139,6 @@ export async function buildData(dir: string, report: (state: Pick<DataStatus, 'd
     const items = h as { items: { early: [string, number][]; mid: [string, number][] } }
     return [...new Set([...items.items.early, ...items.items.mid].map(([k]) => k))].filter((k) => PAR_ITEMS.includes(k)).slice(0, 4).map((item) => [Number(id), item] as const)
   })
-  total += plan.length
   const timings: Record<number, Record<string, [number, number, number][]>> = {}
   for (const [id, item] of plan) {
     const found = rows(await openDota('/scenarios/itemTimings?hero_id=' + id + '&item=' + item))
