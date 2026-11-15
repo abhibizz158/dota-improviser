@@ -444,12 +444,14 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 
 
 .toasts { display: grid; gap: 6px; margin-bottom: 8px; width: 100%; max-width: 380px; pointer-events: none; }
-.toast { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 12px; background: linear-gradient(160deg, rgba(30,34,46,.96), rgba(12,13,18,.96)); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 14px 34px rgba(0,0,0,.5);
+/* Near-opaque (.96) used to make these read as solid panels sitting on top of the game instead of an overlay —
+ * backdrop-filter keeps text legible at a lower fill opacity (.8) so the game stays visible through the card. */
+.toast { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 12px; background: linear-gradient(160deg, rgba(30,34,46,.8), rgba(12,13,18,.8)); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 14px 34px rgba(0,0,0,.4);
   animation: toastIn .3s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 6.5s ease-in forwards;
   transform: scale(calc(1 - var(--stack, 0) * .035)); opacity: calc(1 - var(--stack, 0) * .22); pointer-events: none; user-select: none; }
 .toast-icon { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 17px; background: rgba(255,255,255,.08); flex: none; }
 .toast b { display: block; font: 800 15px var(--display); letter-spacing: .1em; } .toast small { color: var(--muted); font-size: 11px; }
-.toast.epic { border-color: rgba(217,172,79,.6); background: linear-gradient(110deg, rgba(60,40,10,.96), rgba(18,14,10,.96)); animation: toastIn .3s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 6.5s ease-in forwards, pulseGlow .8s 2; pointer-events: none; }
+.toast.epic { border-color: rgba(217,172,79,.6); background: linear-gradient(110deg, rgba(60,40,10,.8), rgba(18,14,10,.8)); animation: toastIn .3s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 6.5s ease-in forwards, pulseGlow .8s 2; pointer-events: none; }
 .toast.epic .toast-icon { background: var(--grad-gold); color: #3a2400; } .toast.epic b { background: linear-gradient(90deg, #fff, #ffe08a, #fff); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 1.3s linear infinite; }
 .achievement-view .toasts, .map-alert-view .toasts, .tip-alert-view .toasts { margin-bottom: 0; }
 .tip-alert-view .toasts { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
@@ -557,7 +559,8 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 
 .recovery-card {
   display: grid; gap: 4px; min-width: 0; padding: 8px 10px; color: var(--text);
-  background: rgba(15,17,24,.96); border: 1px solid var(--line); border-left: 2px solid var(--gold); border-radius: 8px;
+  background: rgba(15,17,24,.78); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--line); border-left: 2px solid var(--gold); border-radius: 8px;
   animation: rise .35s cubic-bezier(.2,.8,.2,1) both;
 }
 @media (prefers-reduced-motion: reduce) { .recovery-card { animation: none; } }
@@ -651,6 +654,10 @@ body { font-size: clamp(13px, 0.22vw + 11.2px, 16px); }
 .overlay-view { padding: 7px; gap: 5px; display: grid; align-content: start; justify-items: stretch; }
 .overlay-view .lane-card, .overlay-view .draft-card, .overlay-view .coach-card {
   min-width: 0; max-width: none; box-shadow: 0 3px 10px #0007; padding: 10px 10px 9px 12px;
+  /* The dashboard's own near-opaque card fill (.93/.94) is right for a page background; over the game it read
+   * as a solid panel rather than an overlay. Lower fill + backdrop-filter keeps text legible while letting the
+   * game show through, same fix as the toast cards above. */
+  background: linear-gradient(160deg, rgba(26,29,40,.78), rgba(11,12,17,.76)); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
 .overlay-view .compact-coach .stat-row { margin-top: 4px; grid-template-columns: repeat(5, 1fr); }
 /* The lane card's "Compact" size setting used to have no visual effect at all (lane-large carried no rule of its
