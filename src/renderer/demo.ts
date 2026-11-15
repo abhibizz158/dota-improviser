@@ -18,6 +18,7 @@ export const initialLive: LiveState = {
   status: 'Idle', lane: null, receivedAt: null, open: false, armed: false, pace: [], checkpoints: [], settings: defaultLiveSettings, shortcutAvailable: true, roshan: emptyRoshan,
   recovery: null, awards: {}, vision: { observer: 0, sentry: 0, matches: 0 }, assistantShortcutAvailable: false, deathSnapshot: null,
   needsSessionInfo: false, sessionInfo: { gameType: null, lane: null }, detectionAvailable: true, matchSummary: null,
+  resourceMode: 'full',
 }
 let sampleLive = initialLive
 const listeners = new Set<(state: LiveState) => void>()
@@ -40,6 +41,7 @@ export const browserApi: AppApi = {
   async toggleOverlay() { throw new Error('Open the desktop app to show a separate overlay window.') },
   async saveConfig() { throw new Error('Open the desktop app to save a GSI config.') },
   async exportDiagnostics() { throw new Error('Open the desktop app to export diagnostics.') },
+  async exportResourceLog() { throw new Error('Open the desktop app to export the resource log.') },
   async openExternal(target) {
     const links = { guides: 'https://www.dota2.com/workshop/builds/overview', patches: 'https://www.dota2.com/patches/',
       privacy: 'https://blog.opendota.com/2014/08/01/faq/', gsi: 'https://support.overwolf.com/support/solutions/articles/9000212745-how-to-enable-game-state-integration-for-dota-2',

@@ -49,6 +49,7 @@ if (location.hash === '#achievements' || location.hash === '#map-alert' || locat
     toggleOverlay: () => ipcRenderer.invoke('live:toggle'),
     saveConfig: () => ipcRenderer.invoke('live:config'),
     exportDiagnostics: () => ipcRenderer.invoke('live:export'),
+    exportResourceLog: () => ipcRenderer.invoke('resource:export'),
     itemLearn: (id, sync) => ipcRenderer.invoke('items:learn', id, sync),
     buildPlan: (id, order) => ipcRenderer.invoke('items:plan', id, order),
     heroGuide: (id) => ipcRenderer.invoke('heroes:guide', id),

@@ -38,6 +38,7 @@ import { configName, defaultBuilds, discover, steamLauncher } from './local.js'
 import type { LocalInfo } from './local.js'
 import { accountId, asRecord, catalog, itemInfo, matchId, number, steamId64, validHero } from './data.js'
 import { draftVisionPhase, gsiConfig, loadingDraft, parseCompletedOwnMatch, parseDraft, parseFrame, parsePick, parseResultFrame, redactedShape, startGsi, updateCheckpoints } from './gsi.js'
+import * as resourceMonitor from './resource-monitor.js'
 import { BAR_HEIGHT_FRACTION, captureDeathSnapshot, captureDraftPicks, confirmDraftPicks, debugCaptureDraftPicks, DraftCaptureError, loadReferencePortraits, rememberPortrait } from './draft-vision.js'
 import type { PortraitMemory, VisionReveal } from './draft-vision.js'
 import { brackets, contextualCoach, knownThreat } from '../shared/contextual-coach.js'
@@ -232,14 +233,18 @@ let auxWindowIdleTimer: NodeJS.Timeout | undefined
 // (just BrowserWindow + loadFile with a hash, no state to rebuild), so there's no reason to keep either one
 // resident for the rest of the app's run once the overlay goes quiet (e.g. back on the dashboard between
 // games). Scheduled from hideOverlay(), cancelled the moment the overlay is requested again.
-const AUX_WINDOW_IDLE_MS = 5 * 60_000
+// On a tight-RAM machine (resourceMonitor's 'minimal' mode) these come down 5x faster, trading a slightly
+// more frequent window recreation for not holding 3 idle renderer processes resident as long.
+function auxWindowIdleMs() {
+  return resourceMonitor.currentMode() === 'minimal' ? 60_000 : 5 * 60_000
+}
 function scheduleAuxWindowIdleClose() {
   clearTimeout(auxWindowIdleTimer)
   auxWindowIdleTimer = setTimeout(() => {
     if (achievementWindow && !achievementWindow.isDestroyed() && !achievementWindow.isVisible()) achievementWindow.close()
     if (mapAlertWindow && !mapAlertWindow.isDestroyed() && !mapAlertWindow.isVisible()) mapAlertWindow.close()
     if (tipWindow && !tipWindow.isDestroyed() && !tipWindow.isVisible()) tipWindow.close()
-  }, AUX_WINDOW_IDLE_MS)
+  }, auxWindowIdleMs())
   auxWindowIdleTimer.unref()
 }
 // The close button only receives clicks while the overlay happens to be in interactive mode (click-through
@@ -418,7 +423,8 @@ const SUMMARY_TOAST_MS = 7000
 // most 3 ordinary reminders plus 1 extra slot reserved for a warn-level ("important") one; a new reminder
 // past that cap evicts the oldest in its own category rather than piling up.
 const TIP_MS = 60000
-const TIP_NORMAL_CAP = 3
+// One fewer simultaneous tip chip to composite in minimal resource mode — still reminders, just a smaller row.
+const tipNormalCap = () => resourceMonitor.currentMode() === 'minimal' ? 2 : 3
 const TIP_IMPORTANT_CAP = 1
 const toastTTL = (kind: Toast['kind']) => kind === 'summary' ? SUMMARY_TOAST_MS : kind === 'tip' ? TIP_MS : TOAST_MS
 
@@ -471,7 +477,7 @@ function emitTip(text: string, important: boolean, clock: number) {
   tipLastShown.set(text, now)
   const active = toasts.filter((t) => t.kind === 'tip' && now - t.shownAt < TIP_MS)
   const sameCategory = active.filter((t) => Boolean(t.epic) === important)
-  const evict = sameCategory.length >= (important ? TIP_IMPORTANT_CAP : TIP_NORMAL_CAP)
+  const evict = sameCategory.length >= (important ? TIP_IMPORTANT_CAP : tipNormalCap())
     ? sameCategory.reduce((oldest, t) => t.shownAt < oldest.shownAt ? t : oldest) : null
   toasts = [...toasts.filter((t) => t !== evict), { id: 'tip-' + now, kind: 'tip', label: text, epic: important, at: clock, shownAt: now }]
   clearTimeout(toastTimer)
@@ -654,6 +660,7 @@ function state(): LiveState {
     needsSessionInfo: view === 'setup' && Boolean(frame || draftStarted), confirmedKiller: deathCase?.killer ?? null, sessionInfo: { gameType: sessionGameType, lane: sessionLane },
     sessionRevision, detectionAvailable: windowProbe !== null, performance: performanceView(), coaching, draftVisionActive, draftWindowShare: windowProbe?.draftWindowShareState?.(),
     matchSummary: matchSummaryView,
+    resourceMode: resourceMonitor.currentMode(),
   }
 }
 
@@ -1407,7 +1414,8 @@ function updateOverlayTracking() {
   clearInterval(moveTopTimer)
   moveTopTimer = undefined
   if (process.platform === 'win32' && overlayRequested && !interactive && windowProbe !== null) {
-    moveTopTimer = setInterval(reassertOverlayZOrder, 1600)
+    // A little slower in minimal mode: fewer native z-order calls per second for the same effect.
+    moveTopTimer = setInterval(reassertOverlayZOrder, resourceMonitor.currentMode() === 'minimal' ? 3000 : 1600)
     moveTopTimer.unref()
   }
   if (!overlayRequested || settings.monitor !== 'auto' || interactive || windowProbe === null) return
@@ -2589,6 +2597,17 @@ function handlers() {
     await writeFile(result.filePath, JSON.stringify({ version: 1, platform: process.platform, samples }, null, 2), { mode: 0o600 })
     return true
   })
+  handle('resource:export', async () => {
+    const samples = resourceMonitor.snapshot()
+    if (!samples.length) throw new Error('Nothing recorded yet — the resource log fills in over the first few seconds after launch.')
+    const result = await dialog.showSaveDialog(dashboard!, {
+      title: 'Export resource usage log', defaultPath: 'dota-improviser-resource-log.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || !result.filePath) return false
+    await writeFile(result.filePath, JSON.stringify({ version: 1, platform: process.platform, mode: resourceMonitor.currentMode(), samples }, null, 2), { mode: 0o600 })
+    return true
+  })
   handle('app:external', (name) => {
     if (name === 'screenRecording') return process.platform === 'darwin'
       ? openScreenRecordingSettings()
@@ -2710,6 +2729,7 @@ else {
     screen.on('display-metrics-changed', reposition)
     makeDashboard()
     makeTray()
+    resourceMonitor.start(() => [overlay, achievementWindow, mapAlertWindow, tipWindow].filter((w) => w && !w.isDestroyed() && w.isVisible()).length)
     await Promise.all([initialData, initialDiscovery])
     // First launch (nothing bundled, nothing downloaded yet): start the download right away, not after the usual
     // 60s debounce — that delay exists to avoid re-checking on every ordinary launch, not to stall day one.
@@ -2752,6 +2772,7 @@ else {
     clearTimeout(toastTimer)
     clearTimeout(matchSummaryTimer)
     clearTimeout(auxWindowIdleTimer)
+    resourceMonitor.stop()
     receiver?.server.closeAllConnections()
     receiver?.server.close()
   })

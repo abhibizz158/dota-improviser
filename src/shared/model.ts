@@ -180,6 +180,9 @@ export type LiveState = {
   /** A completed match's own real numbers, kept visible (dismissed by the player, not a timer) until the next
    * game starts — large enough to actually read, not a 7s toast. */
   matchSummary: MatchSummaryView | null
+  /** 'minimal' once free system RAM drops under 16GB — the overlay automatically trims decorative/compositing
+   * cost (idle aux windows close sooner, fewer simultaneous tip chips) without touching any manual setting. */
+  resourceMode: 'full' | 'minimal'
 }
 /** Same stat names everywhere else in the app, compared against this player's own average on this hero
  * (`profile.stats`, already computed from their saved history) so "better/worse than before" is a real number,
@@ -258,6 +261,7 @@ export interface AppApi {
   toggleOverlay(): Promise<LiveState>;
   saveConfig(): Promise<boolean>;
   exportDiagnostics(): Promise<boolean>;
+  exportResourceLog(): Promise<boolean>;
   openExternal(target: 'guides' | 'patches' | 'privacy' | 'gsi' | 'personal' | 'releases' | 'screenRecording'): Promise<void>;
   updateData(): Promise<LiveState>;
   heroGuide(id: number): Promise<HeroGuide>;

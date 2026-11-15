@@ -210,6 +210,13 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
         <button className="button secondary" disabled={!!busy || !context.desktop} onClick={() => void act('export', async () =>
           await api.exportDiagnostics() ? 'Redacted diagnostics exported.' : undefined)}><FileDown size={16} /> Export redacted diagnostics</button>
       </section>
+      <section className="panel form-panel policy-panel">
+        <header className="panel-heading"><div><h2>Resource usage</h2><p>{live.resourceMode === 'minimal'
+          ? 'Safe minimal mode: free RAM is under 16GB, so idle overlay windows close sooner and decorative effects are trimmed automatically.'
+          : 'Full power: plenty of free RAM, so the overlay runs every effect at its normal strength.'}</p></div></header>
+        <button className="button secondary" disabled={!!busy || !context.desktop} onClick={() => void act('export', async () =>
+          await api.exportResourceLog() ? 'Resource usage log exported.' : undefined)}><FileDown size={16} /> Export resource usage log</button>
+      </section>
     </div>
   </>
 }
