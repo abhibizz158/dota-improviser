@@ -26,7 +26,7 @@ function ObjectiveTimeline({ timeline }: { timeline: NonNullable<MatchReview['ti
   const rows = [1, 2, 3].flatMap((tier) => (['Top', 'Mid', 'Bot'] as const).map((lane) => ({ tier, lane })))
   const at = (team: 'Radiant' | 'Dire', tier: number, lane: string) => towers.find((t) => t.team === team && t.tier === tier && t.lane === lane)?.time
   const base = (team: 'Radiant' | 'Dire') => towers.filter((t) => t.team === team && t.tier === 4).map((t) => t.time)
-  return <section className="panel events-panel reveal">
+  return <section id="review-timeline" className="panel events-panel reveal">
     <header className="panel-heading"><div><h2>Objective timeline</h2><p>When each building fell. Each column shows the team that lost it.</p></div></header>
     <div className="objective-chips">
       {timeline.firstBlood != null && <span className="chip epic">🩸 First blood {clockOf(timeline.firstBlood)}</span>}
@@ -37,6 +37,51 @@ function ObjectiveTimeline({ timeline }: { timeline: NonNullable<MatchReview['ti
       <tbody>{rows.map(({ tier, lane }) => <tr key={tier + lane}><td>T{tier} · {lane}</td><td>{at('Radiant', tier, lane) != null ? clockOf(at('Radiant', tier, lane)!) : '—'}</td><td>{at('Dire', tier, lane) != null ? clockOf(at('Dire', tier, lane)!) : '—'}</td></tr>)}
         <tr><td>T4 · Base</td><td>{base('Radiant').map(clockOf).join(', ') || '—'}</td><td>{base('Dire').map(clockOf).join(', ') || '—'}</td></tr></tbody></table> : <Empty title="No building data" >Objectives appear once OpenDota has parsed the replay.</Empty>}
     {(timeline.goldAdv.length > 2 || timeline.xpAdv.length > 2) && <><h3 className="obj-sub">Gold and experience advantage (Dota's own graph)</h3><AdvChart gold={timeline.goldAdv} xp={timeline.xpAdv} /></>}
+  </section>
+}
+
+/** All 10 players' own final OpenDota totals (hero damage, tower damage, healing, net worth) — fields already
+ * in every parsed match response, not surfaced anywhere before. The max in each column is marked per column
+ * (not per side) so "who actually did the most damage this game" reads at a glance across both teams. */
+function TeamOverview({ players, catalog }: { players: MatchPlayer[]; catalog: Catalog }) {
+  const [perMinute, setPerMinute] = useState(false)
+  const parsed = players.filter((player) => player.damage != null)
+  if (!parsed.length) return null
+  const sides = (['Radiant', 'Dire'] as const).map((side) => players.filter((player) => player.side === side))
+  const teamKills = Object.fromEntries(sides.map((side, i) => [(['Radiant', 'Dire'] as const)[i], side.reduce((sum, player) => sum + (player.kills ?? 0), 0)]))
+  const columns = [
+    { key: 'damage' as const, label: 'Hero damage' }, { key: 'towerDamage' as const, label: 'Tower damage' },
+    { key: 'healing' as const, label: 'Healing' }, { key: 'netWorth' as const, label: 'Net worth' },
+  ]
+  // Dividing by duration turns a late game's naturally bigger raw totals into a rate comparable across games —
+  // not a new data source, the same duration every other GPM/XPM figure on this page already uses.
+  const value = (player: MatchPlayer, key: typeof columns[number]['key']) => {
+    const raw = player[key]
+    if (raw == null) return null
+    return perMinute && player.duration > 0 ? raw / (player.duration / 60) : raw
+  }
+  const fmtValue = (v: number | null) => v == null ? '—' : perMinute ? v.toFixed(1) : Math.round(v).toLocaleString()
+  const max = Object.fromEntries(columns.map(({ key }) => [key, Math.max(0, ...parsed.map((player) => value(player, key) ?? 0))]))
+  return <section id="review-team" className="panel team-overview reveal">
+    <header className="panel-heading"><div><h2>Team overview</h2><p>Final hero damage, tower damage, healing and net worth for every player this game — the highest in each column across both teams is marked</p></div>
+      <div className="segment" aria-label="Totals or per-minute">
+        <button type="button" aria-pressed={!perMinute} onClick={() => setPerMinute(false)}>Totals</button>
+        <button type="button" aria-pressed={perMinute} onClick={() => setPerMinute(true)}>Per minute</button>
+      </div>
+    </header>
+    <table className="match-table team-overview-table">
+      <thead><tr><th>Player</th>{columns.map(({ key, label }) => <th key={key}>{label}</th>)}<th>Kill participation</th></tr></thead>
+      {sides.map((side, i) => <tbody key={i} className="team-overview-side">
+        {side.map((player) => {
+          const kp = teamKills[player.side] > 0 ? Math.round(100 * ((player.kills ?? 0) + (player.assists ?? 0)) / teamKills[player.side]) : null
+          return <tr key={player.slot} className={player.won ? 'good' : ''}>
+            <td className="team-overview-hero"><Portrait hero={catalog.heroes.find((hero) => hero.id === player.heroId)} />{catalog.heroes.find((hero) => hero.id === player.heroId)?.name ?? 'Hero'}</td>
+            {columns.map(({ key }) => { const v = value(player, key); return <td key={key} className={v != null && v === max[key] && max[key] > 0 ? 'team-overview-max' : ''}>{fmtValue(v)}</td> })}
+            <td>{kp != null ? kp + '%' : '—'}</td>
+          </tr>
+        })}
+      </tbody>)}
+    </table>
   </section>
 }
 
@@ -160,7 +205,13 @@ export function Review({ api, catalog, account, id, history, onImport, onBack }:
     {loading && !match && <section className="panel"><Empty title="Loading match details">Fetching data from OpenDota.</Empty></section>}
     {id && !loading && !match && <section className="panel"><Empty title="Match details unavailable">Check the match ID or try again.</Empty></section>}
     {match && player && <>
-      <section className="panel review-summary">
+      <nav className="segment review-nav" aria-label="Jump to section">
+        <button type="button" onClick={() => document.getElementById('review-overview')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Overview</button>
+        <button type="button" onClick={() => document.getElementById('review-timeline')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Timeline</button>
+        <button type="button" onClick={() => document.getElementById('review-team')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Team stats</button>
+        <button type="button" onClick={() => document.getElementById('review-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Events</button>
+      </nav>
+      <section id="review-overview" className="panel review-summary">
         <div className="review-hero"><Portrait hero={hero} /><div><h2>{hero?.name ?? 'Unknown hero'}</h2><p>{[player.role && player.role + ' (estimated)', player.side, player.mode, player.patch && 'Patch ' + player.patch].filter(Boolean).join(' · ')}</p></div></div>
         <span className={'result ' + (player.won ? 'win' : 'loss')}>{player.won ? 'Victory' : 'Defeat'}</span>
         <span className="review-duration"><Clock3 size={16} />{clock(player.duration)}</span>
@@ -211,8 +262,9 @@ export function Review({ api, catalog, account, id, history, onImport, onBack }:
         </section>
       </div>
       {match.timeline && <ObjectiveTimeline timeline={match.timeline} />}
+      <TeamOverview players={match.players} catalog={catalog} />
       <section className="panel trend-panel reveal"><header className="panel-heading"><div><h2>Team gold lead</h2><p>Radiant minus Dire, minute by minute: find the moment the game turned</p></div></header><DiffChart players={match.players} /></section>
-      <section className="panel events-panel">
+      <section id="review-events" className="panel events-panel">
         <header className="panel-heading"><div><h2>Replay events</h2><p>Item purchases, vision, objectives, and deaths</p></div><ListFilter size={18} className="quiet-icon" /></header>
         <div className="segment" aria-label="Event type">{eventTabs.map((tab) => <button type="button" key={tab} aria-pressed={eventFilter === tab}
           onClick={() => { setEventFilter(tab); setEventLimit(10) }}>{tab}</button>)}</div>

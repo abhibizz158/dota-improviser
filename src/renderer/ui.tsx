@@ -171,6 +171,7 @@ export function DraftCard({ live, heroes, send, done }: { live: LiveState; heroe
     {draft.ownHero != null && <div className="ov-team you"><span className="lbl you">You</span><span className="ov-pick" title={byId(draft.ownHero)?.name}><Portrait hero={byId(draft.ownHero)} />{byId(draft.ownHero)?.name}</span></div>}
     <Team label="Enemy" tone="e" ids={draft.enemy} byId={byId} remove={canEdit ? (id) => void send({ enemy: draft.enemy.filter((x) => x !== id) }) : undefined} />
     <Team label="Teammates" tone="a" ids={draft.allied} byId={byId} remove={canEdit ? (id) => void send({ allied: draft.allied.filter((x) => x !== id) }) : undefined} />
+    {live.draftHoverHint && <small className="draft-note hover-hint">Possibly forming: {byId(live.draftHoverHint.heroId)?.name ?? 'a hero'} <em>(experimental, unconfirmed)</em>{live.draftHoverHint.edge != null ? ` · ${live.draftHoverHint.edge}% vs enemies` : ''}</small>}
     {f.bans && draft.bans.length > 0 && <div className="ov-team bans"><span className="lbl">Bans</span>{draft.bans.slice(0, 10).map((id) => <Portrait key={id} hero={byId(id)} />)}</div>}
     {canEdit && <label className="overlay-role"><span>Your role</span>
       <select value={draft.roleChoice.source === 'Manual' ? draft.role : ''} onChange={(event) => void send({ role: event.target.value ? event.target.value as Role : null })}>

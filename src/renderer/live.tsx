@@ -179,8 +179,10 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
       <header className="panel-heading"><div><h2>Coaching preferences</h2><p>How the coach scores and benchmarks your games, not how the overlay looks.</p></div></header>
       <div className="settings-grid">
         <label className="field">Ranked coaching bracket<select disabled={!!busy} value={settings.coachingBracket ?? ''} onChange={(event) => setting('coachingBracket', (event.target.value || undefined) as LiveSettings['coachingBracket'])}>
-          <option value="">Any rank</option>{brackets.map((bracket) => <option key={bracket}>{bracket}</option>)}
-        </select></label>
+          <option value="">Auto (your own rank)</option>{brackets.map((bracket) => <option key={bracket}>{bracket}</option>)}
+        </select>
+          <small>In a ranked game, left on Auto this compares your pace against real OpenDota benchmarks for your own rank — a Herald's 50th percentile GPM is a genuinely lower real number than a Divine player's, not the same target scaled down by a guess. Pick a bracket to compare against a different one instead.</small>
+        </label>
         <label className="field">Practice role<select disabled={!!busy} value={settings.role} onChange={(event) => setting('role', event.target.value as LiveSettings['role'])}>{roles.map((role) => <option key={role}>{role}</option>)}</select></label>
       </div>
       <label className="check-field"><input type="checkbox" checked={settings.saveOwnMatches} disabled={!!busy} onChange={(event) => setting('saveOwnMatches', event.target.checked)} />

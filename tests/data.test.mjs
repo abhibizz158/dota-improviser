@@ -39,12 +39,17 @@ test('match review handles parsed, anonymous and unparsed records', () => {
       { ...baseMatch, account_id: null, times: [0, 300, 600], gold_t: [600, 2000, 5000], xp_t: [0, 940, 2000],
         lh_t: [0, 31, 59], purchase_log: [{ key: 'bfury', time: 691 }],
         deaths_log: [{ key: 'npc_dota_hero_axe', time: 328 }, { key: 'npc_dota_hero_axe', time: 753 }],
-        obs_log: [{ time: 123 }] },
-      { ...baseMatch, hero_id: 2, player_slot: 0, account_id: 86745912, lane_role: 3, position_est: 3 },
+        obs_log: [{ time: 123 }], hero_damage: 18000, tower_damage: 2400, hero_healing: 0, net_worth: 21000 },
+      { ...baseMatch, hero_id: 2, player_slot: 0, account_id: 86745912, lane_role: 3, position_est: 3, hero_damage: 9000 },
     ],
   })
   const [player, other] = parsed.players
   assert.equal(parsed.parsed, true)
+  // Final-match totals (hero/tower damage, healing, net worth) only trust OpenDota's numbers once this
+  // player's own data is actually parsed (purchasesAvailable) — OpenDota reports a flat 0 for these on an
+  // unparsed match, so a player with no purchase log must read null, not that player's real hero_damage.
+  assert.deepEqual([player.damage, player.towerDamage, player.healing, player.netWorth], [18000, 2400, 0, 21000])
+  assert.equal(other.damage, null)
   assert.equal(player.accountId, null)
   assert.equal(other.accountId, '86745912')
   assert.equal(other.role, 'Offlane')

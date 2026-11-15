@@ -99,6 +99,10 @@ export function Draft({ api, catalog, live, account, onMatch }: DraftProps) {
     </div>
     {live.pick && <div className="reveal-banner"><Swords size={15} /><span>You are <b>{live.pick.team}</b>{live.pick.heroId ? ', locked ' + name(live.pick.heroId) : ', not locked yet'}.
       {draft.activeTeam ? ' ' + draft.activeTeam + ' is picking' + (draft.timeLeft != null ? ' (' + Math.round(draft.timeLeft) + 's)' : '') + '.' : ''} Picks Dota reveals are added automatically; type any it hides.</span></div>}
+    {live.draftHoverHint && <div className="reveal-banner hover-hint"><Crosshair size={15} /><span>
+      Possibly forming: <b>{name(live.draftHoverHint.heroId)}</b> <small>(experimental — hover or an unconfirmed ally pick, not locked yet)</small>
+      {live.draftHoverHint.edge != null && <> · {live.draftHoverHint.edge}% vs. revealed enemies</>}
+    </span></div>}
     {draft.bans.length > 0 && <div className="team-row bans"><span className="team-label">Bans</span>{draft.bans.map((id) => <Portrait key={id} hero={catalog.heroes.find((h) => h.id === id)} />)}</div>}
     {draft.patchChanged && <Feedback message="Dota updated since last run. Cached matchups were dropped and will refresh as you draft." />}
     {draft.stale && !draft.patchChanged && <Feedback message="Older matchup data may receive less weight. Live data updates as heroes are revealed." />}

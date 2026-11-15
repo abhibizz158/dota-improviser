@@ -157,6 +157,13 @@ let draftVisionActive = false
 let visionInFlight = false
 let visionLastRead: VisionReveal | null = null
 let visionSamples: (string | null)[] = []
+/** A hero Draft Vision sees in your own team's pick-bar slots that isn't a confirmed pick yet — before you lock
+ * your own hero (GSI's own `pick.heroId` is still null), Dota can already be showing a tentative portrait for
+ * whichever hero you're hovering in the grid, in the same top strip the pick-bar reader already captures. This
+ * uses a single raw read (not `confirmDraftPicks`'s two-frame debounce, which is for the real committed pick
+ * merge) since a hover hint is explicitly uncertain either way — it can also just be an ally's slot updating
+ * before their own pick reaches GSI's wave-merge. Never claims whose hover it is, just that something's forming. */
+let draftHoverHint: { heroId: number; edge: number | null } | null = null
 let deathSnapshot: { at: number; dataUrl: string } | null = null
 let deathSnapshotInFlight = false
 const DEATH_SNAPSHOT_MS = 20000
@@ -193,6 +200,21 @@ let receiverTask: Promise<void> | null = null
 let clearTask: Promise<Bootstrap> | null = null
 let token = ''
 let account = ''
+// Auto-detected from the player's own real OpenDota rank (`profile().rankTier`), so the pace/score benchmark
+// defaults to comparing against players at this player's own real skill level instead of the whole public pool
+// — a Herald's "50th percentile" GPM is a much lower real number than a Divine player's, and OpenDota's own
+// per-bracket benchmark endpoint already has that broken out (verified live: bracket=1/support vs bracket=8/core
+// return genuinely different percentile curves, not the same data with the params ignored). `settings.coachingBracket`
+// still wins when the player picks one manually in Settings — this is only the default when they haven't.
+let ownRankBracket: Bracket | null = null
+function refreshOwnRank() {
+  if (!account) { ownRankBracket = null; return }
+  void provider.profile(account).then(({ data }) => {
+    const major = data.rankTier != null ? Math.floor(data.rankTier / 10) : null
+    ownRankBracket = major != null && major >= 1 && major <= brackets.length ? brackets[major - 1] : null
+    refreshCoachView()
+  }).catch(() => {})
+}
 let settings = defaultLiveSettings
 let armed = false
 let roshan: RoshanState = emptyRoshan
@@ -667,6 +689,7 @@ function state(): LiveState {
     open: overlayRequested, pace: key ? paceMemo?.pace ?? [] : [], displays: displayChoices, overlayDisplay, historyChangedAt,
     needsSessionInfo: view === 'setup' && Boolean(frame || draftStarted), confirmedKiller: deathCase?.killer ?? null, sessionInfo: { gameType: sessionGameType, lane: sessionLane },
     sessionRevision, detectionAvailable: windowProbe !== null, performance: performanceView(), coaching, draftVisionActive, draftWindowShare: windowProbe?.draftWindowShareState?.(),
+    draftHoverHint,
     matchSummary: matchSummaryView,
     resourceMode: resourceMonitor.currentMode(),
   }
@@ -726,7 +749,7 @@ function broadcast() {
     const toastWindow = achievementWindow ?? makeAchievementWindow()
     placeAchievementWindow()
     toastWindow.webContents.send('live:update', value)
-    if (!toastWindow.isVisible()) toastWindow.showInactive()
+    if (!toastWindow.isVisible()) { toastWindow.setOpacity(1); toastWindow.showInactive() }
   } else if (achievementWindow) {
     achievementWindow.webContents.send('live:update', value)
     achievementWindow.hide()
@@ -736,7 +759,7 @@ function broadcast() {
     const alertWindow = mapAlertWindow ?? makeMapAlertWindow()
     placeMapAlertWindow()
     alertWindow.webContents.send('live:update', value)
-    if (!alertWindow.isVisible()) alertWindow.showInactive()
+    if (!alertWindow.isVisible()) { alertWindow.setOpacity(1); alertWindow.showInactive() }
   } else if (mapAlertWindow) {
     mapAlertWindow.webContents.send('live:update', value)
     mapAlertWindow.hide()
@@ -746,7 +769,7 @@ function broadcast() {
     const reminderWindow = tipWindow ?? makeTipWindow()
     placeTipWindow()
     reminderWindow.webContents.send('live:update', value)
-    if (!reminderWindow.isVisible()) reminderWindow.showInactive()
+    if (!reminderWindow.isVisible()) { reminderWindow.setOpacity(1); reminderWindow.showInactive() }
   } else if (tipWindow) {
     tipWindow.webContents.send('live:update', value)
     tipWindow.hide()
@@ -868,6 +891,7 @@ function updateDraftVision() {
     visionTimer = undefined
     visionLastRead = null
     visionSamples = []
+    draftHoverHint = null
     return
   }
   if (visionTimer) return
@@ -889,6 +913,16 @@ function updateDraftVision() {
       if (!result) { visionLastRead = null; return }
       const confirmed = visionLastRead && confirmDraftPicks(visionLastRead, result, draft.vision)
       visionLastRead = result
+      const ownSlots = pick?.team === 'Dire' ? result.dire : result.radiant
+      const knownAllied = new Set(draft.feedAllied.values())
+      const knownEnemy = [...new Set(draft.feedEnemy.values())]
+      const lockedHero = pick?.heroId ?? null
+      const hoverId = pick && ownSlots ? ownSlots.find((id) => id != null && id !== lockedHero && !knownAllied.has(id)) ?? null : null
+      const hoverRows = hoverId != null && knownEnemy.length ? coachMatchups(hoverId, knownEnemy) : []
+      draftHoverHint = hoverId == null ? null : {
+        heroId: hoverId,
+        edge: hoverRows.length ? Math.round(hoverRows.reduce((sum, row) => sum + row.rate, 0) / hoverRows.length) : null,
+      }
       if (!pick || !confirmed) return
       const same = (a: (number | null)[], b: (number | null)[]) => a.length === b.length && a.every((id, i) => id === b[i])
       if (same(confirmed.radiant, draft.vision.radiant) && same(confirmed.dire, draft.vision.dire)) return
@@ -930,9 +964,14 @@ function approvedBuild(hero: number) {
   return { key, order }
 }
 
+function activeCoachingBracket(): Bracket | null {
+  return settings.coachingBracket ?? ownRankBracket
+}
+
 function bracketBenchmark(id: number | null, role: Role) {
-  if (id == null || !heroDb?.heroes[id] || !settings.coachingBracket || !frame?.matchmaking || sessionGameType !== 'Ranked') return null
-  const bracket = brackets.indexOf(settings.coachingBracket) + 1
+  const bracketName = activeCoachingBracket()
+  if (id == null || !heroDb?.heroes[id] || !bracketName || !frame?.matchmaking || sessionGameType !== 'Ranked') return null
+  const bracket = brackets.indexOf(bracketName) + 1
   const category = role === 'Soft support' || role === 'Hard support' ? 'support' : 'core'
   const key = [id, bracket, category, ...heroDb.percentiles].join(':')
   if (bracketBench?.key !== key) {
@@ -1011,7 +1050,7 @@ function refreshCoachView() {
   coachView = {
     ...result,
     phase: coaching?.phase ?? result.phase,
-    benchmarkLabel: scoped ? settings.coachingBracket : undefined,
+    benchmarkLabel: scoped ? activeCoachingBracket() ?? undefined : undefined,
     planned: planned.map((key) => ({ name: itemInfo[key].n, at: seen[key] ?? null })),
     tips: features.coachTips ? result.tips : [], achievements: features.achievements ? result.achievements : [],
     personal: features.personal ? result.personal : null, nextGoal: features.achievements ? result.nextGoal : null,
@@ -1385,26 +1424,35 @@ function trackOverlay() {
   if (previous?.name !== overlayDisplay?.name || previous?.following !== overlayDisplay?.following) broadcastSoon()
 }
 
-/** Fades the overlay to near-transparent while the cursor sits directly over it, so it never blocks the view
- * underneath — restores to the configured opacity once the cursor moves off, and never fades while interactive
- * (editing draft picks or the AI assistant), since that's a deliberate, focused use of the overlay, not a hover. */
+/** Fades a click-through overlay window to near-transparent while the cursor sits directly over it, so it
+ * never blocks the view underneath — restores to its normal opacity once the cursor moves off. `canFade` starts
+ * false per window so one that appears already under the cursor (e.g. a toast popping up right where the mouse
+ * already was) doesn't fade immediately; it only starts fading after the cursor is confirmed outside at least
+ * once first. */
+const hoverFadeState = new WeakMap<BrowserWindow, { hovering: boolean; canFade: boolean }>()
+
+/** Covers the main overlay card and all three toast windows (achievement/map-timer/tip) — they used to be left
+ * out of this entirely, so hovering over a toast never faded it the way hovering the main card already did. */
 function updateHoverFade() {
   clearInterval(hoverTimer)
   hoverTimer = undefined
   if (!overlay || overlay.isDestroyed()) return
   overlay.setOpacity(view === 'setup' ? 1 : settings.opacity)
   if (!overlayRequested || interactive || view === 'setup') return
-  let hovering = false
-  let canFade = false
   hoverTimer = setInterval(() => {
     if (!overlay?.isVisible() || interactive || view === 'setup') return
     const point = screen.getCursorScreenPoint()
-    const bounds = overlay.getBounds()
-    const inside = point.x >= bounds.x && point.x < bounds.x + bounds.width && point.y >= bounds.y && point.y < bounds.y + bounds.height
-    if (!inside) canFade = true
-    if (!canFade || inside === hovering) return
-    hovering = inside
-    overlay.setOpacity(hovering ? Math.min(settings.opacity, 0.2) : settings.opacity)
+    for (const [window, base] of [[overlay, settings.opacity], [achievementWindow, 1], [mapAlertWindow, 1], [tipWindow, 1]] as const) {
+      if (!window || window.isDestroyed() || !window.isVisible()) continue
+      const state = hoverFadeState.get(window) ?? { hovering: false, canFade: false }
+      hoverFadeState.set(window, state)
+      const bounds = window.getBounds()
+      const inside = point.x >= bounds.x && point.x < bounds.x + bounds.width && point.y >= bounds.y && point.y < bounds.y + bounds.height
+      if (!inside) state.canFade = true
+      if (!state.canFade || inside === state.hovering) continue
+      state.hovering = inside
+      window.setOpacity(inside ? Math.min(base, 0.2) : base)
+    }
   }, 150)
   hoverTimer.unref()
 }
@@ -2172,6 +2220,7 @@ async function clearData() {
   pendingMatchups.clear()
   draft = { ...emptyPicks, pool: [] }
   account = ''
+  ownRankBracket = null
   portraitMemory = []
   token = randomBytes(32).toString('hex')
   store.set('token', token)
@@ -2389,6 +2438,7 @@ function handlers() {
     if (nextAccount === account) return account
     resetSession('Idle')
     account = nextAccount
+    refreshOwnRank()
     loadProfileData()
     historyChangedAt = Date.now()
     portraitMemory = store.get<PortraitMemory[]>('draft-portraits:' + account) ?? []
@@ -2692,6 +2742,7 @@ else {
     scheduleAppUpdates(30000)
     provider = new OpenDota(store)
     account = store.get<string>('account') ?? ''
+    refreshOwnRank()
     portraitMemory = account ? store.get<PortraitMemory[]>('draft-portraits:' + account) ?? [] : []
     token = store.get<string>('token') ?? randomBytes(32).toString('hex')
     store.set('token', token)

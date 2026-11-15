@@ -248,8 +248,14 @@ export function normalizeMatch(value: unknown): MatchReview {
       ...eventList(player.sen_log, 'vision', () => 'Sentry ward placed'),
       ...deaths, ...objectives,
     ].sort((a, b) => (a.time ?? Infinity) - (b.time ?? Infinity))
+    const purchasesAvailable = Array.isArray(player.purchase_log)
+    // OpenDota reports these as a flat 0 (not absent) for a match it hasn't parsed yet — purchasesAvailable is
+    // already the per-player "this one's actually parsed" signal the rest of this function relies on, so reuse
+    // it here too rather than showing a false "0 damage" for an unparsed match.
     return [{ ...match, minutes: minutes.filter((minute) => [minute.gold, minute.xp, minute.lastHits, minute.deaths].some((value) => value != null)), events, accountId: account != null && account > 0 && account < 4294967295 ? String(account) : null,
-      slot: integer(player.player_slot) ?? 0, purchasesAvailable: Array.isArray(player.purchase_log) }]
+      slot: integer(player.player_slot) ?? 0, purchasesAvailable,
+      damage: purchasesAvailable ? number(player.hero_damage) : null, towerDamage: purchasesAvailable ? number(player.tower_damage) : null,
+      healing: purchasesAvailable ? number(player.hero_healing) : null, netWorth: purchasesAvailable ? number(player.net_worth) : null }]
   })
   if (!normalized.length) throw new Error('This match has no available player statistics.')
   return {

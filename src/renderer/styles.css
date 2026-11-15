@@ -443,14 +443,15 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .nav-button svg { transition: transform .2s; } .nav-button:hover svg { transform: scale(1.12); }
 
 
-.toasts { display: grid; gap: 6px; margin-bottom: 8px; width: 100%; max-width: 380px; pointer-events: none; }
+.toasts { display: grid; gap: 5px; margin-bottom: 8px; width: 100%; max-width: 320px; pointer-events: none; }
 /* Near-opaque (.96) used to make these read as solid panels sitting on top of the game instead of an overlay —
- * backdrop-filter keeps text legible at a lower fill opacity (.8) so the game stays visible through the card. */
-.toast { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 12px; background: linear-gradient(160deg, rgba(30,34,46,.8), rgba(12,13,18,.8)); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 14px 34px rgba(0,0,0,.4);
+ * backdrop-filter keeps text legible at a lower fill opacity (.8) so the game stays visible through the card.
+ * Also shrunk (padding/icon/type) — the full size was distracting for what's meant to be a brief reminder. */
+.toast { display: flex; gap: 8px; align-items: center; padding: 6px 9px; border-radius: 10px; background: linear-gradient(160deg, rgba(30,34,46,.8), rgba(12,13,18,.8)); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 10px 26px rgba(0,0,0,.4);
   animation: toastIn .3s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 6.5s ease-in forwards;
   transform: scale(calc(1 - var(--stack, 0) * .035)); opacity: calc(1 - var(--stack, 0) * .22); pointer-events: none; user-select: none; }
-.toast-icon { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 17px; background: rgba(255,255,255,.08); flex: none; }
-.toast b { display: block; font: 800 15px var(--display); letter-spacing: .1em; } .toast small { color: var(--muted); font-size: 11px; }
+.toast-icon { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; background: rgba(255,255,255,.08); flex: none; }
+.toast b { display: block; font: 800 13px var(--display); letter-spacing: .08em; } .toast small { color: var(--muted); font-size: 10px; }
 .toast.epic { border-color: rgba(217,172,79,.6); background: linear-gradient(110deg, rgba(60,40,10,.8), rgba(18,14,10,.8)); animation: toastIn .3s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 6.5s ease-in forwards, pulseGlow .8s 2; pointer-events: none; }
 .toast.epic .toast-icon { background: var(--grad-gold); color: #3a2400; } .toast.epic b { background: linear-gradient(90deg, #fff, #ffe08a, #fff); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 1.3s linear infinite; }
 .achievement-view .toasts, .map-alert-view .toasts, .tip-alert-view .toasts { margin-bottom: 0; }
@@ -573,6 +574,11 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 @media (prefers-reduced-motion: reduce) { .death-snapshot-card { animation: none; } }
 .death-snapshot-card img { width: 100%; border-radius: 5px; display: block; }
 .obj-table td:not(:first-child) { font-variant-numeric: tabular-nums; } .obj-sub { margin: 14px 0 6px; }
+.team-overview-table td:not(.team-overview-hero) { font-variant-numeric: tabular-nums; text-align: right; }
+.team-overview-table th:not(:first-child) { text-align: right; }
+.team-overview-hero { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.team-overview-side + .team-overview-side tr:first-child td { border-top: 2px solid var(--line-strong); }
+.team-overview-max { color: var(--gold); font-weight: 700; }
 .overlay-view .toasts { align-self: stretch; }
 
 .style-card { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(220px, 280px) 1fr; gap: 6px 26px; align-items: center; }

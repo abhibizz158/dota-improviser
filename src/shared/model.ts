@@ -38,6 +38,10 @@ export type ReviewEvent = { time: number | null; label: string; kind: 'item' | '
 export type VisionStats = { observer: number; sentry: number; matches: number }
 export type MatchPlayer = MatchSummary & {
   slot: number; accountId: string | null; minutes: Minute[]; events: ReviewEvent[]; purchasesAvailable?: boolean
+  /** OpenDota's own final-match totals (`hero_damage`/`tower_damage`/`hero_healing`/`net_worth`) — real fields
+   * already in every parsed match response, just not read before. Null, not 0, when OpenDota hasn't parsed the
+   * match yet (same "parsed" gate the rest of the review already uses), so an unparsed match never shows a false 0. */
+  damage: number | null; towerDamage: number | null; healing: number | null; netWorth: number | null
 }
 export type Tower = { team: 'Radiant' | 'Dire'; tier: number; lane: 'Top' | 'Mid' | 'Bot' | 'Base'; time: number }
 export type Timeline = {
@@ -176,6 +180,12 @@ export type LiveState = {
   sessionRevision?: number
   /** True once a game is live but you haven't said this session's lane/role and game type yet — the overlay should prompt. */
   performance?: PersonalPerformance; coaching?: CoachingContext; draftVisionActive?: boolean; draftWindowShare?: DraftWindowShare;
+  /** Experimental: a hero Draft Vision sees forming in your own team's pick-bar slots that isn't a confirmed
+   * pick yet — most likely whatever you're currently hovering in the grid before locking in, but it can't tell
+   * that apart from an ally's own pick landing before GSI's wave-merge catches up, so it's never attributed to
+   * a specific player. `edge` is the average public win rate of that hero against the enemies revealed so far
+   * (null with no enemies revealed yet, or no matchup data for one of them). */
+  draftHoverHint?: { heroId: number; edge: number | null } | null
   needsSessionInfo: boolean; confirmedKiller?: number | null; sessionInfo: { gameType: GameType | null; lane: Role | null }
   /** A completed match's own real numbers, kept visible (dismissed by the player, not a timer) until the next
    * game starts — large enough to actually read, not a 7s toast. */
