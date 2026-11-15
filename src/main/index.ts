@@ -253,7 +253,7 @@ function scheduleAuxWindowIdleClose() {
 const MATCH_SUMMARY_MS = 60000
 let coachView: CoachView | null = null
 let coaching: LiveState['coaching']
-let deathCase: { frame: Frame; role: Role; phase: CoachView['phase']; killer: number | null; repeats: number; threat: ReturnType<typeof knownThreat> } | null = null
+let deathCase: { frame: Frame; before: Frame | null; role: Role; phase: CoachView['phase']; killer: number | null; repeats: number; threat: ReturnType<typeof knownThreat> } | null = null
 let bracketBench: { key: string; values: HeroData['bench'] | null } | null = null
 let seen: Record<string, number> = {}
 let revealMeta: { activeTeam: DraftReveal['activeTeam']; timeLeft: number | null } = { activeTeam: null, timeLeft: null }
@@ -649,7 +649,7 @@ function state(): LiveState {
   const recovery = frame && !frame.alive && settings.features.deathAdvice ? recoveryAdvice(frame, role, coachView, {
     threat: sessionGameType === 'Ability Draft' ? null : deathCase?.threat,
     nextItem: nextItem ? { name: itemInfo[nextItem].n, cost: itemInfo[nextItem].c } : undefined,
-    counterItem,
+    counterItem, before: deathCase?.before ?? undefined,
     priorCases: settings.features.learning ? deathCase?.repeats : undefined,
   }) : null
   return {
@@ -1130,7 +1130,9 @@ function receive(value: unknown) {
     }
   }
   if (nextFrame && !nextFrame.alive && !deathCase && nextFrame.clock >= 0 && nextFrame.respawnSeconds !== 0) {
-    deathCase = { frame: nextFrame, role: roleChoice().role, phase: coachView?.phase ?? 'Laning', killer: null, repeats: 0, threat: null }
+    // `before` is the last frame while still alive — the dead frame itself (`nextFrame`) already has its status
+    // flags cleared, so the "what happened" breakdown reads the frame right before the kill instead.
+    deathCase = { frame: nextFrame, before: frameBefore?.alive ? frameBefore : null, role: roleChoice().role, phase: coachView?.phase ?? 'Laning', killer: null, repeats: 0, threat: null }
     updateDeathThreat()
     captureDeathSnapshotNow()
   }

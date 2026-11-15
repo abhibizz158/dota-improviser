@@ -471,6 +471,7 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
 export function RecoveryCard({ recovery }: { recovery: Recovery }) {
   return <article className="recovery-card">
     <Head icon={<Clock3 size={13} />} tag="Respawn coach" sub={recovery.seconds != null ? clock(recovery.seconds) + ' left' : ''} />
+    {recovery.breakdown && <small className="draft-note death-breakdown">{recovery.breakdown}</small>}
     {recovery.threat && <small className="draft-note">{recovery.threat}</small>}
     <b>{recovery.title}</b><p>{recovery.tip}</p>
     {recovery.followUp && <p>{recovery.followUp}</p>}

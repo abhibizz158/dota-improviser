@@ -49,13 +49,34 @@ export function observeAchievement(previous: Frame | null, next: Frame, achievem
   return { id, heroId: next.heroId, at: next.clock }
 }
 
-export type Recovery = { seconds: number | null; title: string; tip: string; followUp?: string; threat?: string; repeats?: number }
+export type Recovery = { seconds: number | null; title: string; tip: string; followUp?: string; threat?: string; repeats?: number; breakdown?: string }
+
+const statusLabel: Record<keyof Frame['status'], string> = {
+  stunned: 'stunned', silenced: 'silenced', disarmed: 'disarmed', hexed: 'hexed', muted: 'muted', broken: 'broken', smoked: 'smoked', magicImmune: 'magic immune',
+}
+/** A factual "what happened" line built only from this player's own GSI fields already read every tick
+ * (status flags, health/mana, buyback) — zero new data, just surfacing what the last-alive frame already had
+ * instead of discarding it once the dead frame replaces it. No killer or cause is guessed: that's still the
+ * player's own manual confirmation (`deathCase.killer`) or a lineup-threat match, never inferred here. */
+export function deathBreakdown(before: Frame | null): string | null {
+  if (!before) return null
+  const active = (Object.keys(statusLabel) as (keyof Frame['status'])[]).filter((key) => key !== 'magicImmune' && before.status[key])
+  const parts: string[] = []
+  if (before.healthPct != null) parts.push(`${Math.round(before.healthPct)}% HP`)
+  if (before.manaPct != null) parts.push(`${Math.round(before.manaPct)}% mana`)
+  const state = active.length ? active.map((key) => statusLabel[key]).join(', ') : null
+  let line = parts.length ? `Died at ${parts.join(', ')}` : 'Died'
+  if (state) line += ` while ${state}`
+  if (before.buybackCost != null && before.buybackCooldown === 0) line += ` · Buyback ready for ${before.buybackCost.toLocaleString()}g`
+  return line
+}
 
 export function recoveryAdvice(frame: Frame, role: Role, view: CoachView | null, options: {
-  threat?: ReturnType<typeof knownThreat>; nextItem?: { name: string; cost: number }; priorCases?: number; counterItem?: ItemRecommendation;
+  threat?: ReturnType<typeof knownThreat>; nextItem?: { name: string; cost: number }; priorCases?: number; counterItem?: ItemRecommendation; before?: Frame | null
 } = {}): Recovery | null {
   if (frame.alive || frame.clock < 0 || frame.respawnSeconds === 0) return null
-  const { threat, nextItem, priorCases, counterItem } = options
+  const { threat, nextItem, priorCases, counterItem, before } = options
+  const breakdown = deathBreakdown(before ?? null) ?? undefined
   const support = role === 'Hard support' || role === 'Soft support'
   const lane = view?.phase === 'Laning' || (view == null && frame.clock < 600)
   const owned = frame.items
@@ -73,7 +94,7 @@ export function recoveryAdvice(frame: Frame, role: Role, view: CoachView | null,
     : counterItem ? `${counterItem.name} · ${counterItem.reason}`
     : threat?.magic && !owned.includes('glimmer_cape') && support && !lane ? 'Consider Glimmer Cape if you need a save against their magic damage.' : undefined)
   const evidence = threat?.confirmed ? `Killer you confirmed · ${threat.name}` : threat?.ability ? `Lineup threat · ${threat.name}` : undefined
-  const detail = { seconds, threat: evidence, repeats: priorCases, followUp }
+  const detail = { seconds, threat: evidence, repeats: priorCases, followUp, breakdown }
   if (threatTip) return { ...detail, title: 'Avoid the next catch', tip: threatTip }
   if (lane && support) return { ...detail, title: 'Rejoin your lane partner', tip: 'Return to the next wave together. Trade from allied vision and keep a retreat to your tower.' }
   if (lane) return { ...detail, title: 'Recover the next wave', tip: 'Take XP near your tower and ask for cover before contesting a rune or farming beyond vision.' }

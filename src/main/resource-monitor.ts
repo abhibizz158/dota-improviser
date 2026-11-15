@@ -17,8 +17,12 @@ export function trimSamples(samples: ResourceSample[], max: number): ResourceSam
   return samples.length > max ? samples.slice(samples.length - max) : samples
 }
 
-const MAX_SAMPLES = 720 // 1 hour at the 5s sampling interval below
-const SAMPLE_MS = 5000
+// Checking every 5s was itself the kind of "bombarding with resource checking" overhead this module exists to
+// avoid adding — a plain os.freemem()/process.cpuUsage() read is cheap, but there's no reason to pay even that
+// 12x more often than the resource mode it drives could possibly need to react. 30s is still responsive enough
+// for a mode flip to matter, and keeps the 1-hour log at a much smaller sample count.
+const MAX_SAMPLES = 120 // 1 hour at the 30s sampling interval below
+const SAMPLE_MS = 30_000
 
 let samples: ResourceSample[] = []
 let timer: NodeJS.Timeout | undefined
