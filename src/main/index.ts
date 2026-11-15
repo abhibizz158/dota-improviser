@@ -225,6 +225,20 @@ let awarded = new Set<string>()
 let toastTimer: NodeJS.Timeout | undefined
 let matchSummaryView: LiveState['matchSummary'] = null
 let matchSummaryTimer: NodeJS.Timeout | undefined
+let auxWindowIdleTimer: NodeJS.Timeout | undefined
+// The achievement and map-alert windows are each a full extra Chromium renderer process — cheap to recreate
+// (just BrowserWindow + loadFile with a hash, no state to rebuild), so there's no reason to keep either one
+// resident for the rest of the app's run once the overlay goes quiet (e.g. back on the dashboard between
+// games). Scheduled from hideOverlay(), cancelled the moment the overlay is requested again.
+const AUX_WINDOW_IDLE_MS = 5 * 60_000
+function scheduleAuxWindowIdleClose() {
+  clearTimeout(auxWindowIdleTimer)
+  auxWindowIdleTimer = setTimeout(() => {
+    if (achievementWindow && !achievementWindow.isDestroyed() && !achievementWindow.isVisible()) achievementWindow.close()
+    if (mapAlertWindow && !mapAlertWindow.isDestroyed() && !mapAlertWindow.isVisible()) mapAlertWindow.close()
+  }, AUX_WINDOW_IDLE_MS)
+  auxWindowIdleTimer.unref()
+}
 // The close button only receives clicks while the overlay happens to be in interactive mode (click-through
 // otherwise, same as everything else passive in this window) — this auto-clear is the fallback so the card
 // can't get stuck forever if the player never opens the assistant/draft editor to reach that button.
@@ -1345,6 +1359,7 @@ function updateOverlayTracking() {
 }
 
 function requestOverlay(edit: boolean) {
+  clearTimeout(auxWindowIdleTimer)
   const window = overlay ?? makeOverlay()
   if (!overlayRequested) {
     fallbackDisplayId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id
@@ -1533,6 +1548,7 @@ function hideOverlay() {
   mapAlertWindow?.hide()
   overlayDisplay = undefined
   updateOverlayTracking()
+  scheduleAuxWindowIdleClose()
 }
 
 function toggleDraftOverlay() {
@@ -2621,10 +2637,14 @@ else {
     dataCancel.stop = true
     globalShortcut.unregisterAll()
     clearInterval(overlayTimer)
+    clearInterval(moveTopTimer)
     clearTimeout(editFocusTimer)
     clearTimeout(timeout)
     clearTimeout(autoRefreshTimer)
     clearTimeout(appUpdateTimer)
+    clearTimeout(toastTimer)
+    clearTimeout(matchSummaryTimer)
+    clearTimeout(auxWindowIdleTimer)
     receiver?.server.closeAllConnections()
     receiver?.server.close()
   })
