@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ArrowDown, ArrowUp, BrainCircuit, Clock3, Gamepad2, Minus, Radio, Shield, Swords, Trophy, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BrainCircuit, Clock3, Gamepad2, Lightbulb, Minus, Radio, Shield, Swords, Trophy, X } from 'lucide-react'
 import type { CompactModule, DraftInput, GameType, GameView, Hero, LiveSettings, LiveState, MatchSummaryView, Role, Toast } from '../shared/model.js'
 import { compactModules, gameTypes, roleLabels, roles } from '../shared/model.js'
 import { aegisView, clockText as roshanClock, roshanView } from '../shared/roshan.js'
@@ -444,6 +444,9 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
         {coaching.matchup && <small title={coaching.matchup.games.toLocaleString() + ' public games'}>vs. {coaching.matchup.name} · {coaching.matchup.rate}%</small>}
       </div>
     </div>}
+    {detailed && f.coachTips && coaching && coaching.tips.length > 0 && <ul className="coach-tips">
+      {coaching.tips.slice(0, 3).map((tip, i) => <li key={i} className={tip.level}><Lightbulb size={11} />{tip.text}</li>)}
+    </ul>}
     {items.length > 0 && <MatchItems items={items} />}
     {!recoveryMode && game && <GameStrip game={game} />}
     {!recoveryMode && f.momentum && game && game.momentum.length > 1 && (!adaptive || coach.phase !== 'Laning' || game.momentum.length > 4) && <MomentumGraph points={game.momentum} />}

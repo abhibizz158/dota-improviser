@@ -1007,9 +1007,13 @@ function refreshCoachView() {
     tips: features.coachTips ? result.tips : [], achievements: features.achievements ? result.achievements : [],
     personal: features.personal ? result.personal : null, nextGoal: features.achievements ? result.nextGoal : null,
   }
-  // Tips are never docked permanently in the overlay — each one surfaces as its own timed reminder instead
-  // (emitTip's own per-text cooldown + cap keep them from spamming), same list the UI would otherwise show inline.
-  for (const tip of coaching?.tips ?? coachView.tips) emitTip(tip.text, tip.level === 'warn', frame.clock)
+  // Only coach.ts's own tips go through the timed-reminder toast pipeline — those are genuinely event-driven
+  // (retreat under 25% HP, unspent gold, farm pace, ult off cooldown), so a reminder that actually clears once
+  // the condition does is the right shape for them. contextualCoach's tips (lane threat, partner combo, the
+  // per-role lane plan) are situational facts that hold for an entire phase, not events — routing those through
+  // the same 60s-cooldown toast used to make them "refresh" as a fresh reminder every 60s for as long as the
+  // phase lasted, which never actually went away. Those render inline in the card instead (ui.tsx's CoachCard).
+  for (const tip of coachView.tips) emitTip(tip.text, tip.level === 'warn', frame.clock)
   return result
 }
 

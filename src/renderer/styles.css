@@ -729,6 +729,12 @@ body { font-size: clamp(13px, 0.22vw + 11.2px, 16px); }
 .coach-context { display: grid; gap: 5px; }
 .coach-context-stats { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--muted); }
 .coach-context-stats:empty { display: none; }
+/* Situational facts for the whole phase (lane threat, partner combo, lane plan), not timed events — these live
+   inline in the card, compact, instead of the toast/reminder window, which is for things that actually clear. */
+.coach-tips { display: grid; gap: 3px; margin: 2px 0 0; padding: 0; list-style: none; }
+.coach-tips li { display: flex; align-items: flex-start; gap: 5px; font-size: 11px; line-height: 1.3; color: var(--dim); }
+.coach-tips li svg { flex: none; margin-top: 2px; opacity: .7; }
+.coach-tips li.warn { color: var(--gold); }
 .overlay-preview > .button + .button { margin-left: 6px; }
 
 .match-items-compact { display: flex; gap: 6px; flex-wrap: wrap; }
