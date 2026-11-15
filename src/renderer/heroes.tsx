@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Database, Search } from 'lucide-react'
-import type { AppApi, Catalog, HeroDetail, LiveState } from '../shared/model'
+import type { AppApi, Catalog, HeroDetail, HeroRecord, HeroTotal, LiveState } from '../shared/model'
 import { brackets } from '../shared/contextual-coach'
 import { FEATURE_LABELS, GLOSSARY, atLevel } from '../shared/mechanics'
 import { Dialog, Empty, Feedback, fmt, Portrait } from './ui'
@@ -37,13 +37,32 @@ function KitPanel({ detail, catalog, updating }: { detail: HeroDetail; catalog: 
 
 const pcts = ['10th', '30th', '50th', '70th', '90th', '99th']
 
-export function Heroes({ api, catalog, live, onDraft }: { api: AppApi; catalog: Catalog; live: LiveState; onDraft: (id: number) => void }) {
+export function Heroes({ api, catalog, live, account, onDraft }: { api: AppApi; catalog: Catalog; live: LiveState; account: string; onDraft: (id: number) => void }) {
   const [query, setQuery] = useState('')
   const [role, setRole] = useState('')
   const [id, setId] = useState(catalog.heroes.find((h) => h.slug === 'phantom_assassin')?.id ?? catalog.heroes[0].id)
   const [detail, setDetail] = useState<HeroDetail | null>(null)
   const [guide, setGuide] = useState(false)
+  // Your own lifetime per-hero games/win — one request covers every hero, so it's fetched once for the whole
+  // roster rather than per hero. `record` (K/D/A/GPM/XPM) is the heavier on-demand fetch, scoped to whichever
+  // single hero is currently open, never prefetched for heroes you haven't clicked on.
+  const [totals, setTotals] = useState<HeroTotal[]>([])
+  const [record, setRecord] = useState<HeroRecord | null>(null)
+  const [recordLoading, setRecordLoading] = useState(false)
+  useEffect(() => {
+    if (!account) { setTotals([]); return }
+    let on = true
+    void api.heroTotals().then((rows) => { if (on) setTotals(rows) }).catch(() => {})
+    return () => { on = false }
+  }, [api, account])
   useEffect(() => { let on = true; void api.heroDetail(id).then((d) => { if (on) setDetail(d) }).catch(() => {}); return () => { on = false } }, [api, id, live.data.updatedAt, live.data.state])
+  useEffect(() => {
+    if (!account) { setRecord(null); return }
+    let on = true
+    setRecordLoading(true); setRecord(null)
+    void api.heroRecord(id).then((value) => { if (on) setRecord(value) }).catch(() => {}).finally(() => { if (on) setRecordLoading(false) })
+    return () => { on = false }
+  }, [api, id, account])
   const roles = useMemo(() => [...new Set(catalog.heroes.flatMap((h) => h.roles))].sort(), [catalog])
   const list = catalog.heroes.filter((h) => (!query || h.name.toLowerCase().includes(query.toLowerCase())) && (!role || h.roles.includes(role)))
   const hero = catalog.heroes.find((h) => h.id === id)!
@@ -70,6 +89,23 @@ export function Heroes({ api, catalog, live, onDraft }: { api: AppApi; catalog: 
       <section className="panel hero-detail">
         <div className="review-hero"><Portrait hero={hero} /><div><h2>{hero.name}</h2><p>{hero.roles.join(' · ')}{live.draft.patched.includes(id) ? ' · changed in a recent patch (older matchup data down-weighted)' : ''}</p></div>
           <button className="button primary" onClick={() => onDraft(id)}><Search size={15} /> Use in draft</button></div>
+        {account && <div className="your-record"><h3>Your record on {hero.name}</h3>
+          {(() => {
+            const total = totals.find((t) => t.heroId === id)
+            if (!total) return <p className="fine-print">No games on this hero on your linked account yet.</p>
+            return <>
+              <div className="stat-row">
+                <span><b>{total.games}</b><small>GAMES (lifetime)</small></span>
+                <span><b>{fmt(100 * total.win / total.games, 1)}%</b><small>WIN RATE</small></span>
+                {recordLoading ? <span><b>…</b><small>K/D/A</small></span> : record ? <span><b>{fmt(record.kills, 1)}/{fmt(record.deaths, 1)}/{fmt(record.assists, 1)}</b><small>AVG K/D/A</small></span> : null}
+                {record && <span><b>{fmt(record.gpm, 0)}</b><small>AVG GPM</small></span>}
+                {record && <span><b>{fmt(record.xpm, 0)}</b><small>AVG XPM</small></span>}
+              </div>
+              {!recordLoading && !record && <p className="fine-print">K/D/A unavailable (OpenDota didn't return matches for this hero on this account).</p>}
+              {record && record.games < total.games && <p className="fine-print">K/D/A averaged over your last {record.games} of {total.games} games on this hero — lifetime games/win above cover all of them.</p>}
+            </>
+          })()}
+        </div>}
         {!d ? <Empty title={live.data.state === 'updating' ? 'Downloading hero data…' : 'No data for this hero yet'}>{live.data.state === 'updating' ? 'Stats for this hero are on their way (' + live.data.done + '/' + live.data.total + ').' : 'Press Update data now above to fetch it.'}</Empty> : <>
           <div><h3>Win rate by rank</h3><div className="stat-bars">{brackets.map((b, i) => {
             const wr = d.pick[i] ? 100 * d.win[i] / d.pick[i] : null

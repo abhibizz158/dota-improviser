@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { accountId, matchId, normalizeBuild, normalizeHistory, normalizeMatch, normalizeMatchups, steamId64 } from '../dist/main/main/data.js'
+import { accountId, matchId, normalizeBuild, normalizeHeroTotals, normalizeHistory, normalizeMatch, normalizeMatchups, steamId64 } from '../dist/main/main/data.js'
 import { OpenDota } from '../dist/main/main/opendota.js'
 import { Store } from '../dist/main/main/store.js'
 import { atMinute, comparable, practicePace, rankDraft, summarize } from '../dist/main/shared/analysis.js'
+import { rankIconUrl, rankStarUrl, rankTierLabel } from '../dist/main/shared/model.js'
 
 const baseMatch = {
   match_id: 9087439951, game_mode: 22, lobby_type: 7, radiant_win: false, duration: 1280,
@@ -128,4 +129,25 @@ test('parse completion invalidates cached details', async (context) => {
   parsed = true
   assert.equal((await provider.parseStatus('9087439951')).pending, false)
   assert.equal((await provider.match('9087439951')).data.parsed, true)
+})
+
+test('hero totals keep only positive-game rows and read OpenDota\'s own field names', () => {
+  const rows = normalizeHeroTotals([
+    { hero_id: 44, games: 30, win: 15, last_played: 1700000000 },
+    { hero_id: 1, games: 0, win: 0 }, // never played, OpenDota still lists it
+    { hero_id: 'nope', games: 5, win: 2 },
+  ])
+  assert.deepEqual(rows, [{ heroId: 44, games: 30, win: 15, lastPlayed: 1700000000 }])
+  assert.throws(() => normalizeHeroTotals({}))
+})
+
+test('rank sign: text label, medal icon and star all agree on the same tier, and Immortal leaderboard gets its own icon', () => {
+  assert.equal(rankTierLabel(32, null), 'Crusader 2')
+  assert.equal(rankIconUrl(32, null), 'https://www.opendota.com/assets/images/dota2/rank_icons/rank_icon_3.png')
+  assert.equal(rankStarUrl(32), 'https://www.opendota.com/assets/images/dota2/rank_icons/rank_star_2.png')
+  assert.equal(rankStarUrl(30), null) // 0 stars: no star overlay
+  assert.equal(rankIconUrl(80, 5), 'https://www.opendota.com/assets/images/dota2/rank_icons/rank_icon_8c.png')
+  assert.equal(rankIconUrl(80, 50), 'https://www.opendota.com/assets/images/dota2/rank_icons/rank_icon_8b.png')
+  assert.equal(rankIconUrl(80, null), 'https://www.opendota.com/assets/images/dota2/rank_icons/rank_icon_8.png')
+  assert.equal(rankIconUrl(null, null), null)
 })

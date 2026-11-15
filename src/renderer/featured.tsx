@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Gamepad2, Repeat, Swords, UserRound } from 'lucide-react'
-import type { AppApi, Catalog, HeroDetail, MatchSummary, PlayerProfile } from '../shared/model'
-import { rankTierLabel } from '../shared/model'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowRight, Camera, Gamepad2, Repeat, Swords, UserRound } from 'lucide-react'
+import type { AppApi, Catalog, Hero, HeroDetail, MatchSummary, PlayerProfile } from '../shared/model'
+import { rankIconUrl, rankStarUrl, rankTierLabel } from '../shared/model'
 import type { HeroGuide } from '../shared/guide'
 import { guideTips } from '../shared/guide'
 import { percentileOf } from '../shared/coach'
@@ -54,18 +54,69 @@ function Stat({ label, value, digits = 0, suffix = '', pct }: { label: string; v
 }
 
 type Overall30 = { games: number; winRate: number | null; gpm: number | null; xpm: number | null; kda: number | null; lastHits: number | null }
+type FavoriteOverall = { hero: Hero; games: number; winRate: number }
+
+/** Valve's own rank medal, not just text — OpenDota hosts the exact same images its own site uses, so this is
+ * the real sign, not a guess. Falls back to the plain text label (still shown alongside, smaller) if the image
+ * never loads, so a flaky connection never leaves a broken-image icon sitting on the card. */
+function RankBadge({ tier, leaderboardRank }: { tier: number | null; leaderboardRank: number | null }) {
+  const [broken, setBroken] = useState(false)
+  const label = rankTierLabel(tier, leaderboardRank)
+  const icon = rankIconUrl(tier, leaderboardRank)
+  const star = rankStarUrl(tier)
+  if (!label) return null
+  return <span className="rank-badge">
+    {icon && !broken && <span className="rank-badge-icon">
+      <img src={icon} alt="" onError={() => setBroken(true)} />
+      {star && <img className="rank-star" src={star} alt="" />}
+    </span>}
+    {label}
+  </span>
+}
+
+/** Steam avatar with a graceful fallback — a dead/expired CDN link used to just sit there as a broken-image
+ * icon forever since there was no error handler; now it drops to the generic placeholder instead. */
+function Avatar({ src }: { src: string | null | undefined }) {
+  const [broken, setBroken] = useState(false)
+  if (!src || broken) return <div className="scorecard-avatar placeholder"><UserRound size={28} /></div>
+  return <img className="scorecard-avatar" src={src} alt="" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+}
+
+/** Captures the card's own DOM rect via the main process (this app's own window, never the game) and copies
+ * it to the clipboard — paste into Discord, Slack, Messages, anywhere — plus saves a PNG alongside the rest
+ * of this app's data. Briefly adds `.sharing` to hide this button and any toggle from the captured image. */
+function ShareCardButton({ api, target }: { api: AppApi; target: React.RefObject<HTMLDivElement | null> }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
+  return <button type="button" className="button secondary slim share-card-button" disabled={state === 'busy'} onClick={async () => {
+    const node = target.current
+    if (!node) return
+    setState('busy')
+    node.classList.add('sharing')
+    try {
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+      const rect = node.getBoundingClientRect()
+      await api.shareCard({ x: rect.x, y: rect.y, width: rect.width, height: rect.height })
+      setState('done')
+    } catch {
+      setState('error')
+    } finally {
+      node.classList.remove('sharing')
+      setTimeout(() => setState('idle'), 2500)
+    }
+  }}><Camera size={14} /> {state === 'busy' ? 'Capturing…' : state === 'done' ? 'Copied — paste it anywhere' : state === 'error' ? 'Could not capture' : 'Share card'}</button>
+}
 
 /** Player scorecard view of the stage card: Steam avatar (from OpenDota's public player summary — rank-and-avatar
  * only, never match history, that's the existing history() call) and your aggregate over the last 30 matches
  * overall, not just the signature hero. Toggled in place of the signature-hero view, same card shape. */
-function Scorecard({ account, profile, overall30 }: { account: string; profile: PlayerProfile | null; overall30: Overall30 }) {
-  const rank = rankTierLabel(profile?.rankTier ?? null, profile?.leaderboardRank ?? null)
-  return <div className="stage-copy scorecard">
+function Scorecard({ api, account, profile, overall30, favoriteOverall }: { api: AppApi; account: string; profile: PlayerProfile | null; overall30: Overall30; favoriteOverall?: FavoriteOverall | null }) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  return <div className="stage-copy scorecard" ref={cardRef}>
     <div className="scorecard-head">
-      {profile?.avatar ? <img className="scorecard-avatar" src={profile.avatar} alt="" referrerPolicy="no-referrer" /> : <div className="scorecard-avatar placeholder"><UserRound size={28} /></div>}
+      <Avatar src={profile?.avatar} />
       <div><small className="stage-eyebrow">PLAYER SCOREBOARD · LAST {overall30.games} MATCHES</small>
         <h1 className="stage-name">{profile?.name || 'Dota account ' + account}</h1>
-        {rank && <span className="rank-badge">{rank}</span>}</div>
+        <RankBadge tier={profile?.rankTier ?? null} leaderboardRank={profile?.leaderboardRank ?? null} /></div>
     </div>
     <div className="stage-stats">
       <Stat label="GAMES" value={overall30.games} />
@@ -75,12 +126,15 @@ function Scorecard({ account, profile, overall30 }: { account: string; profile: 
       <Stat label="XPM" value={overall30.xpm} />
       <Stat label="LAST HITS" value={overall30.lastHits} digits={1} />
     </div>
+    {favoriteOverall && <p className="scorecard-favorite"><Portrait hero={favoriteOverall.hero} />
+      Favorite overall: <b>{favoriteOverall.hero.name}</b> · {favoriteOverall.games} lifetime games · {fmt(favoriteOverall.winRate, 0)}% won</p>}
+    <ShareCardButton api={api} target={cardRef} />
   </div>
 }
 
-export function FeaturedStage({ f, catalog, account, localInstall, localBuilds, onAccount, onImport, onUseHero, onOpenGame, onDraft, profile, overall30 }: {
+export function FeaturedStage({ f, catalog, account, localInstall, localBuilds, onAccount, onImport, onUseHero, onOpenGame, onDraft, profile, overall30, favoriteOverall, api }: {
   f: Loaded; catalog: Catalog; account: string; localInstall: boolean; localBuilds: number; onAccount: () => void; onImport: () => void; onUseHero: (id: number) => void; onOpenGame: () => void; onDraft: () => void
-  profile?: PlayerProfile | null; overall30?: Overall30
+  profile?: PlayerProfile | null; overall30?: Overall30; favoriteOverall?: FavoriteOverall | null; api: AppApi
 }) {
   const { feat, hero, guide, pcts } = f
   const [artBroken, setArtBroken] = useState('')
@@ -92,12 +146,13 @@ export function FeaturedStage({ f, catalog, account, localInstall, localBuilds, 
     <div className="actions"><button className="button primary" onClick={onOpenGame}><Gamepad2 size={16} /> Open Dota 2 via Steam</button>{!account && <button className="button primary" onClick={onAccount}>Add Dota account <ArrowRight size={16} /></button>}<button className="button" onClick={onImport}>Open match by ID</button>{localInstall && <button className="button" onClick={onDraft}>Use local item builds</button>}</div></div><TornEdge /></section>
   const heroName = (id: number) => catalog.heroes.find((h) => h.id === id)?.name ?? 'Hero'
   return <section className="stage">
-    <div className="stage-art" aria-hidden="true">
+    <div className="stage-particles" aria-hidden="true">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ ['--n' as string]: i }} />)}</div>
+    <div className="stage-art stage-art-animated" aria-hidden="true">
       {artBroken !== hero.slug && <img key={hero.slug} src={hero.slug === 'phantom_assassin' ? import.meta.env.BASE_URL + 'heroes/banner.webp' : art(hero.slug)} alt="" decoding="async" onError={() => setArtBroken(hero.slug)} />}
     </div>
     <button type="button" className="button secondary slim stage-toggle" onClick={() => setView(view === 'hero' ? 'scorecard' : 'hero')}>
       <Repeat size={14} /> {view === 'hero' ? 'Show scoreboard' : 'Show signature hero'}</button>
-    {view === 'scorecard' && overall30 ? <Scorecard account={account} profile={profile ?? null} overall30={overall30} /> : <div className="stage-copy">
+    {view === 'scorecard' && overall30 ? <Scorecard api={api} account={account} profile={profile ?? null} overall30={overall30} favoriteOverall={favoriteOverall} /> : <div className="stage-copy">
       <div className="stage-rank">01<sup>+</sup></div>
       <small className="stage-eyebrow">YOUR MOST PLAYED · LAST {feat.of} MATCHES</small>
       <h1 className="stage-name">{hero.name}</h1>

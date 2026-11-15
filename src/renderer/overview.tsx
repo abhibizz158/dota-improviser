@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, ArrowRight, CheckCircle2, ChevronRight, Coins, Crosshair, Flame, Gamepad2, History, RefreshCw, Swords, Target, TrendingUp, Trophy, XCircle, Zap } from 'lucide-react'
-import type { AppApi, Catalog, LocalStatus, MatchSummary, PlayerProfile, SessionRecord, SourceResult } from '../shared/model'
+import type { AppApi, Catalog, HeroTotal, LocalStatus, MatchSummary, PlayerProfile, SessionRecord, SourceResult } from '../shared/model'
 import { roleLabels, roles } from '../shared/model'
 import { available, summarize } from '../shared/analysis'
 import { day, HistoryChart, rollingWins, Sparkline } from './charts'
@@ -30,6 +30,20 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, h
     void api.playerProfile().then((value) => { if (active) setProfile(value) }).catch(() => { if (active) setProfile(null) })
     return () => { active = false }
   }, [api, account])
+  // Lifetime favorite hero, not just the last-30 "signature hero" above — one request covers every hero.
+  const [heroTotals, setHeroTotals] = useState<HeroTotal[]>([])
+  useEffect(() => {
+    let active = true
+    if (!account) { setHeroTotals([]); return }
+    void api.heroTotals().then((rows) => { if (active) setHeroTotals(rows) }).catch(() => {})
+    return () => { active = false }
+  }, [api, account])
+  const favoriteOverall = useMemo(() => {
+    const top = [...heroTotals].sort((a, b) => b.games - a.games)[0]
+    if (!top) return null
+    const hero = catalog.heroes.find((h) => h.id === top.heroId)
+    return hero ? { hero, games: top.games, winRate: 100 * top.win / top.games } : null
+  }, [heroTotals, catalog])
   const [parsing, setParsing] = useState<Set<string>>(new Set())
   useEffect(() => {
     let active = true
@@ -88,7 +102,7 @@ export function Overview({ api, onUseHero, showStyle = true, catalog, history, h
 
   return <>
     <FeaturedStage f={f} catalog={catalog} account={account} localInstall={local.installFound} localBuilds={local.localBuilds} onAccount={onAccount} onImport={onImport} onUseHero={onUseHero} onOpenGame={onOpenGame} onDraft={onDraft}
-      profile={profile} overall30={{ ...overall30, games: matches.slice(0, 30).length }} />
+      profile={profile} overall30={{ ...overall30, games: matches.slice(0, 30).length }} favoriteOverall={favoriteOverall} api={api} />
 
     <section aria-labelledby="performance-title">
       <div className="section-heading">

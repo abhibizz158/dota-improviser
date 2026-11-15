@@ -1,7 +1,7 @@
-import type { Build, MatchPlayer, MatchReview, MatchSummary, Matchups, ParseProgress, PlayerProfile, SourceResult } from '../shared/model.js'
+import type { Build, HeroRecord, HeroTotal, MatchPlayer, MatchReview, MatchSummary, Matchups, ParseProgress, PlayerProfile, SourceResult } from '../shared/model.js'
 import type { HeroData } from '../shared/coach.js'
 import { comparable, practicePace } from '../shared/analysis.js'
-import { asRecord, normalizeBuild, normalizeHistory, normalizeMatch, normalizeMatchups, normalizePlayerProfile } from './data.js'
+import { asRecord, normalizeBuild, normalizeHeroTotals, normalizeHistory, normalizeMatch, normalizeMatchups, normalizePlayerProfile } from './data.js'
 import { Store } from './store.js'
 import { hostAllowed } from '../shared/guard.js'
 
@@ -101,6 +101,30 @@ export class OpenDota {
   /** Steam avatar and rank badge only — the Overview page's player scorecard, not match history. */
   profile(id: string): Promise<SourceResult<PlayerProfile>> {
     return this.load('/players/' + id, 24 * hour, normalizePlayerProfile)
+  }
+
+  /** OpenDota's own lifetime per-hero games/win tally — one request for the whole roster, cached 24h, so the
+   * Heroes page can show every hero's overall record (not just a 30-match window) without one request per hero. */
+  heroTotals(id: string): Promise<SourceResult<HeroTotal[]>> {
+    return this.load('/players/' + id + '/heroes', 24 * hour, normalizeHeroTotals)
+  }
+
+  /** On-demand only, one hero at a time: this account's own matches on that specific hero, averaged into a
+   * K/D/A/GPM/XPM record. Deliberately NOT prefetched for the whole roster — only called when a hero's detail
+   * panel is actually opened, so viewing the Heroes page itself never costs more than the single heroTotals()
+   * call above. */
+  async heroRecord(id: string, heroId: number): Promise<SourceResult<HeroRecord | null>> {
+    const query = new URLSearchParams([['hero_id', String(heroId)], ...historyQuery])
+    const result = await this.load('/players/' + id + '/matches?' + query, hour, normalizeHistory)
+    const rows = result.data.filter((row) => row.heroId === heroId)
+    if (!rows.length) return { ...result, data: null }
+    const sum = (f: (row: MatchSummary) => number | null) => rows.reduce((total, row) => total + (f(row) ?? 0), 0)
+    const record: HeroRecord = {
+      heroId, games: rows.length, win: rows.filter((row) => row.won).length,
+      kills: sum((row) => row.kills) / rows.length, deaths: sum((row) => row.deaths) / rows.length, assists: sum((row) => row.assists) / rows.length,
+      gpm: sum((row) => row.gpm) / rows.length, xpm: sum((row) => row.xpm) / rows.length,
+    }
+    return { ...result, data: record }
   }
 
   historySnapshot(id: string) {

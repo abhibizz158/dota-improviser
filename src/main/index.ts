@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, safeStorage, screen, session, shell, systemPreferences, Tray } from 'electron'
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, globalShortcut, ipcMain, Menu, nativeImage, safeStorage, screen, session, shell, systemPreferences, Tray } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -36,7 +36,7 @@ import type { Support } from '../shared/guide.js'
 import type { DataStatus } from '../shared/model.js'
 import { configName, defaultBuilds, discover, steamLauncher } from './local.js'
 import type { LocalInfo } from './local.js'
-import { accountId, asRecord, catalog, itemInfo, matchId, steamId64, validHero } from './data.js'
+import { accountId, asRecord, catalog, itemInfo, matchId, number, steamId64, validHero } from './data.js'
 import { draftVisionPhase, gsiConfig, loadingDraft, parseCompletedOwnMatch, parseDraft, parseFrame, parsePick, parseResultFrame, redactedShape, startGsi, updateCheckpoints } from './gsi.js'
 import { BAR_HEIGHT_FRACTION, captureDeathSnapshot, captureDraftPicks, confirmDraftPicks, debugCaptureDraftPicks, DraftCaptureError, loadReferencePortraits, rememberPortrait } from './draft-vision.js'
 import type { PortraitMemory, VisionReveal } from './draft-vision.js'
@@ -2152,6 +2152,26 @@ function handlers() {
     if (typeof value !== 'string' || !value.trim() || value.length > 4000) throw new Error('The match summary could not be copied.')
     clipboard.writeText(value)
   })
+  // Screenshots this app's own dashboard window (the scorecard DOM element's own rect, in the window's own
+  // coordinates) — never the game, never another window. Copies straight to the clipboard (paste anywhere)
+  // and also saves a PNG next to the rest of this app's own data, so there's a file to attach too.
+  handle('share:card', async (rect) => {
+    const r = asRecord(rect)
+    const x = number(r.x), y = number(r.y), width = number(r.width), height = number(r.height)
+    if (!dashboard || x == null || y == null || width == null || height == null || width <= 0 || height <= 0 || width > 4000 || height > 4000) {
+      throw new Error('Could not capture that card.')
+    }
+    const scale = dashboard.webContents.getZoomFactor() || 1
+    const image = await dashboard.webContents.capturePage({
+      x: Math.round(x * scale), y: Math.round(y * scale), width: Math.round(width * scale), height: Math.round(height * scale),
+    })
+    await clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(image.toPNG())], { type: 'image/png' }) })])
+    const dir = path.join(app.getPath('userData'), 'shared-cards')
+    await mkdir(dir, { recursive: true })
+    const file = path.join(dir, 'scorecard-' + Date.now() + '.png')
+    await writeFile(file, image.toPNG())
+    return { savedPath: file }
+  })
   handle('app:bootstrap', async () => { await initialDiscovery; return bootstrap() })
   handle('draft:set', setDraft)
   handle('data:update', () => {
@@ -2302,6 +2322,10 @@ function handlers() {
   })
   handle('history:cached', () => account ? historySnapshot(account) : undefined)
   handle('player:profile', async () => account ? provider.profile(account).then(({ data }) => data).catch(() => null) : null)
+  // Both of these are always scoped to the one Dota account linked in Settings — never a different id, and
+  // never the public/overall OpenDota player base the rest of the Heroes page's benchmark numbers come from.
+  handle('player:hero-totals', async () => account ? provider.heroTotals(account).then(({ data }) => data).catch(() => []) : [])
+  handle('player:hero-record', async (id) => account ? provider.heroRecord(account, validHero(id)).then(({ data }) => data).catch(() => null) : null)
   handle('history:sessions', () => store.get<SessionRecord[]>(profileKey('sessions')) ?? [])
   handle('history:parsing', () => provider.pendingParseIds())
   handle('match:get', async (id, refresh) => {

@@ -385,7 +385,7 @@ function App() {
           {page === 'review' && <Review key={match + ':' + context.accountId} api={api} catalog={context.catalog} account={context.accountId}
             id={match} history={history?.data ?? []} onImport={() => showModal('import')} onBack={() => navigate('overview')} />}
           {page === 'draft' && <Draft api={api} catalog={context.catalog} live={live} account={context.accountId} onMatch={openMatch} />}
-          {page === 'heroes' && <Heroes api={api} live={live} catalog={context.catalog} onDraft={(id) => { void api.draft({ pool: [...new Set([...latestLive.current.draft.pool, id])] }); navigate('draft') }} />}
+          {page === 'heroes' && <Heroes api={api} live={live} catalog={context.catalog} account={context.accountId} onDraft={(id) => { void api.draft({ pool: [...new Set([...latestLive.current.draft.pool, id])] }); navigate('draft') }} />}
           {page === 'achievements' && <Achievements catalog={context.catalog} live={live} />}
           {page === 'live' && <LiveSetup api={api} context={context} live={live} onState={setLive} onAccount={() => showModal('account')} />}
           {page === 'overlaySettings' && <OverlaySetup api={api} context={context} live={live} onState={setLive} />}

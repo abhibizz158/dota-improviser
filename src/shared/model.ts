@@ -207,6 +207,14 @@ export type ParseProgress = { jobId: string; pending: boolean }
 /** Steam/Dota's own public player summary (OpenDota /players/{id}) — avatar and rank badge only, for the
  * Overview page's player scorecard. Never match history or anything private: that's the existing history() call. */
 export type PlayerProfile = { name: string | null; avatar: string | null; rankTier: number | null; leaderboardRank: number | null }
+/** OpenDota's own lifetime games/wins per hero (`/players/{id}/heroes`) — the whole list in one request, so
+ * showing it for every hero never costs more than the single call that loaded the Heroes page. */
+export type HeroTotal = { heroId: number; games: number; win: number; lastPlayed: number | null }
+/** Average K/D/A/GPM/XPM over this account's own saved matches on one hero — fetched only when that hero's
+ * detail panel is actually opened (never for the whole roster at once), from however many of this account's
+ * matches on that hero OpenDota's /matches endpoint returns (capped per request, so labelled by game count
+ * rather than claimed as literally infinite history). */
+export type HeroRecord = { heroId: number; games: number; win: number; kills: number; deaths: number; assists: number; gpm: number; xpm: number }
 const rankNames = ['Herald', 'Guardian', 'Crusader', 'Archon', 'Legend', 'Ancient', 'Divine', 'Immortal']
 export function rankTierLabel(tier: number | null, leaderboardRank: number | null): string | null {
   if (tier == null || tier <= 0) return null
@@ -215,6 +223,22 @@ export function rankTierLabel(tier: number | null, leaderboardRank: number | nul
   if (!name) return null
   if (major === 8) return leaderboardRank ? 'Immortal · rank ' + leaderboardRank.toLocaleString() : 'Immortal'
   return name + (stars ? ' ' + stars : '')
+}
+const rankIconBase = 'https://www.opendota.com/assets/images/dota2/rank_icons/'
+/** The actual Valve rank medal image OpenDota itself serves (verified against OpenDota's own site, which
+ * hosts these at a fixed, un-versioned path) — top-1-10 and top-100 leaderboard Immortals get their own
+ * variant icon (`8c`/`8b`), same distinction OpenDota's own profile page makes. */
+export function rankIconUrl(tier: number | null, leaderboardRank: number | null): string | null {
+  if (tier == null || tier < 0) return null
+  const major = Math.floor(tier / 10)
+  if (major < 0 || major > 8) return null
+  if (major === 8 && leaderboardRank) return rankIconBase + 'rank_icon_' + (leaderboardRank <= 10 ? '8c' : leaderboardRank <= 100 ? '8b' : '8') + '.png'
+  return rankIconBase + 'rank_icon_' + major + '.png'
+}
+export function rankStarUrl(tier: number | null): string | null {
+  if (tier == null || tier <= 0) return null
+  const stars = tier % 10
+  return stars > 0 ? rankIconBase + 'rank_star_' + stars + '.png' : null
 }
 export interface AppApi {
   bootstrap(): Promise<Bootstrap>;
@@ -240,6 +264,10 @@ export interface AppApi {
   itemLearn(heroId: number, sync?: boolean): Promise<import('./items.js').ItemLearning>;
   buildPlan(heroId: number, order?: string[]): Promise<string[]>;
   heroDetail(id: number, full?: boolean): Promise<HeroDetail>;
+  /** This linked account's own lifetime games/win per hero — one call covers every hero. */
+  heroTotals(): Promise<HeroTotal[]>;
+  /** This linked account's own average K/D/A/GPM/XPM on one hero, fetched only when asked (never prefetched for the whole roster). */
+  heroRecord(id: number): Promise<HeroRecord | null>;
   draft(input: DraftInput): Promise<LiveState>;
   nudge(mine: number, enemy: number, delta: number): Promise<LiveState>;
   defaultBuild(slug: string): Promise<Partial<Record<'starting' | 'early' | 'mid' | 'late', string[]>> | null>;
@@ -257,6 +285,9 @@ export interface AppApi {
   puterSignIn(): Promise<PuterStatus>;
   puterCancelSignIn(): Promise<void>;
   copyShareText(text: string): Promise<void>;
+  /** Screenshots this app's own dashboard window at the given DOM rect (never the game) — copies to the
+   * clipboard and also saves a PNG, for the "share this card as an image" buttons. */
+  shareCard(rect: { x: number; y: number; width: number; height: number }): Promise<{ savedPath: string | null }>;
   puterSignOut(): Promise<PuterStatus>;
   puterSetModel(model: string): Promise<PuterStatus>;
   puterAsk(question: string, context?: KnowledgeContext): Promise<string>;

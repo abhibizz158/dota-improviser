@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import type { ItemInfo } from '../shared/items.js'
-import type { Build, Catalog, Hero, MatchPlayer, MatchReview, MatchSummary, Matchup, PlayerProfile, ReviewEvent, Role, Timeline } from '../shared/model.js'
+import type { Build, Catalog, Hero, HeroTotal, MatchPlayer, MatchReview, MatchSummary, Matchup, PlayerProfile, ReviewEvent, Role, Timeline } from '../shared/model.js'
 
 const require = createRequire(import.meta.url)
 type Raw = Record<string, unknown>
@@ -140,6 +140,18 @@ function summary(raw: Raw, parent: Raw = raw): MatchSummary | null {
 export function normalizeHistory(value: unknown) {
   if (!Array.isArray(value)) throw new Error('OpenDota returned an unexpected history response.')
   return records(value).flatMap((row) => summary(row) ?? []).sort((a, b) => b.start - a.start)
+}
+
+/** `/players/{id}/heroes` — one request covers every hero this account has ever played, OpenDota's own
+ * lifetime games/wins tally (no per-match fetch needed, so this is cheap regardless of hero count). */
+export function normalizeHeroTotals(value: unknown): HeroTotal[] {
+  if (!Array.isArray(value)) throw new Error('OpenDota returned an unexpected hero-totals response.')
+  return records(value).flatMap((row) => {
+    const heroId = number(row.hero_id)
+    const games = number(row.games)
+    if (heroId == null || games == null || games <= 0) return []
+    return [{ heroId, games, win: number(row.win) ?? 0, lastPlayed: number(row.last_played) }]
+  })
 }
 
 function labelsForObjectives(parent: Raw): ReviewEvent[] {
