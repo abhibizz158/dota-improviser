@@ -59,10 +59,10 @@ export type DataStatus = { state: 'idle' | 'updating' | 'ready' | 'error'; done:
 export const placements = ['Auto', 'Top left', 'Top right', 'Bottom left', 'Bottom right'] as const
 export type Placement = typeof placements[number]
 export type DisplayChoice = { id: string; name: string }
-export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'matchOutlook', 'coachTips', 'itemCoach', 'achievements', 'personal', 'performanceMeter', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision', 'backgroundTray', 'timingAlerts', 'deathSnapshot'] as const
+export const featureKeys = ['winMeter', 'bans', 'laneWatch', 'matchOutlook', 'coachTips', 'itemCoach', 'achievements', 'personal', 'performanceMeter', 'hints', 'toasts', 'achievementSound', 'overlayAssistant', 'autoItemAnalysis', 'deathAdvice', 'momentum', 'multikills', 'phaseAdaptive', 'adaptiveRole', 'styleProfile', 'roshanTimer', 'autoOpen', 'autoUpdate', 'autoInstallApp', 'learning', 'patchAware', 'draftVision', 'backgroundTray', 'timingAlerts', 'deathSnapshot'] as const
 export type FeatureKey = typeof featureKeys[number]
 export type Features = Record<FeatureKey, boolean>
-export const defaultFeatures = Object.fromEntries(featureKeys.map((k) => [k, k !== 'achievementSound' && k !== 'draftVision' && k !== 'deathSnapshot'])) as Features
+export const defaultFeatures = Object.fromEntries(featureKeys.map((k) => [k, k !== 'achievementSound' && k !== 'draftVision' && k !== 'deathSnapshot' && k !== 'autoItemAnalysis'])) as Features
 export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intelligence' | 'Automation'; label: string; help: string }> = {
   winMeter: { group: 'Overlay modules', label: 'Lineup win meter', help: 'Estimated edge of your lineup vs theirs while drafting.' },
   roshanTimer: { group: 'Overlay modules', label: 'Roshan / Aegis timer', help: 'A stopwatch you start yourself (hotkey or button) when Roshan dies. Reads nothing from the game.' },
@@ -78,6 +78,7 @@ export const featureInfo: Record<FeatureKey, { group: 'Overlay modules' | 'Intel
   toasts: { group: 'Overlay modules', label: 'Achievement pop-ups', help: 'Animated banners for first blood, multi-kills, streaks and goals.' },
   achievementSound: { group: 'Overlay modules', label: 'Achievement sound', help: 'Play a short chime when an achievement is awarded.' },
   overlayAssistant: { group: 'Overlay modules', label: 'Puter overlay assistant', help: 'Ask about your draft or practice game with Ctrl/⌘ + Shift + O once a game is live.' },
+  autoItemAnalysis: { group: 'Intelligence', label: 'Automatic Puter check-ins', help: 'Off by default. When a new confirmed threat appears or the game reaches a new phase, automatically ask Puter once (rate-limited, at most a few times a game) what to prioritize, instead of waiting for you to tap "Ask Puter". Needs the overlay assistant above and a connected Puter account.' },
   deathAdvice: { group: 'Overlay modules', label: 'Respawn coach', help: 'Show a short plan while dead using your lane, stats, items and known matchup.' },
   momentum: { group: 'Overlay modules', label: 'Momentum graph', help: 'Kill lead of your team over the game, like Dota\'s own advantage graph.' },
   multikills: { group: 'Intelligence', label: 'Kill tracking', help: 'Detect first blood, double/triple/ultra kill, rampage and streaks from your own feed.' },
@@ -312,6 +313,7 @@ export interface AppApi {
   toggleDraftOverlay(): Promise<LiveState>;
   toggleAssistant(): Promise<LiveState>;
   askLiveCoach(question: string): Promise<string>;
+  analyzeItems(): Promise<string>;
   setDeathKiller(hero: number | null): Promise<LiveState>;
   onAchievementSound(callback: () => void): () => void;
   checkUpdates(): Promise<UpdateInfo>;

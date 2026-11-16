@@ -12,8 +12,17 @@ export type ItemRecommendation = {
 }
 
 type Candidate = { key: string; reason: string; priority: number }
+/** The single most dangerous enemy ability right now (contextual-coach.ts's `knownThreat` — ranked by whether
+ * it's confirmed as this death's killer, then whether it carries a real control effect, then matchup win rate).
+ * Passed through so item reasons can name that specific hero instead of a generic "their disables". */
+export type NamedThreat = { name: string; ability?: { n: string } } | null
+/** A small per-item nudge (roughly ±10 score points) from the player's own saved match history — `learnItems`'s
+ * win-with-this-item-vs-without delta on this hero, already computed for the Heroes page build planner. Reusing
+ * that real signal instead of a second learning system: this is the "proved useful or not, from your own
+ * games" self-learning the item list is meant to reflect, with zero fabricated data. */
+export type ItemBias = Record<string, number>
 
-export function counterItems(frame: Frame, role: Role, phase: CoachView['phase'], opponents: CoachHero[], team: TeamProfile | null, items: Record<string, ItemInfo>): ItemRecommendation[] {
+export function counterItems(frame: Frame, role: Role, phase: CoachView['phase'], opponents: CoachHero[], team: TeamProfile | null, items: Record<string, ItemInfo>, threat: NamedThreat = null, bias: ItemBias = {}): ItemRecommendation[] {
   if (!opponents.length || !frame.itemsObserved || frame.clock < 0) return []
   const support = role === 'Soft support' || role === 'Hard support'
   const early = phase === 'Laning' || (frame.level != null && frame.level < 6 && phase !== 'Late game')
@@ -23,6 +32,11 @@ export function counterItems(frame: Frame, role: Role, phase: CoachView['phase']
   const invis = hasSpell('invis') ?? opponents.find(({ hero }) => ['riki', 'bounty_hunter', 'clinkz', 'weaver', 'nyx_assassin'].includes(hero.slug))
   const medusa = opponents.find(({ hero }) => hero.slug === 'medusa')
   const evasion = hasSpell('evasion') ?? opponents.find(({ hero }) => hero.slug === 'phantom_assassin' || hero.slug === 'brewmaster')
+  // Naming the specific threat (Enigma's Black Hole, Lion's hex, ...) instead of generic "their disables" when
+  // one's been identified — falls back to the generic wording the rest of this function already used when no
+  // single threat is confirmed, so nothing here claims more certainty than knownThreat() itself has.
+  const namedControl = threat?.ability ? `${threat.name}'s ${threat.ability.n}` : 'their control spells'
+  const namedBurst = threat?.ability ? `${threat.name}'s burst` : 'their spell burst'
   const magic = team?.damage.mag != null ? team.damage.mag >= 0.47 : known(['Nuker']).length >= 2
   const physical = team?.damage.phys != null ? team.damage.phys >= 0.63 : known(['Carry']).length >= 2
   const sustain = (team?.sustain ?? 0) >= 2 || (team?.sustain === 1 && opponents.some(({ hero }) => ['huskar', 'morphling', 'necrolyte', 'alchemist'].includes(hero.slug)))
@@ -35,18 +49,19 @@ export function counterItems(frame: Frame, role: Role, phase: CoachView['phase']
 
   if (invis) add(support ? 'ward_sentry' : 'dust', `Bring detection when contesting ${invis.hero.name}.`, 95, ['dust', 'ward_sentry', 'gem'])
   if (early) {
-    if (magic) add('magic_stick', 'Capture charges from frequent enemy spell casts during lane trades.', 82, ['magic_wand', 'holy_locket'])
+    if (magic) add('magic_stick', evasion ? `Capture charges from enemy spell casts — magic damage ignores ${evasion.hero.name}'s evasion while you're too small to rely on right-clicks.` :
+      'Capture charges from frequent enemy spell casts during lane trades.', 82, ['magic_wand', 'holy_locket'])
     if (physical) add('ring_of_protection', 'Add armor for right-click trades while you develop your first item.', 78, ['chainmail', 'buckler', 'platemail'])
-    if (control && !frame.items.some((key) => /boots|treads/.test(key))) add('wind_lace', 'Create space before their control spells are in range.', 72)
+    if (control && !frame.items.some((key) => /boots|treads/.test(key))) add('wind_lace', `Create space before ${namedControl} is in range.`, 72)
   } else {
-    if (piercing || (control && support)) add('force_staff', 'Reposition before the catch, or move an ally out when the spell allows it.', 94, ['hurricane_pike'])
+    if (piercing || (control && support)) add('force_staff', `Reposition before ${namedControl} lands, or move an ally out when it allows it.`, 94, ['hurricane_pike'])
     if (control && !support) {
       if (!piercing || (team?.hard ?? 0) - (team?.piercing ?? 0) >= 2) {
-        add('black_king_bar', piercing ? 'Cover their non-piercing spells. Stay out of range of disables that pierce.' : 'Activate it before their disables land so you can commit safely.', piercing ? 81 : 93)
+        add('black_king_bar', piercing ? `Cover their non-piercing spells. Stay out of range of ${namedControl} if it pierces.` : `Activate it before ${namedControl} lands so you can commit safely.`, piercing ? 81 : 93)
       }
     }
     if (magic) {
-      if (support) add('glimmer_cape', 'Save an ally before the enemy spell burst lands.', 86)
+      if (support) add('glimmer_cape', `Save an ally before ${namedBurst} lands.`, 86)
       else if (role === 'Offlane') add('pipe', 'Consider a team magic barrier if a teammate is not already building one.', 85)
       else add(piercing ? 'cloak' : 'black_king_bar', piercing ? 'Add magic resistance while respecting piercing control.' : 'Prepare for their spell burst before the next team fight.', 82, ['black_king_bar', 'pipe', 'eternal_shroud'])
     }
@@ -79,7 +94,7 @@ export function counterItems(frame: Frame, role: Role, phase: CoachView['phase']
         : window == null || goldShort == null ? `About ${remaining.toLocaleString('en-US')} gold remaining`
           : `About ${goldShort.toLocaleString('en-US')} more gold · ~${window} min at current GPM`
       return [{ key, name: item.n, reason, timing, remaining, goal, etaMinutes: affordable ? null : window,
-        score: priority + (affordable ? 8 : 0) + components.length * 5 - (window != null ? Math.min(16, window * (support ? 2 : 1)) : 0) }]
+        score: priority + (affordable ? 8 : 0) + components.length * 5 - (window != null ? Math.min(16, window * (support ? 2 : 1)) : 0) + (bias[key] ?? 0) }]
     }).sort((a, b) => b.score - a.score).slice(0, 2)
     .map(({ key, name, reason, timing, remaining, goal, etaMinutes }) => ({ key, name, reason, timing, remaining, goal, etaMinutes }))
 }

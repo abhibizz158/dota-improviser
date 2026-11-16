@@ -16,7 +16,7 @@ import './styles.css'
 declare global {
   interface Window {
     dota?: AppApi
-    overlayApi?: { height: (height: number) => void; state: () => Promise<LiveState>; draft: AppApi['draft'] extends (i: infer I) => unknown ? (i: I) => Promise<unknown> : never; done: () => Promise<void>; ask: (question: string) => Promise<string>; sessionInfo: (gameType: string, lane: string) => Promise<unknown>; skipSession: () => Promise<unknown>; dismissSummary: () => Promise<unknown>; onAchievementSound: (callback: () => void) => () => void; onLive: AppApi['onLive'] }
+    overlayApi?: { height: (height: number) => void; state: () => Promise<LiveState>; draft: AppApi['draft'] extends (i: infer I) => unknown ? (i: I) => Promise<unknown> : never; done: () => Promise<void>; ask: (question: string) => Promise<string>; analyzeItems: () => Promise<string>; sessionInfo: (gameType: string, lane: string) => Promise<unknown>; skipSession: () => Promise<unknown>; dismissSummary: () => Promise<unknown>; onAchievementSound: (callback: () => void) => () => void; onLive: AppApi['onLive'] }
   }
 }
 const Draft = lazy(() => import('./draft').then((module) => ({ default: module.Draft })))
@@ -81,6 +81,14 @@ function Overlay() {
   const acceptsInput = live.interactive || live.view === 'setup'
   const recovery = editorial && live.settings.features.deathAdvice ? live.recovery : null
   const support = live.settings.role === 'Soft support' || live.settings.role === 'Hard support'
+  const [itemAi, setItemAi] = useState<{ busy: boolean; answer: string | null; error: string | null }>({ busy: false, answer: null, error: null })
+  const askItemAi = () => {
+    if (!window.overlayApi?.analyzeItems || itemAi.busy) return
+    setItemAi({ busy: true, answer: null, error: null })
+    void window.overlayApi.analyzeItems()
+      .then((answer) => setItemAi({ busy: false, answer, error: null }))
+      .catch((reason: Error) => setItemAi({ busy: false, answer: null, error: reason.message }))
+  }
   return <div className={'overlay-scroll' + (acceptsInput ? ' interactive' : '')}><div className="overlay-view" ref={card}>
     {live.needsSessionInfo
       ? <SessionPrompt onSubmit={window.overlayApi?.sessionInfo} onSkip={window.overlayApi?.skipSession} />
@@ -88,13 +96,14 @@ function Overlay() {
       ? <AssistantCard ask={window.overlayApi?.ask} done={window.overlayApi?.done} />
       : live.view === 'draft'
       ? <DraftCard live={live} heroes={builtInCatalog.heroes} send={window.overlayApi?.draft} done={window.overlayApi?.done} />
-      : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={builtInCatalog.heroes} settings={live.settings} coaching={recovery ? undefined : live.coaching} performance={live.performance} compact={compact || Boolean(recovery)} recoveryMode={Boolean(recovery)} heroName={builtInCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)} />
+      : live.coach ? <CoachCard coach={live.coach} game={live.game} support={live.support} heroes={builtInCatalog.heroes} settings={live.settings} coaching={recovery ? undefined : live.coaching} performance={live.performance} compact={compact || Boolean(recovery)} recoveryMode={Boolean(recovery)} heroName={builtInCatalog.heroes.find((h) => h.id === live.coach?.heroId)?.name ?? hero?.name ?? 'Hero'} clockText={clock(live.lane?.clock ?? null)}
+          onAnalyzeItems={window.overlayApi?.analyzeItems && live.settings.features.overlayAssistant ? askItemAi : undefined} itemAi={itemAi} />
         : <LaneCard live={live} hero={hero} />}
     {recovery && <RecoveryCard recovery={recovery} />}
     {live.matchSummary && <MatchSummaryCard summary={live.matchSummary} onClose={() => void window.overlayApi?.dismissSummary()} />}
     {live.settings.features.deathSnapshot && editorial && live.deathSnapshot && <DeathSnapshotCard deathSnapshot={live.deathSnapshot} />}
     {live.settings.features.roshanTimer && editorial && <RoshanTimer roshan={live.roshan} />}
-    {support && editorial && <WardingWidget side={live.game?.team ?? null} />}
+    {support && editorial && <WardingWidget side={live.game?.team ?? null} phase={live.coach?.phase} />}
     {!compact && live.settings.features.toasts && editorial && <Toasts toasts={live.toasts.filter((t) => t.kind === 'alert')} />}
   </div></div>
 }

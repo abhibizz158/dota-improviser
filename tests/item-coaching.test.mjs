@@ -37,6 +37,27 @@ test('late matchup advice is conditional, takes components and inventory into ac
   assert.deepEqual(counterItems({ ...late, items: ['disperser'] },'Carry','Late game',medusa,null,itemInfo),[])
 })
 
+test('a confirmed threat is named in the reason instead of a generic "their disables"', () => {
+  const enemies = [hero('enigma','Enigma',['Disabler']), hero('bane','Bane',['Disabler'])]
+  const mid = { ...frame, clock: 920, level: 12, gold: 600, items: ['staff_of_wizardry'] }
+  const profile = { damage: { mag: 0.3, phys: 0.4 }, hard: 2, sustain: 0, piercing: 2 }
+  const named = counterItems(mid, 'Hard support', 'Mid game', enemies, profile, itemInfo, { name: 'Enigma', ability: { n: 'Black Hole' } })
+  assert.match(named[0].reason, /Enigma.s Black Hole/)
+  const generic = counterItems(mid, 'Hard support', 'Mid game', enemies, profile, itemInfo)
+  assert.doesNotMatch(generic[0].reason, /Enigma/)
+})
+
+test('a per-item bias nudges score without being able to invent a recommendation out of nothing', () => {
+  const enemies = [hero('axe', 'Axe', ['Disabler']), hero('bane', 'Bane', ['Disabler'])]
+  const mid = { ...frame, clock: 920, level: 12, gold: 600, items: ['staff_of_wizardry'] }
+  const profile = { damage: { mag: 0.3, phys: 0.4 }, hard: 2, sustain: 0, piercing: 2 }
+  const unbiased = counterItems(mid, 'Hard support', 'Mid game', enemies, profile, itemInfo)
+  const boosted = counterItems(mid, 'Hard support', 'Mid game', enemies, profile, itemInfo, null, { force_staff: 10 })
+  assert.equal(unbiased[0].key, 'force_staff')
+  assert.equal(boosted[0].key, 'force_staff')
+  assert.deepEqual(counterItems(mid, 'Hard support', 'Mid game', [], profile, itemInfo, null, { force_staff: 10 }), [])
+})
+
 test('normal and Turbo item timing changes at the phase boundaries', () => {
   assert.equal(coachPhase(599), 'Laning')
   assert.equal(coachPhase(600), 'Mid game')

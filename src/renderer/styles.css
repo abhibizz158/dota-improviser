@@ -205,7 +205,7 @@ dialog.dialog:has(.welcome-dialog) { width: min(640px, 94vw); max-width: calc(10
 
 /* overlay cards (also used on the dashboard preview) */
 .card, .lane-card, .draft-card, .coach-card { width: 100%; max-width: 380px; background: rgba(10,12,15,.9); border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: 8px; padding: 9px 11px; display: grid; gap: 8px; color: var(--text); font-size: 12px; }
-.card-head { display: flex; justify-content: space-between; align-items: center; font: 700 12px var(--display); letter-spacing: .16em; text-transform: uppercase; } .card-head .tag { color: var(--accent-hi); display: inline-flex; gap: 6px; align-items: center; } .card-head .sub { color: var(--muted); letter-spacing: .08em; }
+.card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 8px; font: 700 12px var(--display); letter-spacing: .16em; text-transform: uppercase; } .card-head .tag { color: var(--accent-hi); display: inline-flex; gap: 6px; align-items: center; min-width: 0; } .card-head .sub { color: var(--muted); letter-spacing: .08em; white-space: nowrap; }
 .lane-hero { font: 800 20px var(--display); letter-spacing: .04em; text-transform: uppercase; } .lane-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; } .lane-stats span { background: var(--s2); border-radius: 6px; padding: 5px; text-align: center; } .lane-stats strong { display: block; font: 800 18px var(--display); } .lane-stats small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
 .lane-head { display: flex; justify-content: space-between; } .lane-signal { display: inline-flex; gap: 6px; align-items: center; color: var(--accent-hi); font: 700 12px var(--display); letter-spacing: .14em; text-transform: uppercase; } .lane-clock { display: inline-flex; gap: 5px; align-items: center; color: var(--muted); }
 .lane-pace { display: grid; gap: 3px; color: var(--muted); } .lane-cue { color: var(--gold); font-weight: 600; }
@@ -459,9 +459,9 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .achievement-view .toasts, .map-alert-view .toasts, .tip-alert-view .toasts { margin-bottom: 0; }
 .tip-alert-view .toasts { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
 .tip-alert-view .toast { max-width: 220px; }
-/* Tips live 60s (TIP_MS in index.ts), not the 7s every other toast uses — same "CSS delay must match the JS
+/* Tips live 25s max (TIP_MS in index.ts), not the 7s every other toast uses — same "CSS delay must match the JS
  * TTL" rule AGENTS.md already documents for the others, just a different number for this kind. */
-.toast.tip { animation: toastIn .3s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 59.5s ease-in forwards; }
+.toast.tip { animation: toastIn .3s cubic-bezier(.2,1.2,.3,1) both, toastOut .5s 24.5s ease-in forwards; }
 .vision-debug { display: grid; gap: 8px; } .vision-debug img { width: 100%; border-radius: 8px; border: 1px solid var(--hairline); background: #000; }
 .vision-rows p { margin: 0; font-size: 12.5px; color: var(--muted); } .vision-rows strong { color: var(--text); }
 .toast.first-blood { border-color: rgba(224,87,75,.6); }
@@ -484,6 +484,29 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .warding-spot { display: grid; gap: 1px; padding: 6px 8px; border: 1px solid var(--hairline); border-radius: 7px; background: rgba(255,255,255,.03); }
 .warding-spot b { font-size: 12px; } .warding-spot small { color: var(--muted); font-size: 11px; }
 .warding-spot.sentry b { color: #d9ac4f; }
+.warding-spot.active { border-color: var(--gold); background: rgba(217,172,79,.08); }
+.warding-spot.faded { opacity: .4; }
+.ward-now-badge { margin-left: 5px; font-size: 9px; font-weight: 700; letter-spacing: .06em; color: #0c1016; background: var(--good); border-radius: 4px; padding: 1px 4px; vertical-align: middle; }
+.ward-map-dim { opacity: .3; }
+.ward-map-legend-dot.now { border-radius: 3px; background: var(--good); }
+.ward-map { width: 100%; max-width: 260px; aspect-ratio: 1; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 0 0 1px var(--hairline), 0 6px 18px rgba(0,0,0,.35); background: #0c1016; }
+.ward-map-ground { fill: rgba(255,255,255,.03); stroke: var(--hairline); stroke-width: .6; }
+.ward-map-river { fill: rgba(90,149,224,.2); filter: drop-shadow(0 0 2px rgba(90,149,224,.25)); }
+.ward-map-base { stroke-width: .6; } .ward-map-base.radiant { fill: rgba(107,191,89,.3); stroke: rgba(107,191,89,.6); } .ward-map-base.dire { fill: rgba(224,87,75,.3); stroke: rgba(224,87,75,.6); }
+.ward-map-base-label { font-size: 3px; font-weight: 700; letter-spacing: .04em; pointer-events: none; }
+.ward-map-base-label.radiant { fill: rgba(107,191,89,.85); text-anchor: start; }
+.ward-map-base-label.dire { fill: rgba(224,87,75,.85); text-anchor: end; }
+.ward-map-lane { stroke: rgba(255,255,255,.16); stroke-width: 1.4; stroke-linecap: round; fill: none; }
+.ward-map-dot { fill: var(--gold); stroke: rgba(0,0,0,.6); stroke-width: .5; cursor: pointer; outline: none; filter: drop-shadow(0 0 2px rgba(217,172,79,.55)); transition: filter .15s; }
+.ward-map-dot:hover, .ward-map-dot:focus { filter: drop-shadow(0 0 3.5px rgba(217,172,79,.85)); }
+.ward-map-dot.sentry { fill: #d9ac4f; }
+.ward-map-dot.radiant { stroke: var(--radiant); } .ward-map-dot.dire { stroke: var(--dire); }
+.ward-map-halo { fill: none; stroke: var(--gold); stroke-width: .7; opacity: 0; transition: r .15s, opacity .15s; } .ward-map-halo.active { opacity: .85; }
+.ward-map-lane-label { font-size: 4.2px; font-weight: 700; fill: rgba(255,255,255,.45); text-anchor: middle; letter-spacing: .08em; pointer-events: none; }
+.ward-map-legend { display: flex; gap: 14px; justify-content: center; margin: 6px 0 2px; font-size: 11px; color: var(--muted); }
+.ward-map-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.ward-map-legend-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 1px rgba(0,0,0,.5); display: inline-block; }
+.ward-map-legend-dot.sentry { border-radius: 1px; transform: rotate(45deg); background: #d9ac4f; }
 .roshan-timer .chip svg { margin-right: 2px; }
 .chip { display: inline-flex; gap: 5px; align-items: center; padding: 3px 9px; border-radius: 99px; background: rgba(255,255,255,.07); border: 1px solid var(--hairline); font-size: 11px; font-weight: 600; animation: pageIn .4s both; }
 .chip.epic { border-color: rgba(217,172,79,.55); color: var(--gold); background: rgba(217,172,79,.1); } .chip.hot { border-color: rgba(224,87,75,.5); color: #ff9a8e; background: rgba(224,87,75,.1); } .chip.good { color: var(--good); } .chip.bad { color: var(--bad); }
@@ -569,8 +592,9 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 @media (prefers-reduced-motion: reduce) { .recovery-card { animation: none; } }
 .recovery-card b { display: block; font-size: 13px; margin-bottom: 2px; } .recovery-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .death-snapshot-card {
-  display: grid; gap: 6px; min-width: 0; max-width: 280px; padding: 8px; color: var(--text);
-  background: rgba(15,17,24,.96); border: 1px solid var(--line); border-left: 2px solid var(--gold); border-radius: 8px;
+  display: grid; gap: 6px; min-width: 0; max-width: 380px; padding: 9px 11px; color: var(--text);
+  background: rgba(15,17,24,.86); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--line); border-left: 2px solid var(--gold); border-radius: 8px;
   animation: rise .35s cubic-bezier(.2,.8,.2,1) both;
 }
 @media (prefers-reduced-motion: reduce) { .death-snapshot-card { animation: none; } }
@@ -762,6 +786,8 @@ body { font-size: clamp(13px, 0.22vw + 11.2px, 16px); }
 .match-items p { margin: 2px 0 0; font-size: 11px; line-height: 1.32; }
 .match-items small { color: var(--muted); font-size: 10px; }
 .live-item-ai { margin-block: 8px; }
+.item-ai { display: grid; gap: 4px; } .item-ai .text-button { font-size: 11px; }
+.item-ai-answer { margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.4; }
 
 .match-outlook { display: grid; gap: 3px; border-radius: 6px; background: var(--s1); padding: 5px 8px; }
 .match-outlook header { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; }

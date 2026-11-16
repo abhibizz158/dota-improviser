@@ -73,7 +73,7 @@ export function laningGuidance(role: Role, hero: Hero): { text: string; offRole:
 export function contextualCoach(input: {
   frame: Frame; role: Role; mode: GameType | null; hero: Hero; kit?: Kit; opponents: CoachHero[]; allies?: CoachHero[]; kits?: KitsDb | null; items?: Record<string, ItemInfo>
   rows: Matchup[]; bracket: Bracket | null; data?: HeroData; plan: { key: string; name: string; cost: number }[]
-  seen: Record<string, number>; baseline: CoachView
+  seen: Record<string, number>; baseline: CoachView; itemBias?: Record<string, number>
 }): CoachingContext {
   const { frame, role, mode, kit, opponents, rows, baseline } = input
   const lane = laningGuidance(role, input.hero)
@@ -139,6 +139,6 @@ export function contextualCoach(input: {
     phase, matchup: worst && difficult ? { name: difficult.hero.name, rate: Math.round(worst.rate), games: worst.games } : null,
     bracket: mode === 'Ranked' && input.bracket && games >= 100 && wins <= games ? { name: input.bracket, rate: Math.round(100 * wins / games), games } : null,
     tips: tips.slice(0, 4), offRole: lane.offRole,
-    items: input.items ? counterItems(frame, role, phase, opponents, enemyProfile, input.items) : undefined,
+    items: input.items ? counterItems(frame, role, phase, opponents, enemyProfile, input.items, threat, input.itemBias ?? {}) : undefined,
   }
 }

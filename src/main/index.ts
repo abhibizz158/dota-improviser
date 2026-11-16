@@ -32,6 +32,7 @@ import type { CorpusDoc } from '../shared/corpus.js'
 import { buildMech, rectify, teamProfile } from '../shared/mechanics.js'
 import type { KitsDb, MechModel } from '../shared/mechanics.js'
 import { canPlan, emptyItemLearning, learnItems, maxPlanItems } from '../shared/items.js'
+import type { ItemBias } from '../shared/item-coaching.js'
 import type { Support } from '../shared/guide.js'
 import type { DataStatus } from '../shared/model.js'
 import { configName, defaultBuilds, discover, steamLauncher } from './local.js'
@@ -42,7 +43,7 @@ import * as resourceMonitor from './resource-monitor.js'
 import { BAR_HEIGHT_FRACTION, captureDeathSnapshot, captureDraftPicks, confirmDraftPicks, debugCaptureDraftPicks, DraftCaptureError, loadReferencePortraits, rememberPortrait } from './draft-vision.js'
 import type { PortraitMemory, VisionReveal } from './draft-vision.js'
 import { brackets, contextualCoach, knownThreat } from '../shared/contextual-coach.js'
-import type { Bracket, CoachHero } from '../shared/contextual-coach.js'
+import type { Bracket, CoachHero, CoachingContext } from '../shared/contextual-coach.js'
 import { comebackLow, matchEstimate, recordOutlook } from '../shared/match-outlook.js'
 import type { MatchOutlook, OutlookPoint } from '../shared/match-outlook.js'
 import { deathScenarioKey, findCoachAnswer, recordDeathCase, saveCoachAnswer, scenarioKey } from '../shared/coach-memory.js'
@@ -449,10 +450,10 @@ function refreshDraftMatchups() {
 
 const TOAST_MS = 7000
 const SUMMARY_TOAST_MS = 7000
-// Coach-tip reminders: shown for up to a minute, then gone — never permanently docked in the main card. At
-// most 3 ordinary reminders plus 1 extra slot reserved for a warn-level ("important") one; a new reminder
-// past that cap evicts the oldest in its own category rather than piling up.
-const TIP_MS = 60000
+// Coach-tip reminders (map timers, ward/analysis reminders included): shown for at most 25s, then gone — never
+// permanently docked in the main card. At most 3 ordinary reminders plus 1 extra slot reserved for a warn-level
+// ("important") one; a new reminder past that cap evicts the oldest in its own category rather than piling up.
+const TIP_MS = 25000
 // One fewer simultaneous tip chip to composite in minimal resource mode — still reminders, just a smaller row.
 const tipNormalCap = () => resourceMonitor.currentMode() === 'minimal' ? 2 : 3
 const TIP_IMPORTANT_CAP = 1
@@ -821,6 +822,8 @@ function resetSession(next: LiveState['status']) {
   bracketBench = null
   lowPaceAlerted = null
   mapTimerClock = null
+  lastAutoAnalysisAt = 0
+  lastAutoAnalysisKey = ''
   updateDraftVision()
 }
 
@@ -1027,6 +1030,27 @@ function updateDeathThreat() {
   deathCase.repeats = records.find((entry) => entry.key === deathScenarioKey(liveScenario(snapshot, killer, role, phase)))?.times ?? 0
 }
 
+let itemBiasMemo: { key: string; bias: ItemBias } | null = null
+/** A small per-item nudge for counterItems(), from the player's own saved match history — reuses `learnItems`
+ * (already built for the Heroes page build planner) instead of a second learning system: its win-with-this-item
+ * vs win-without-it delta on this hero is the real "did this item actually prove useful for me" signal the item
+ * list is meant to reflect. Memoized per account+hero since `learnItems` scans every saved review — recomputing
+ * it on every live tick (refreshCoachView runs roughly once a second) would be real, pointless repeated work. */
+function itemBiasFor(heroId: number): ItemBias {
+  if (!account || !settings.features.learning) return {}
+  const key = account + ':' + heroId
+  if (itemBiasMemo?.key === key) return itemBiasMemo.bias
+  const byName = new Map(Object.entries(catalog.items).map(([itemKey, name]) => [name, itemKey]))
+  const learned = learnItems(store.savedReviews(), account, heroId, { info: itemInfo, keyOf: (label) => byName.get(label), popular: [] })
+  const bias: ItemBias = {}
+  for (const habit of learned.habits) {
+    if (habit.winWith == null || habit.winWithout == null || habit.nWith < 3 || habit.nWithout < 3) continue
+    bias[habit.key] = Math.max(-10, Math.min(10, (habit.winWith - habit.winWithout) * 40))
+  }
+  itemBiasMemo = { key, bias }
+  return bias
+}
+
 function refreshCoachView() {
   if (!frame) return null
   lastCoachAt = Date.now()
@@ -1046,6 +1070,7 @@ function refreshCoachView() {
     opponents: coachHeroes(enemy), allies: coachHeroes(allied), items: settings.features.itemCoach ? itemInfo : undefined,
     rows: coachMatchups(hero.id, enemy), bracket: settings.coachingBracket ?? null, data: heroDb?.heroes[hero.id],
     plan: planned.map((key) => ({ key, name: itemInfo[key].n, cost: itemInfo[key].c })),
+    itemBias: settings.features.itemCoach ? itemBiasFor(hero.id) : undefined,
   }) : undefined
   coachView = {
     ...result,
@@ -1062,7 +1087,29 @@ function refreshCoachView() {
   // the same 60s-cooldown toast used to make them "refresh" as a fresh reminder every 60s for as long as the
   // phase lasted, which never actually went away. Those render inline in the card instead (ui.tsx's CoachCard).
   for (const tip of coachView.tips) emitTip(tip.text, tip.level === 'warn', frame.clock, tip.id)
+  maybeAutoAnalyze(coachView.phase, coaching)
   return result
+}
+
+let lastAutoAnalysisAt = 0
+let lastAutoAnalysisKey = ''
+const AUTO_ANALYSIS_COOLDOWN_MS = 4 * 60 * 1000
+/** Off by default (`autoItemAnalysis`). Fires askLiveCoach's canned question itself, at most once per real
+ * 4-minute window, and only when the phase or the top item recommendation actually changed since the last
+ * auto-fire — so it reacts to a new threat or a new phase, not to the same situation re-confirming itself every
+ * tick. Puter's own per-scenario answer cache (askLiveCoach's `memory`/`findCoachAnswer`) still applies on top
+ * of this, so a repeat of an identical past scenario costs nothing extra either way. Errors (not signed in,
+ * previous answer still loading) are swallowed here — this is a background convenience, not something that
+ * should pop an error toast the player never asked for; the explicit "Ask Puter" button still surfaces errors. */
+function maybeAutoAnalyze(phase: CoachView['phase'], coaching: CoachingContext | undefined) {
+  if (!frame || !settings.features.autoItemAnalysis || !settings.features.overlayAssistant || !coaching?.items?.length) return
+  const key = phase + ':' + coaching.items[0]!.key
+  const now = Date.now()
+  if (key === lastAutoAnalysisKey || now - lastAutoAnalysisAt < AUTO_ANALYSIS_COOLDOWN_MS) return
+  lastAutoAnalysisKey = key
+  lastAutoAnalysisAt = now
+  const clock = frame.clock
+  void askLiveCoach(ITEM_ANALYSIS_QUESTION).then((answer) => emitTip('AI: ' + answer, false, clock, 'ai-analysis')).catch(() => {})
 }
 
 function receive(value: unknown) {
@@ -2134,6 +2181,13 @@ async function askPuter(question: unknown, context: unknown, live?: LivePuterCon
   return responseText(result)
 }
 
+// One fixed question for both the "Ask Puter about this fight" button (dashboard and overlay) and the
+// rate-limited auto check-in below, so the wording — and the chance of it reading as generic "slop" — lives in
+// one place instead of being duplicated per caller. askLiveCoach already feeds it the real grounded context
+// (hero, items, enemies, allies, coaching.items/tips) via buildPuterPrompt's `live` branch, so this just asks
+// the model to actually use that context rather than guess.
+const ITEM_ANALYSIS_QUESTION = 'Given my current items, the already-suggested items, and which enemy hero is the biggest confirmed threat right now, what should I prioritize next and why? Only mention team-wide itemization (like a barrier item for the team) if the enemy lineup genuinely calls for it.'
+
 async function askLiveCoach(question: unknown) {
   if (!settings.features.overlayAssistant || (!pick && !frame)) throw new Error('The live assistant is available during drafting and live matches.')
   if (overlayAskPending) throw new Error('The previous answer is still loading.')
@@ -2292,6 +2346,10 @@ function handlers() {
       throw new Error('Open the overlay assistant before asking a question.')
     }
     return askLiveCoach(question)
+  })
+  ipcMain.handle('overlay:analyze-items', (event: IpcMainInvokeEvent) => {
+    if (!overlay || event.sender !== overlay.webContents || event.senderFrame !== overlay.webContents.mainFrame) throw new Error('Open the overlay before asking a question.')
+    return askLiveCoach(ITEM_ANALYSIS_QUESTION)
   })
   const saveSession = (gameType: unknown, lane: unknown) => {
     if (!gameTypes.includes(gameType as GameType) || !roles.includes(lane as Role)) {
@@ -2634,6 +2692,7 @@ function handlers() {
   handle('live:toggle', toggleOverlay)
   handle('live:assistant', toggleAssistant)
   handle('live:ask', askLiveCoach)
+  handle('live:analyze-items', () => askLiveCoach(ITEM_ANALYSIS_QUESTION))
   handle('live:killer', (value) => {
     if (!deathCase || !frame || frame.alive || frame.respawnSeconds === 0) throw new Error('Killer selection is available while you are dead.')
     const killer = value === null ? null : validHero(value)

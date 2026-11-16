@@ -16,6 +16,7 @@ import type { Recovery } from '../shared/live-coach.js'
 import itemCatalog from 'virtual:dota-items'
 import { OutlookCard } from './match-outlook'
 import { wardSpotsFor } from '../shared/warding.js'
+import type { WardSpot } from '../shared/warding.js'
 
 const base = import.meta.env.BASE_URL
 const bundled = new Set(Object.keys(import.meta.glob('../../public/heroes/*.png')).map((path) => path.split('/').at(-1)?.replace('.png', '')))
@@ -263,22 +264,67 @@ export function RoshanTimer({ roshan }: { roshan: RoshanState }) {
   </div>
 }
 
+/** Hand-drawn schematic, not a real map image — this app has no licensed Dota minimap asset to plot pinpoints
+ * against (the hero/item icons it fetches live from Valve's CDN are a different, narrower allowance than
+ * hotlinking the map itself), so ward spots are plotted on a simple diagram instead: a river band on the
+ * diagonal, the two bases in their real corners, and each spot as a dot sized/shaped by kind. Clicking or
+ * focusing a dot highlights its entry in the text list below instead of just a title-attribute tooltip, so it
+ * still works for someone who can't hover. */
+function WardMap({ spots, active, onPick }: { spots: (WardSpot & { relevant?: boolean })[]; active: string | null; onPick: (id: string | null) => void }) {
+  return <svg className="ward-map" viewBox="0 0 100 100" role="img" aria-label="Schematic ward-spot map">
+    <rect x="0" y="0" width="100" height="100" rx="4" className="ward-map-ground" />
+    <polygon className="ward-map-river" points="0,22 30,22 78,78 100,78 100,88 72,88 18,34 0,34" />
+    <rect className="ward-map-base radiant" x="2" y="84" width="14" height="14" rx="2" />
+    <text className="ward-map-base-label radiant" x="9" y="92">RAD</text>
+    <rect className="ward-map-base dire" x="84" y="2" width="14" height="14" rx="2" />
+    <text className="ward-map-base-label dire" x="91" y="10">DIRE</text>
+    <line className="ward-map-lane" x1="9" y1="91" x2="9" y2="15" /><line className="ward-map-lane" x1="9" y1="15" x2="91" y2="15" />
+    <line className="ward-map-lane" x1="9" y1="91" x2="91" y2="9" />
+    <line className="ward-map-lane" x1="9" y1="91" x2="85" y2="91" /><line className="ward-map-lane" x1="85" y1="91" x2="85" y2="9" />
+    <text className="ward-map-lane-label" x="50" y="12">TOP</text>
+    <text className="ward-map-lane-label" x="56" y="47">MID</text>
+    <text className="ward-map-lane-label" x="50" y="97">BOT</text>
+    {spots.map((spot) => <g key={spot.id} transform={`translate(${spot.x} ${spot.y})`} className={spot.relevant === false ? 'ward-map-dim' : ''}>
+      <circle className={'ward-map-halo ' + (active === spot.id ? 'active' : '')} r={active === spot.id ? 6.5 : 0} />
+      {spot.kind === 'sentry'
+        ? <rect className={'ward-map-dot sentry ' + spot.side.toLowerCase()} x="-2.5" y="-2.5" width="5" height="5" transform="rotate(45)" tabIndex={0} role="button"
+            aria-label={spot.label} onMouseEnter={() => onPick(spot.id)} onMouseLeave={() => onPick(null)}
+            onFocus={() => onPick(spot.id)} onBlur={() => onPick(null)} onClick={() => onPick(active === spot.id ? null : spot.id)}>
+            <title>{spot.label}</title>
+          </rect>
+        : <circle className={'ward-map-dot observer ' + spot.side.toLowerCase()} r="3.1" tabIndex={0} role="button"
+            aria-label={spot.label} onMouseEnter={() => onPick(spot.id)} onMouseLeave={() => onPick(null)}
+            onFocus={() => onPick(spot.id)} onBlur={() => onPick(null)} onClick={() => onPick(active === spot.id ? null : spot.id)}>
+            <title>{spot.label}</title>
+          </circle>}
+    </g>)}
+  </svg>
+}
+
 /** Support-only warding reference, collapsed behind its own toggle so it only takes overlay space when a
  * support player actually wants it (below the main card, never on by default). Static spot descriptions only —
  * never derived from live map/vision state, same guardrail as everything else in this file; a map rework just
  * means updating `src/shared/warding.ts`. */
-export function WardingWidget({ side }: { side: 'Radiant' | 'Dire' | null }) {
+export function WardingWidget({ side, phase }: { side: 'Radiant' | 'Dire' | null; phase?: 'Laning' | 'Mid game' | 'Late game' }) {
   const [show, setShow] = useState(false)
-  const spots = wardSpotsFor(side)
+  const [active, setActive] = useState<string | null>(null)
+  const spots = wardSpotsFor(side, phase)
   return <div className="warding-widget">
     <button type="button" className="warding-toggle" onClick={() => setShow((on) => !on)}>
       <Shield size={11} /> {show ? 'Hide ward spots' : 'Show ward spots'}
     </button>
     {show && <div className="warding-list">
-      {spots.map((spot) => <div key={spot.id} className={'warding-spot ' + spot.kind}>
-        <b>{spot.kind === 'sentry' ? '◆' : '◇'} {spot.label}</b><small>{spot.area} · {spot.sub}</small>
+      <WardMap spots={spots} active={active} onPick={setActive} />
+      <div className="ward-map-legend">
+        <span><i className="ward-map-legend-dot observer" /> Observer ward</span>
+        <span><i className="ward-map-legend-dot sentry" /> Sentry ward</span>
+        {phase && <span><i className="ward-map-legend-dot now" /> Worth it now ({phase})</span>}
+      </div>
+      {spots.map((spot) => <div key={spot.id} className={'warding-spot ' + spot.kind + (active === spot.id ? ' active' : '') + (phase && !spot.relevant ? ' faded' : '')}
+        onMouseEnter={() => setActive(spot.id)} onMouseLeave={() => setActive(null)}>
+        <b>{spot.kind === 'sentry' ? '◆' : '◇'} {spot.label}{phase && spot.relevant && <i className="ward-now-badge">now</i>}</b><small>{spot.area} · {spot.sub}</small>
       </div>)}
-      <small className="draft-note">Common spots — Valve has reworked the map before; recheck after a big patch.</small>
+      <small className="draft-note">Schematic diagram, not a real map image — common spots, and Valve has reworked the map before; recheck after a big patch.</small>
     </div>}
   </div>
 }
@@ -393,7 +439,7 @@ function AchievementRow({ achievements }: { achievements: CoachView['achievement
   return <div className="ach">{visible.map((a) => <span key={a.id} className={a.state}>{a.elite ? '★' : a.state === 'done' ? '✓' : a.state === 'late-done' ? '•' : a.state === 'live' ? '◔' : '×'} {a.label}</span>)}</div>
 }
 
-export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, performance, coaching, compact = false, recoveryMode = false }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; performance?: PersonalPerformance; coaching?: CoachingContext; compact?: boolean; recoveryMode?: boolean }) {
+export function CoachCard({ coach, heroName, clockText, support, heroes = [], settings, game, performance, coaching, compact = false, recoveryMode = false, onAnalyzeItems, itemAi }: { coach: CoachView; heroName: string; clockText: string; support?: Support | null; heroes?: Hero[]; settings: LiveSettings; game?: GameView | null; performance?: PersonalPerformance; coaching?: CoachingContext; compact?: boolean; recoveryMode?: boolean; onAnalyzeItems?: () => void; itemAi?: { busy: boolean; answer: string | null; error: string | null } }) {
   const f = settings.features, s = coach.stats
   // Phase-adaptive layout: laning = lane tools, mid game = goals + momentum, late game = essentials only.
   const adaptive = f.phaseAdaptive, late = adaptive && coach.phase === 'Late game', laning = !adaptive || coach.phase === 'Laning'
@@ -449,6 +495,13 @@ export function CoachCard({ coach, heroName, clockText, support, heroes = [], se
       {coaching.tips.slice(0, 3).map((tip, i) => <li key={i} className={tip.level}><Lightbulb size={11} />{tip.text}</li>)}
     </ul>}
     {items.length > 0 && <MatchItems items={items} />}
+    {items.length > 0 && onAnalyzeItems && <div className="item-ai">
+      <button type="button" className="text-button" disabled={itemAi?.busy} onClick={onAnalyzeItems}>
+        <BrainCircuit size={13} /> {itemAi?.busy ? 'Asking Puter…' : 'Ask Puter about this fight'}
+      </button>
+      {itemAi?.error && <small className="draft-note">{itemAi.error}</small>}
+      {itemAi?.answer && <p className="item-ai-answer">{itemAi.answer}</p>}
+    </div>}
     {!recoveryMode && game && <GameStrip game={game} />}
     {!recoveryMode && f.momentum && game && game.momentum.length > 1 && (!adaptive || coach.phase !== 'Laning' || game.momentum.length > 4) && <MomentumGraph points={game.momentum} />}
     {detailed && <div className="stat-row">

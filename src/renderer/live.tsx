@@ -141,9 +141,9 @@ export function LiveSetup({ api, context, live, onState, onAccount }: Props) {
         {!!live.coaching?.items?.length && settings.features.overlayAssistant && !live.recovery && <div className="live-item-ai">
           <button className="button secondary slim" type="button" disabled={!!busy} onClick={() =>
             void act('item-ai', async () => {
-              const answer = await api.askLiveCoach('Which of the suggested items should I prioritize for the next objective, and why?')
+              const answer = await api.analyzeItems()
               setItemAnswer({ context: itemContext, answer })
-            })}>{busy === 'item-ai' ? 'Asking Puter…' : 'Ask Puter about these items'}</button>
+            })}>{busy === 'item-ai' ? 'Asking Puter…' : 'Ask Puter about this fight'}</button>
           {itemAnswer?.context === itemContext && <p className="fine-print">{itemAnswer.answer}</p>}
         </div>}
         {live.recovery && <RecoveryCard recovery={live.recovery} />}

@@ -21,6 +21,7 @@ if (location.hash === '#achievements' || location.hash === '#map-alert' || locat
     draft: (input: unknown) => ipcRenderer.invoke('overlay:draft', input),
     done: () => ipcRenderer.invoke('overlay:done'),
     ask: (question: string) => ipcRenderer.invoke('overlay:ask', question),
+    analyzeItems: () => ipcRenderer.invoke('overlay:analyze-items'),
     sessionInfo: (gameType: string, lane: string) => ipcRenderer.invoke('overlay:session-info', gameType, lane),
     skipSession: () => ipcRenderer.invoke('overlay:skip-session'),
     dismissSummary: () => ipcRenderer.invoke('overlay:dismiss-summary'),
@@ -94,6 +95,7 @@ if (location.hash === '#achievements' || location.hash === '#map-alert' || locat
     openExternal: (target) => ipcRenderer.invoke('app:external', target),
     toggleAssistant: () => ipcRenderer.invoke('live:assistant'),
     askLiveCoach: (question) => ipcRenderer.invoke('live:ask', question),
+    analyzeItems: () => ipcRenderer.invoke('live:analyze-items'),
     setDeathKiller: (hero) => ipcRenderer.invoke('live:killer', hero),
     onAchievementSound: (callback) => {
       const listener = () => callback()

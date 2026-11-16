@@ -105,6 +105,7 @@ export const browserApi: AppApi = {
   async toggleAssistant() { return sampleLive },
   async setDeathKiller() { return sampleLive },
   async askLiveCoach() { throw new Error('Open the desktop app and connect Puter AI to ask a question.') },
+  async analyzeItems() { throw new Error('Open the desktop app and connect Puter AI to ask a question.') },
   onAchievementSound() { return () => {} },
   onLive(fn) { listeners.add(fn); return () => { listeners.delete(fn) } },
 }
