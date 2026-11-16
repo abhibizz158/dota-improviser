@@ -183,6 +183,28 @@ export function DiffChart({ players }: { players: MatchPlayer[] }) {
   </svg></div>
 }
 
+const teamMetrics = { gold: 'Net worth', xp: 'Experience' } as const
+/** Each team's combined total over time — not the Radiant-minus-Dire diff (DiffChart above), the two raw curves
+ * side by side. Same `minutes[].gold`/`.xp` series (OpenDota's own gold_t/xp_t, already net-worth/XP-over-time)
+ * every other chart on this page reads, just summed per team instead of per player or diffed. */
+export function TeamTotalsChart({ players }: { players: MatchPlayer[] }) {
+  const [metric, setMetric] = useState<keyof typeof teamMetrics>('gold')
+  const rad = players.filter((p) => p.side === 'Radiant' && p.minutes.length), dire = players.filter((p) => p.side === 'Dire' && p.minutes.length)
+  if (rad.length < 2 || dire.length < 2) return <Empty title="Team graph unavailable">Needs parsed data for both teams.</Empty>
+  const len = Math.min(...[...rad, ...dire].map((p) => p.minutes.length))
+  const points = Array.from({ length: len }, (_, i) => ({
+    y: rad.reduce((sum, p) => sum + (p.minutes[i][metric] ?? 0), 0),
+    comparison: dire.reduce((sum, p) => sum + (p.minutes[i][metric] ?? 0), 0),
+    label: clock(rad[0].minutes[i].time),
+  }))
+  return <section className="panel trend-panel">
+    <header className="panel-heading"><div><h2>Team totals</h2><p>Combined {teamMetrics[metric].toLowerCase()} for all five players on each team, over the match</p></div></header>
+    <div className="segment" aria-label="Team totals metric">{Object.entries(teamMetrics).map(([key, label]) =>
+      <button key={key} type="button" aria-pressed={metric === key} onClick={() => setMetric(key as typeof metric)}>{label}</button>)}</div>
+    <LineChart points={points} title={'Team ' + teamMetrics[metric] + ' over time'} comparisonLabel="Dire" primaryLabel="Radiant" />
+  </section>
+}
+
 /** Jagged torn-paper edge between the dark stage and the light guide sections. */
 export function TornEdge() {
   const pts = (() => {

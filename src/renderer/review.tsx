@@ -1,16 +1,24 @@
 import { ShareMatch } from './share-match'
 import { roleLabels } from '../shared/model'
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight, Clock3, FileSearch, Flag, ListFilter, RefreshCw, Target } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Clock3, FileSearch, Flag, LineChart as LineChartIcon, ListFilter, RefreshCw, Swords, Target } from 'lucide-react'
 import type { AppApi, Catalog, MatchPlayer, MatchReview, MatchSummary, ReviewEvent, SourceResult } from '../shared/model'
 import { atMinute, available, average, comparable } from '../shared/analysis'
-import { AdvChart, DiffChart, day, ReviewChart } from './charts'
+import { AdvChart, DiffChart, day, ReviewChart, TeamTotalsChart } from './charts'
 import { clock, Empty, Feedback, fmt, Portrait } from './ui'
 
 type Props = {
   api: AppApi; catalog: Catalog; account: string; id: string;
   history: MatchSummary[]; onImport: () => void; onBack: () => void;
 }
+
+const reviewTabs = [
+  { id: 'performance', label: 'Performance', icon: Target },
+  { id: 'timeline', label: 'Timeline', icon: Clock3 },
+  { id: 'team', label: 'Team', icon: Swords },
+  { id: 'events', label: 'Events', icon: ListFilter },
+] as const
+type ReviewTab = (typeof reviewTabs)[number]['id']
 
 const eventTabs = ['All events', 'Items', 'Vision', 'Objectives', 'Deaths'] as const
 const kinds: Record<(typeof eventTabs)[number], ReviewEvent['kind'] | ''> = {
@@ -26,16 +34,16 @@ function ObjectiveTimeline({ timeline }: { timeline: NonNullable<MatchReview['ti
   const rows = [1, 2, 3].flatMap((tier) => (['Top', 'Mid', 'Bot'] as const).map((lane) => ({ tier, lane })))
   const at = (team: 'Radiant' | 'Dire', tier: number, lane: string) => towers.find((t) => t.team === team && t.tier === tier && t.lane === lane)?.time
   const base = (team: 'Radiant' | 'Dire') => towers.filter((t) => t.team === team && t.tier === 4).map((t) => t.time)
-  return <section id="review-timeline" className="panel events-panel reveal">
+  return <section className="panel events-panel">
     <header className="panel-heading"><div><h2>Objective timeline</h2><p>When each building fell. Each column shows the team that lost it.</p></div></header>
     <div className="objective-chips">
       {timeline.firstBlood != null && <span className="chip epic">🩸 First blood {clockOf(timeline.firstBlood)}</span>}
       {first && <span className="chip good">🏰 First tower: {first.team === 'Radiant' ? 'Dire' : 'Radiant'} took {first.team}'s T{first.tier} {first.lane.toLowerCase()} at {clockOf(first.time)}</span>}
       {timeline.roshan.map((t, i) => <span key={i} className="chip hot">🛡 Roshan {i + 1} · {clockOf(t)}</span>)}
     </div>
-    {towers.length ? <table className="match-table obj-table"><thead><tr><th>Tower</th><th>Radiant lost</th><th>Dire lost</th></tr></thead>
+    {towers.length ? <div className="match-table-wrap"><table className="match-table obj-table"><thead><tr><th>Tower</th><th>Radiant lost</th><th>Dire lost</th></tr></thead>
       <tbody>{rows.map(({ tier, lane }) => <tr key={tier + lane}><td>T{tier} · {lane}</td><td>{at('Radiant', tier, lane) != null ? clockOf(at('Radiant', tier, lane)!) : '—'}</td><td>{at('Dire', tier, lane) != null ? clockOf(at('Dire', tier, lane)!) : '—'}</td></tr>)}
-        <tr><td>T4 · Base</td><td>{base('Radiant').map(clockOf).join(', ') || '—'}</td><td>{base('Dire').map(clockOf).join(', ') || '—'}</td></tr></tbody></table> : <Empty title="No building data" >Objectives appear once OpenDota has parsed the replay.</Empty>}
+        <tr><td>T4 · Base</td><td>{base('Radiant').map(clockOf).join(', ') || '—'}</td><td>{base('Dire').map(clockOf).join(', ') || '—'}</td></tr></tbody></table></div> : <Empty title="No building data" >Objectives appear once OpenDota has parsed the replay.</Empty>}
     {(timeline.goldAdv.length > 2 || timeline.xpAdv.length > 2) && <><h3 className="obj-sub">Gold and experience advantage (Dota's own graph)</h3><AdvChart gold={timeline.goldAdv} xp={timeline.xpAdv} /></>}
   </section>
 }
@@ -62,14 +70,14 @@ function TeamOverview({ players, catalog }: { players: MatchPlayer[]; catalog: C
   }
   const fmtValue = (v: number | null) => v == null ? '—' : perMinute ? v.toFixed(1) : Math.round(v).toLocaleString()
   const max = Object.fromEntries(columns.map(({ key }) => [key, Math.max(0, ...parsed.map((player) => value(player, key) ?? 0))]))
-  return <section id="review-team" className="panel team-overview reveal">
+  return <section className="panel team-overview">
     <header className="panel-heading"><div><h2>Team overview</h2><p>Final hero damage, tower damage, healing and net worth for every player this game — the highest in each column across both teams is marked</p></div>
       <div className="segment" aria-label="Totals or per-minute">
         <button type="button" aria-pressed={!perMinute} onClick={() => setPerMinute(false)}>Totals</button>
         <button type="button" aria-pressed={perMinute} onClick={() => setPerMinute(true)}>Per minute</button>
       </div>
     </header>
-    <table className="match-table team-overview-table">
+    <div className="match-table-wrap"><table className="match-table team-overview-table">
       <thead><tr><th>Player</th>{columns.map(({ key, label }) => <th key={key}>{label}</th>)}<th>Kill participation</th></tr></thead>
       {sides.map((side, i) => <tbody key={i} className="team-overview-side">
         {side.map((player) => {
@@ -81,7 +89,7 @@ function TeamOverview({ players, catalog }: { players: MatchPlayer[]; catalog: C
           </tr>
         })}
       </tbody>)}
-    </table>
+    </table></div>
   </section>
 }
 
@@ -97,6 +105,9 @@ export function Review({ api, catalog, account, id, history, onImport, onBack }:
   const [eventFilter, setEventFilter] = useState<(typeof eventTabs)[number]>('All events')
   const [eventLimit, setEventLimit] = useState(10)
   const [refresh, setRefresh] = useState(0)
+  const [tab, setTab] = useState<ReviewTab>('performance')
+
+  useEffect(() => { setTab('performance') }, [id])
 
   useEffect(() => {
     let current = true
@@ -205,13 +216,7 @@ export function Review({ api, catalog, account, id, history, onImport, onBack }:
     {loading && !match && <section className="panel"><Empty title="Loading match details">Fetching data from OpenDota.</Empty></section>}
     {id && !loading && !match && <section className="panel"><Empty title="Match details unavailable">Check the match ID or try again.</Empty></section>}
     {match && player && <>
-      <nav className="segment review-nav" aria-label="Jump to section">
-        <button type="button" onClick={() => document.getElementById('review-overview')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Overview</button>
-        <button type="button" onClick={() => document.getElementById('review-timeline')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Timeline</button>
-        <button type="button" onClick={() => document.getElementById('review-team')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Team stats</button>
-        <button type="button" onClick={() => document.getElementById('review-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Events</button>
-      </nav>
-      <section id="review-overview" className="panel review-summary">
+      <section className="panel review-summary reveal">
         <div className="review-hero"><Portrait hero={hero} /><div><h2>{hero?.name ?? 'Unknown hero'}</h2><p>{[player.role && player.role + ' (estimated)', player.side, player.mode, player.patch && 'Patch ' + player.patch].filter(Boolean).join(' · ')}</p></div></div>
         <span className={'result ' + (player.won ? 'win' : 'loss')}>{player.won ? 'Victory' : 'Defeat'}</span>
         <span className="review-duration"><Clock3 size={16} />{clock(player.duration)}</span>
@@ -227,8 +232,8 @@ export function Review({ api, catalog, account, id, history, onImport, onBack }:
       {result.stale && <Feedback message={'Showing cached match data from ' + new Date(result.updatedAt).toLocaleString()} />}
       <div className="review-stats">
         {[['K / D / A', [player.kills, player.deaths, player.assists].map((number) => fmt(number)).join(' / ')],
-          ['GPM', fmt(player.gpm)], ['XPM', fmt(player.xpm)], ['Last hits', fmt(player.lastHits)], ['Denies', fmt(player.denies)]].map(([label, value]) =>
-          <article key={label} className="panel review-stat"><span>{label}</span><strong>{value}</strong></article>)}
+          ['GPM', fmt(player.gpm)], ['XPM', fmt(player.xpm)], ['Last hits', fmt(player.lastHits)], ['Denies', fmt(player.denies)]].map(([label, value], i) =>
+          <article key={label} className="panel review-stat reveal" style={{ ['--i' as string]: i }}><span>{label}</span><strong>{value}</strong></article>)}
       </div>
       {match.localOnly && <section className="panel standalone"><p>Local scoreboard. Replay charts and purchase timelines are unavailable for this entry.</p></section>}
       {!match.parsed && !match.localOnly && <section className="panel standalone">
@@ -238,47 +243,55 @@ export function Review({ api, catalog, account, id, history, onImport, onBack }:
         <button className="button secondary" disabled={parse === 'pending' || parse === 'requesting'} onClick={requestParse}>
           {parse === 'pending' ? 'Parse queued' : parse === 'requesting' ? 'Submitting…' : 'Request replay parse'}</button>
       </section>}
-      <div className="detail-grid">
-        <ReviewChart player={player} />
-        <section className="panel focus-panel">
-          <header className="panel-heading"><div><h2>Next match focus</h2><p>One thing to work on</p></div><span className="metric-icon orange"><Target size={18} /></span></header>
-          <p className="focus-copy">{focus}</p>
-          <div className="mini-compare">
-            <div><span>Last hits at 5:00</span><strong>{fmt(atMinute(player, 5)?.lastHits)}</strong></div>
-            <div><span>Last hits at 10:00</span><strong>{fmt(currentTen?.lastHits)}</strong></div>
-          </div>
-          <div className="baseline">
-            <h3>Personal benchmark</h3>
-            {currentBaseline.length ? <>
-              <p>{currentBaseline.length} comparable {currentBaseline.length === 1 ? 'match' : 'matches'} · Same hero, role, side, and mode</p>
-              {([5, 10] as const).map((minute) => {
-                const stats = available(currentBaseline.map((entry) => atMinute(entry, minute)?.lastHits))
-                return <div className="benchmark-row" key={minute}><span>{minute}:00 average</span><strong>{fmt(average(stats))} LH <small>({stats.length})</small></strong></div>
-              })}
-            </> : <p>{personalRows.length ? 'Load comparable matches to see your normal pace.' : 'A matching hero, role, side, and mode are needed for comparison.'}</p>}
-            {personalRows.length > 0 && <button className="text-button" disabled={loadingBaseline} onClick={loadBaseline}>{loadingBaseline ? 'Loading comparable matches…' : 'Load comparable matches'} <ArrowRight size={14} /></button>}
-            <Feedback message={baselineMessage} />
-          </div>
-        </section>
+      <nav className="segment review-tabs" aria-label="Match review section">
+        {reviewTabs.map(({ id: tabId, label, icon: Icon }) => <button type="button" key={tabId} aria-pressed={tab === tabId} onClick={() => setTab(tabId)}><Icon size={14} />{label}</button>)}
+      </nav>
+      <div key={tab} className="review-tabpanel reveal">
+        {tab === 'performance' && <div className="detail-grid">
+          <ReviewChart player={player} />
+          <section className="panel focus-panel">
+            <header className="panel-heading"><div><h2>Next match focus</h2><p>One thing to work on</p></div><span className="metric-icon orange"><Target size={18} /></span></header>
+            <p className="focus-copy">{focus}</p>
+            <div className="mini-compare">
+              <div><span>Last hits at 5:00</span><strong>{fmt(atMinute(player, 5)?.lastHits)}</strong></div>
+              <div><span>Last hits at 10:00</span><strong>{fmt(currentTen?.lastHits)}</strong></div>
+            </div>
+            <div className="baseline">
+              <h3>Personal benchmark</h3>
+              {currentBaseline.length ? <>
+                <p>{currentBaseline.length} comparable {currentBaseline.length === 1 ? 'match' : 'matches'} · Same hero, role, side, and mode</p>
+                {([5, 10] as const).map((minute) => {
+                  const stats = available(currentBaseline.map((entry) => atMinute(entry, minute)?.lastHits))
+                  return <div className="benchmark-row" key={minute}><span>{minute}:00 average</span><strong>{fmt(average(stats))} LH <small>({stats.length})</small></strong></div>
+                })}
+              </> : <p>{personalRows.length ? 'Load comparable matches to see your normal pace.' : 'A matching hero, role, side, and mode are needed for comparison.'}</p>}
+              {personalRows.length > 0 && <button className="text-button" disabled={loadingBaseline} onClick={loadBaseline}>{loadingBaseline ? 'Loading comparable matches…' : 'Load comparable matches'} <ArrowRight size={14} /></button>}
+              <Feedback message={baselineMessage} />
+            </div>
+          </section>
+        </div>}
+        {tab === 'timeline' && (match.timeline ? <ObjectiveTimeline timeline={match.timeline} /> : <section className="panel"><Empty title="No timeline yet">Objectives and the gold/XP graph appear once OpenDota has parsed the replay.</Empty></section>)}
+        {tab === 'team' && <>
+          <TeamOverview players={match.players} catalog={catalog} />
+          <section className="panel trend-panel"><header className="panel-heading"><div><h2>Team gold lead</h2><p>Radiant minus Dire, minute by minute: find the moment the game turned</p></div><span className="metric-icon blue"><LineChartIcon size={16} /></span></header><DiffChart players={match.players} /></section>
+          <TeamTotalsChart players={match.players} />
+        </>}
+        {tab === 'events' && <section className="panel events-panel">
+          <header className="panel-heading"><div><h2>Replay events</h2><p>Item purchases, vision, objectives, and deaths</p></div><ListFilter size={18} className="quiet-icon" /></header>
+          <div className="segment" aria-label="Event type">{eventTabs.map((filterTab) => <button type="button" key={filterTab} aria-pressed={eventFilter === filterTab}
+            onClick={() => { setEventFilter(filterTab); setEventLimit(10) }}>{filterTab}</button>)}</div>
+          {events.length ? <div className="event-list">{events.slice(0, eventLimit).map((event, index) => {
+            const comparisons = event.kind === 'item' ? available(currentBaseline.map((entry) =>
+              entry.events.find((entry) => entry.kind === 'item' && entry.label === event.label)?.time)) : []
+            return <div key={event.label + index} className="event-row">
+              <span className="event-time">{clock(event.time)}</span><Flag size={14} /><strong>{event.label}</strong>
+              {comparisons.length > 0 && <span className="event-baseline">Avg. {clock(average(comparisons))} · {comparisons.length} {comparisons.length === 1 ? 'match' : 'matches'}</span>}
+              <span className={'event-kind ' + event.kind}>{event.kind}</span>
+            </div>
+          })}{events.length > eventLimit && <button className="text-button" onClick={() => setEventLimit(eventLimit + 10)}>Show more events <ArrowRight size={14} /></button>}</div> :
+            <Empty title="No events available for this view" />}
+        </section>}
       </div>
-      {match.timeline && <ObjectiveTimeline timeline={match.timeline} />}
-      <TeamOverview players={match.players} catalog={catalog} />
-      <section className="panel trend-panel reveal"><header className="panel-heading"><div><h2>Team gold lead</h2><p>Radiant minus Dire, minute by minute: find the moment the game turned</p></div></header><DiffChart players={match.players} /></section>
-      <section id="review-events" className="panel events-panel">
-        <header className="panel-heading"><div><h2>Replay events</h2><p>Item purchases, vision, objectives, and deaths</p></div><ListFilter size={18} className="quiet-icon" /></header>
-        <div className="segment" aria-label="Event type">{eventTabs.map((tab) => <button type="button" key={tab} aria-pressed={eventFilter === tab}
-          onClick={() => { setEventFilter(tab); setEventLimit(10) }}>{tab}</button>)}</div>
-        {events.length ? <div className="event-list">{events.slice(0, eventLimit).map((event, index) => {
-          const comparisons = event.kind === 'item' ? available(currentBaseline.map((entry) =>
-            entry.events.find((entry) => entry.kind === 'item' && entry.label === event.label)?.time)) : []
-          return <div key={event.label + index} className="event-row">
-            <span className="event-time">{clock(event.time)}</span><Flag size={14} /><strong>{event.label}</strong>
-            {comparisons.length > 0 && <span className="event-baseline">Avg. {clock(average(comparisons))} · {comparisons.length} {comparisons.length === 1 ? 'match' : 'matches'}</span>}
-            <span className={'event-kind ' + event.kind}>{event.kind}</span>
-          </div>
-        })}{events.length > eventLimit && <button className="text-button" onClick={() => setEventLimit(eventLimit + 10)}>Show more events <ArrowRight size={14} /></button>}</div> :
-          <Empty title="No events available for this view" />}
-      </section>
     </>}
   </>
 }
