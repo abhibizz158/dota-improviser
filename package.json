@@ -34,8 +34,8 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.0",
-    "electron": "^45.3.1",
-    "lucide-react": "^1.72.0",
+    "electron": "^45.4.1",
+    "lucide-react": "^1.77.0",
     "node-gyp": "^12.4.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "@heyputer/puter.js": "2.6.3",
-    "dotaconstants": "^10.8.0"
+    "dotaconstants": "^10.9.0"
   },
   "dotaImproviser": {
     "updateRepo": ""
