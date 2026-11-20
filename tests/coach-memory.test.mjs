@@ -28,6 +28,24 @@ test('respawn advice starts in lane, prioritizes a confirmed enemy and clears on
   assert.equal(recoveryAdvice({ ...frame, respawnSeconds: 0 }, 'Mid', null), null)
 })
 
+test('an unconfirmed death still names a likely killer by matching the debuff you died under against kits', () => {
+  const enemies = [
+    { hero: { id: 2, name: 'Axe' }, kit: { a: [{ n: 'Berserker’s Call', x: true, p: false, c: ['taunt'] }] } },
+    { hero: { id: 3, name: 'Bane' }, kit: { a: [{ n: 'Nightmare', x: false, p: false, c: ['hex'] }] } },
+  ]
+  const rows = [{ enemy: 2, games: 300, rate: 44 }, { enemy: 3, games: 300, rate: 44 }]
+  const hexed = { stunned: false, silenced: false, disarmed: false, hexed: true, muted: false, broken: false, magicImmune: false, smoked: false }
+  const matched = knownThreat(enemies, rows, null, hexed)
+  assert.equal(matched.name, 'Bane')
+  assert.equal(matched.confirmed, false)
+  assert.equal(matched.likely, true)
+  const advice = recoveryAdvice(frame, 'Mid', { phase: 'Laning' }, { threat: matched })
+  assert.equal(advice.threat, 'Likely killer (matches the debuff you died under) · Bane')
+  // No matching debuff at all: falls back to ability/matchup ranking exactly as before, never a false "likely".
+  const noMatch = knownThreat(enemies, rows, null, { ...hexed, hexed: false })
+  assert.equal(noMatch.likely, false)
+})
+
 test('death breakdown reads only the last-alive frame\'s own status/health/buyback, never the dead frame', () => {
   const alive = { status: { stunned: false, silenced: true, disarmed: true, hexed: false, muted: false, broken: false, magicImmune: false, smoked: false },
     healthPct: 8, manaPct: 40, buybackCost: 1850, buybackCooldown: 0 }

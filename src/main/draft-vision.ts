@@ -111,7 +111,7 @@ function matchSlot(bar: NativeImage, center: number, layoutScale: number, learne
   let sample: Feature | null = null
   for (const slide of [-0.003, 0, 0.003]) {
     for (const width of [0.038, 0.046, 0.052]) {
-      for (const [top, bottom] of [[0.072, 0.857], [0.09, 0.75], [0.144, 0.647]]) {
+      for (const [top, bottom] of [[0.072, 0.857], [0.09, 0.75], [0.144, 0.647], [0.05, 0.95]]) {
         const x = center + slide * layoutScale
         const half = width * layoutScale / 2
         if (x - half < 0 || x + half > 1) continue

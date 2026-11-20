@@ -549,7 +549,14 @@ export function DeathSnapshotCard({ deathSnapshot }: { deathSnapshot: { at: numb
 /** Large, dismissible end-of-game card — replaces relying on the short achievement toast alone for the result.
  * Stays up until you close it (or the next match replaces it), and compares this game against your own average
  * on this hero so "better or worse than before" is a real number from your own saved history, not a guess. */
-export function MatchSummaryCard({ summary, onClose }: { summary: MatchSummaryView; onClose?: () => void }) {
+/** A single-match "battle report": real numbers only, organized into the same sections a post-game summary
+ * actually has data for — this match's own facts (hero, mode, duration, result), then your stats for it, each
+ * compared against your own saved average on this hero where there's enough history to mean something. No
+ * lifetime aggregate section (total games, overall win rate, career-high anything) — that needs tracking across
+ * every match the way Match Review's own history does, which this per-match card doesn't have, so it isn't
+ * shown rather than faked. */
+export function MatchSummaryCard({ summary, heroes, onClose }: { summary: MatchSummaryView; heroes: Hero[]; onClose?: () => void }) {
+  const hero = summary.heroId != null ? heroes.find((h) => h.id === summary.heroId) : undefined
   const delta = (value: number, d: number | null, decimals = 0) => <span>
     <b>{fmt(value, decimals)}</b>
     {d != null && d !== 0 && <small className={d > 0 ? 'positive' : 'negative'}> {d > 0 ? '+' : ''}{fmt(d, decimals)} vs your avg</small>}
@@ -558,6 +565,14 @@ export function MatchSummaryCard({ summary, onClose }: { summary: MatchSummaryVi
     <Head icon={<Trophy size={13} />} tag={summary.won == null ? 'Match ended' : summary.won ? 'Victory' : 'Defeat'}
       sub={summary.sampleGames >= 3 ? `vs your last ${summary.sampleGames} games on this hero` : 'Not enough games on this hero yet to compare'} />
     {onClose && <button type="button" className="match-summary-close" aria-label="Close match summary" onClick={onClose}><X size={14} /></button>}
+    <div className="summary-section-label">Game</div>
+    <div className="summary-game-row">
+      {hero && <span className="summary-hero"><Portrait hero={hero} className="summary-hero-portrait" /> {hero.name}</span>}
+      {summary.role && <span className="role-chip">{roleLabels[summary.role]}</span>}
+      {summary.gameType && <span className="chip">{summary.gameType}</span>}
+      <span className="chip">{clock(summary.duration)}</span>
+    </div>
+    <div className="summary-section-label">Your stats</div>
     <div className="stat-row">
       <span><b>{summary.kills}/{summary.deaths}/{summary.assists}</b><small>K/D/A</small></span>
       <span>{delta(summary.gpm, summary.deltas.gpm)}<small>GPM</small></span>

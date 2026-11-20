@@ -150,6 +150,10 @@ let tray: Tray | null = null
 let overlay: BrowserWindow | null = null
 let overlayHeight: number | null = null
 let overlayRequested = false
+// True while the overlay window is up but still waiting on its first real 'overlay:height' report — shown at
+// a default 186px then immediately resized to the real content height produced a visible pop/jump on every
+// appearance. Held back until the first measurement lands instead, so it shows already at the right size.
+let overlayPendingFirstShow = false
 let overlayTimer: NodeJS.Timeout | undefined
 let hoverTimer: NodeJS.Timeout | undefined
 let moveTopTimer: NodeJS.Timeout | undefined
@@ -667,6 +671,7 @@ function matchSummaryCard(record: SessionRecord): LiveState['matchSummary'] {
     gpm: record.gpm ?? 0, xpm: record.xpm ?? 0, lastHits: record.lastHits ?? 0, focus,
     deltas: { gpm: delta(record.gpm, stats?.gpm), xpm: delta(record.xpm, stats?.xpm), lastHits: delta(lhpm, stats?.lhpm) },
     sampleGames: stats ? Math.round(stats.n) : 0,
+    heroId: record.heroId, role: record.lane, gameType: record.gameType, duration: record.clock,
   }
 }
 
@@ -778,9 +783,37 @@ function broadcast() {
   return value
 }
 
+/** A network drop (or any gap in GSI posts past the 14s stale timeout) used to wipe this entire match's
+ * tracked progress — kill streaks, achievement progress, checkpoints, performance samples — even though the
+ * real match was often still running and about to resume once the feed reconnected. `resetSession('Feed
+ * stale')` now keeps one snapshot of that progress, keyed by the match id it belonged to, so a frame that
+ * reconnects to the SAME still-live match (`resumeSuspendedMatch`, called from `receive()` once a fresh frame
+ * carries a matching matchId) picks the session back up instead of starting over at zero. A genuinely new or
+ * different match (`newPractice` in `receive()`) still resets clean, same as before — this only covers the
+ * reconnect-to-the-same-match case. Expires after 10 minutes so a match abandoned for good doesn't linger. */
+const SUSPENDED_MATCH_MS = 10 * 60 * 1000
+function sessionSnapshot() {
+  return { track, awarded, seen, checkpoints, performanceSamples, performanceHistory, outlook, outlookPoints,
+    sessionGameType, sessionLane, sessionInfoDismissed, roshan, deathCase }
+}
+let suspendedMatch: { matchId: string; at: number; snapshot: ReturnType<typeof sessionSnapshot> } | null = null
+
+function resumeSuspendedMatch(matchId: string) {
+  if (!suspendedMatch || suspendedMatch.matchId !== matchId || Date.now() - suspendedMatch.at > SUSPENDED_MATCH_MS) {
+    suspendedMatch = null
+    return
+  }
+  ;({ track, awarded, seen, checkpoints, performanceSamples, performanceHistory, outlook, outlookPoints,
+    sessionGameType, sessionLane, sessionInfoDismissed, roshan, deathCase } = suspendedMatch.snapshot)
+  suspendedMatch = null
+}
+
 function resetSession(next: LiveState['status']) {
   clearTimeout(timeout)
   timeout = undefined
+  if (next === 'Feed stale' && frame?.matchId && !sessionCompleted) {
+    suspendedMatch = { matchId: frame.matchId, at: Date.now(), snapshot: sessionSnapshot() }
+  }
   const showComeback = sessionCompleted && overlay?.isVisible() && overlayRequested
   finishGame()
   ++sessionRevision
@@ -913,7 +946,12 @@ function updateDraftVision() {
     const active = () => visionTimer === timer && canReadDraft()
     void captureDraftPicks(active(), draftVisionTarget(active)).then((result) => {
       if (!active()) return
-      if (!result) { visionLastRead = null; return }
+      // A transient capture miss (window briefly occluded, a capture race, a blank/corrupt thumbnail) used to
+      // null out visionLastRead here, discarding an already-good confirmation chain and forcing two more clean
+      // reads from scratch before anything could confirm again — exactly the kind of gap that let a hero lock
+      // late in the pick window go unrecognized. A real capture is only ever compared against the previous
+      // real capture now; a single failed attempt just retries next tick with the chain intact.
+      if (!result) return
       const confirmed = visionLastRead && confirmDraftPicks(visionLastRead, result, draft.vision)
       visionLastRead = result
       const ownSlots = pick?.team === 'Dire' ? result.dire : result.radiant
@@ -932,10 +970,8 @@ function updateDraftVision() {
       draft = { ...draft, vision: confirmed, visionTeam: pick.team }
       refreshDraftMatchups()
       broadcastSoon()
-    }).catch(() => {
-      if (!active()) return
-      visionLastRead = null
-    }).finally(() => { visionInFlight = false })
+    }).catch(() => { /* Same reasoning as the !result branch above: leave visionLastRead intact and retry next tick. */ })
+      .finally(() => { visionInFlight = false })
   }, 2500)
   visionTimer = timer
   timer.unref()
@@ -1025,7 +1061,7 @@ function updateDeathThreat() {
   const { enemy } = lineup()
   const { frame: snapshot, killer, role, phase } = deathCase
   const hero = snapshot.heroId
-  deathCase.threat = knownThreat(coachHeroes(enemy), hero == null ? [] : coachMatchups(hero, enemy), deathCase.killer)
+  deathCase.threat = knownThreat(coachHeroes(enemy), hero == null ? [] : coachMatchups(hero, enemy), deathCase.killer, deathCase.before?.status)
   const records = settings.features.learning && account ? store.get<DeathCase[]>('coach-deaths:' + account) ?? [] : []
   deathCase.repeats = records.find((entry) => entry.key === deathScenarioKey(liveScenario(snapshot, killer, role, phase)))?.times ?? 0
 }
@@ -1129,7 +1165,7 @@ function receive(value: unknown) {
     }
   }
   if (settings.saveOwnMatches && isPostGame) {
-    const completed = parseCompletedOwnMatch(value, steamId)
+    const completed = parseCompletedOwnMatch(value, steamId, catalog.patch)
     if (completed) {
       const fields = [completed.kills, completed.deaths, completed.assists, completed.gpm, completed.xpm, completed.lastHits, completed.denies].filter((field) => field != null).length
       if (latestLocalMatch?.id !== completed.id || fields > latestLocalMatch.fields) {
@@ -1185,6 +1221,10 @@ function receive(value: unknown) {
     receivedAt = now
     timeout = setTimeout(() => { resetSession('Feed stale'); broadcast() }, 14000)
   }
+  // The feed reconnecting to the same match it was stale-reset out of (frameBefore is null, since the stale
+  // reset already ran) picks that match's suspended progress back up instead of starting this checkpoint/
+  // achievement/performance tracking over at zero.
+  if (!frameBefore && nextFrame?.matchId) resumeSuspendedMatch(nextFrame.matchId)
   checkpoints = updateCheckpoints(newPractice ? null : lane, next, checkpoints)
   lane = next
   frame = nextFrame
@@ -1536,6 +1576,15 @@ function updateOverlayTracking() {
   overlayTimer.unref()
 }
 
+/** Shows the overlay window, unless its content height has never been measured yet — showing at the
+ * constructor's placeholder size and then immediately resizing to the real measured height produced a visible
+ * pop on every appearance. The deferred show happens from the 'overlay:height' handler once a real measurement
+ * (and the correctly-sized placeOverlay() that follows it) lands. */
+function presentOverlay(window: BrowserWindow) {
+  if (overlayHeight === null) { overlayPendingFirstShow = true; return }
+  window.showInactive()
+}
+
 function requestOverlay(edit: boolean) {
   clearTimeout(auxWindowIdleTimer)
   const window = overlay ?? makeOverlay()
@@ -1553,7 +1602,7 @@ function requestOverlay(edit: boolean) {
     window.setIgnoreMouseEvents(view !== 'setup', { forward: true })
     window.setFocusable(view === 'setup')
     placeOverlay(window)
-    window.showInactive()
+    presentOverlay(window)
     updateOverlayTracking()
   }
 }
@@ -2308,16 +2357,20 @@ function handlers() {
     if (typeof value !== 'number' || !Number.isFinite(value)) return
     const measured = Math.min(2400, Math.max(48, Math.ceil(value)))
     if (overlay && event.sender === overlay.webContents && event.senderFrame === overlay.webContents.mainFrame) {
-      if (overlayHeight === measured) return
+      if (overlayHeight === measured && !overlayPendingFirstShow) return
       overlayHeight = measured
       placeOverlay(overlay)
+      if (overlayPendingFirstShow) { overlayPendingFirstShow = false; overlay.showInactive() }
     } else if (achievementWindow && event.sender === achievementWindow.webContents && event.senderFrame === achievementWindow.webContents.mainFrame) {
+      if (achievementHeight === measured) return
       achievementHeight = measured
       placeAchievementWindow()
     } else if (mapAlertWindow && event.sender === mapAlertWindow.webContents && event.senderFrame === mapAlertWindow.webContents.mainFrame) {
+      if (mapAlertHeight === measured) return
       mapAlertHeight = measured
       placeMapAlertWindow()
     } else if (tipWindow && event.sender === tipWindow.webContents && event.senderFrame === tipWindow.webContents.mainFrame) {
+      if (tipHeight === measured) return
       tipHeight = measured
       placeTipWindow()
     }

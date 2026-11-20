@@ -4,9 +4,9 @@ import type { Matchup } from './guide.js'
 import { counterItems } from './item-coaching.js'
 import type { ItemRecommendation } from './item-coaching.js'
 import type { ItemInfo } from './items.js'
-import type { Kit, KitsDb } from './mechanics.js'
+import type { Kit, KitsDb, Status } from './mechanics.js'
 import { CONTROL, teamProfile } from './mechanics.js'
-import type { Frame, GameType, Hero, Role } from './model.js'
+import type { Frame, GameType, Hero, HeroStatus, Role } from './model.js'
 
 export const brackets = ['Herald', 'Guardian', 'Crusader', 'Archon', 'Legend', 'Ancient', 'Divine', 'Immortal'] as const
 export type Bracket = typeof brackets[number]
@@ -23,14 +23,32 @@ export type CoachHero = { hero: Hero; kit?: Kit }
 const control = (kit?: Kit) => kit?.a.find((a) => !a.p && a.c.some((effect) => (CONTROL[effect] ?? 0) >= 0.6))
 const followUp = (kit?: Kit) => kit?.a.find((a) => !a.p && a.c.some((effect) => ['heal', 'barrier', 'dispel'].includes(effect)))
 
-export function knownThreat(opponents: CoachHero[], rows: Matchup[], killer: number | null = null) {
+// Maps each GSI own-player debuff flag (zero-inference, already read for the status strip/death breakdown) to
+// the mechanics-model Status tag an ability that inflicts it would carry — letting a death matched against
+// "which revealed enemy's kit can actually do that to you" stand in for a real killer confirmation when you
+// never typed one in. No new data and no guessing: both sides of the match (your own debuff, their own kit
+// tags) were already read for an unrelated purpose each.
+const STATUS_TO_EFFECT: Partial<Record<keyof HeroStatus, Status>> = {
+  stunned: 'stun', silenced: 'silence', disarmed: 'disarm', hexed: 'hex', muted: 'mute', broken: 'break',
+}
+
+/** Who to actually worry about: a hero you confirmed killed you, then one whose kit can inflict the exact
+ * debuff you were still under right before dying (`beforeStatus` — a real, zero-guess cross-reference, not a
+ * confirmation but stronger evidence than "has some dangerous ability"), then any hero with a notably strong
+ * control ability, then whoever the real matchup data says is your worst lane/lineup matchup. */
+export function knownThreat(opponents: CoachHero[], rows: Matchup[], killer: number | null = null, beforeStatus?: Partial<HeroStatus> | null) {
+  const activeEffects = new Set((Object.keys(STATUS_TO_EFFECT) as (keyof HeroStatus)[])
+    .filter((key) => beforeStatus?.[key]).map((key) => STATUS_TO_EFFECT[key]!))
   const ranked = opponents.map(({ hero, kit }) => ({
     hero, kit, ability: kit?.a.find((a) => a.x && !a.p && a.c.some((effect) => (CONTROL[effect] ?? 0) >= 0.6)) ?? control(kit),
+    statusMatch: activeEffects.size > 0 && (kit?.a.some((a) => !a.p && a.c.some((effect) => activeEffects.has(effect))) ?? false),
     rate: rows.find((row) => row.enemy === hero.id && row.games >= 60)?.rate ?? 50,
   })).sort((a, b) => Number(b.hero.id === killer) - Number(a.hero.id === killer) ||
+    Number(b.statusMatch) - Number(a.statusMatch) ||
     Number(Boolean(b.ability)) - Number(Boolean(a.ability)) || a.rate - b.rate)
   const entry = ranked[0]
   return entry ? { name: entry.hero.name, ability: entry.ability, confirmed: entry.hero.id === killer,
+    likely: entry.hero.id !== killer && entry.statusMatch,
     magic: (entry.kit?.a.filter((a) => a.d === 2).length ?? 0) >= 2 } : null
 }
 

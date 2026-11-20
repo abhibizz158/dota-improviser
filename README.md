@@ -28,7 +28,7 @@ Built for fun by a Dota player, for Dota players. **Free, open, and not monetize
 - **Coaches you live** — a small overlay on top of Dota with your stats, a live win estimate, item suggestions for what you're facing, and reminders for runes, day/night, and stacking.
 - **Reviews your games** — a clean, minute-by-minute breakdown after the match: who got ahead and when, your item timing, objectives.
 - **Tracks your achievements** — kill streaks, multi-kills, milestones, and per-hero goals, all in one trophy case.
-- **Learns your style** — the more you play, the more its advice fits *you*: your comfort picks, your real item habits, your past games against similar lineups.
+- **Learns and adapts as you play** — every match you finish retrains your own profile: which heroes you're actually comfortable on, which items have genuinely worked out for you, and your real record against lineups shaped like the one you're facing. Older matches matter less over time, and matches from before a Dota patch count for even less, so your advice doesn't get stuck on outdated patch habits. This is private per player — your own learning never mixes with or affects anyone else using the app.
 - **Has an optional AI assistant** — ask it a question about your draft or your current game, if you want a second opinion.
 - **Stays out of the way** — closes to the system tray, follows Dota's window automatically, and never covers more than a small corner of your screen.
 

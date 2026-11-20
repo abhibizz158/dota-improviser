@@ -51,8 +51,16 @@ function gate(value: unknown, expectedSteamId: string, matchmaking: boolean, pha
 }
 
 const completedPhases = new Set(['DOTA_GAMERULES_STATE_POST_GAME'])
-/** This projection is only used for local history, after a result is available. */
-export function parseCompletedOwnMatch(value: unknown, expectedSteamId: string, now = Date.now()): MatchSummary | null {
+/** This projection is only used for local history, after a result is available. GSI itself carries no patch/
+ * version field at all for a completed match — there's no official mapping from the local Steam build number
+ * to a human patch name ("7.42") shipped anywhere the app can read, so `currentPatch` (the app's own already-
+ * tracked latest known patch, refreshed by `watchPatch` on every Dota update) is the caller's best honest stamp
+ * for "what patch was live when this match was actually played," not a guess at the real value. A locally-saved
+ * match used to always carry `patch: ''`, which `learnProfile`'s patch-age decay (`behind()` in brain.ts) reads
+ * as "can't place this on the patch timeline" and so never ages it by patch at all — only the separate 120-day
+ * recency half-life applied. That let an old local-only match keep full patch-relevance weight forever, the
+ * exact kind of old-patch-data-colliding-with-new-patch-behavior gap a learning system shouldn't have. */
+export function parseCompletedOwnMatch(value: unknown, expectedSteamId: string, currentPatch = '', now = Date.now()): MatchSummary | null {
   const g = gate(value, expectedSteamId, true, completedPhases)
   if (!g) return null
   const id = String(g.map.matchid ?? '')
@@ -63,7 +71,7 @@ export function parseCompletedOwnMatch(value: unknown, expectedSteamId: string, 
   return { id, heroId, side, start: Math.floor(now / 1000) - Math.floor(g.clock), duration: Math.floor(g.clock),
     won: side.toLowerCase() === winner, kills: stat(g.player.kills), deaths: stat(g.player.deaths), assists: stat(g.player.assists),
     gpm: stat(g.player.gpm), xpm: stat(g.player.xpm), lastHits: stat(g.player.last_hits), denies: stat(g.player.denies),
-    patch: '', mode: '', role: null, source: 'local', status: 'completed' }
+    patch: currentPatch, mode: '', role: null, source: 'local', status: 'completed' }
 }
 
 /** Own item keys from the player's own inventory: slots, backpack, stash, neutral. */

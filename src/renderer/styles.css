@@ -473,8 +473,12 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
 .momentum { display: grid; gap: 3px; } .momentum-head { display: flex; justify-content: space-between; align-items: baseline; } .momentum small { font: 700 9.5px var(--display); letter-spacing: .16em; color: var(--muted); } .momentum b { font: 800 15px var(--display); }
 .momentum svg { width: 100%; height: 44px; display: block; }
 .game-strip, .objective-chips, .roshan-timer { display: flex; flex-wrap: wrap; gap: 5px; }
-.match-summary-card { position: relative; display: grid; gap: 7px; padding: 10px 12px; background: var(--glass-strong); border: 1px solid var(--line); border-left: 2px solid var(--gold); border-radius: 9px; min-width: 260px; }
+.match-summary-card { position: relative; display: grid; gap: 7px; padding: 10px 12px; background: var(--glass-strong); border: 1px solid var(--line); border-left: 2px solid var(--gold); border-radius: 9px; min-width: 260px; max-width: 380px; }
 .match-summary-card .stat-row b { display: block; }
+.summary-section-label { font: 700 9.5px var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin-top: 2px; }
+.summary-game-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.summary-hero { display: inline-flex; align-items: center; gap: 5px; font: 700 12px var(--display); }
+.summary-hero-portrait { width: 28px; height: 16px; }
 .match-summary-close { position: absolute; top: 7px; right: 7px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--muted); cursor: pointer; }
 .match-summary-close:hover { color: var(--text); background: rgba(255,255,255,.12); }
 .warding-widget { margin-top: 6px; }
@@ -598,7 +602,13 @@ kbd { font: 600 10px var(--font-ui); padding: 1px 5px; border-radius: 4px; backg
   animation: rise .35s cubic-bezier(.2,.8,.2,1) both;
 }
 @media (prefers-reduced-motion: reduce) { .death-snapshot-card { animation: none; } }
-.death-snapshot-card img { width: 100%; border-radius: 5px; display: block; }
+/* A capped thumbnail, not a full growing screenshot: this card stacks below the main coach card (itself tall
+ * in detailed mode), and the overlay window hard-caps at half the monitor height (overlayBounds) with the root
+ * .overlay-scroll falling back to overflow:hidden if that cap ever binds — letting this image grow to its full
+ * resized width (720px wide, ~405px tall at 16:9) pushed combined content past that cap on smaller/laptop
+ * monitors often enough to clip text mid-card. 150px is still plenty to recognize what was on screen for a
+ * quick self-review glance, which is this card's only job. */
+.death-snapshot-card img { width: 100%; max-height: 150px; object-fit: cover; object-position: top; border-radius: 5px; display: block; }
 .obj-table td:not(:first-child) { font-variant-numeric: tabular-nums; } .obj-sub { margin: 14px 0 6px; }
 .team-overview-table td:not(.team-overview-hero) { font-variant-numeric: tabular-nums; text-align: right; }
 .team-overview-table th:not(:first-child) { text-align: right; }

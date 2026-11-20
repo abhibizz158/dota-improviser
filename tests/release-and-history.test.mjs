@@ -41,6 +41,10 @@ test('local GSI history only accepts a completed own match and never qualifies i
     player: { steamid: id, activity: 'playing', team_name: 'radiant', kills: 6, deaths: 1 }, hero: { name: 'npc_dota_hero_axe' },
   }
   assert.equal(parseCompletedOwnMatch(packet, id)?.won, true)
+  // GSI itself carries no patch field for a completed match — the caller's own currently-known patch is stamped
+  // on instead of the match staying permanently un-ageable by learnProfile's patch-decay (brain.ts's `behind()`).
+  assert.equal(parseCompletedOwnMatch(packet, id)?.patch, '')
+  assert.equal(parseCompletedOwnMatch(packet, id, '7.42')?.patch, '7.42')
   assert.equal(parseCompletedOwnMatch(packet, '76561197960265771'), null)
   assert.equal(parseCompletedOwnMatch({ ...packet, map: { ...packet.map, spectating: true } }, id), null)
   const live = { ...packet, map: { ...packet.map, game_state: 'DOTA_GAMERULES_STATE_GAME_IN_PROGRESS' } }

@@ -100,7 +100,7 @@ function Overlay() {
           onAnalyzeItems={window.overlayApi?.analyzeItems && live.settings.features.overlayAssistant ? askItemAi : undefined} itemAi={itemAi} />
         : <LaneCard live={live} hero={hero} />}
     {recovery && <RecoveryCard recovery={recovery} />}
-    {live.matchSummary && <MatchSummaryCard summary={live.matchSummary} onClose={() => void window.overlayApi?.dismissSummary()} />}
+    {live.matchSummary && <MatchSummaryCard summary={live.matchSummary} heroes={builtInCatalog.heroes} onClose={() => void window.overlayApi?.dismissSummary()} />}
     {live.settings.features.deathSnapshot && editorial && live.deathSnapshot && <DeathSnapshotCard deathSnapshot={live.deathSnapshot} />}
     {live.settings.features.roshanTimer && editorial && <RoshanTimer roshan={live.roshan} />}
     {support && editorial && <WardingWidget side={live.game?.team ?? null} phase={live.coach?.phase} />}

@@ -93,7 +93,9 @@ export function recoveryAdvice(frame: Frame, role: Role, view: CoachView | null,
     ? `${nextItem.name} fits your current gold. Check buyback before buying it.`
     : counterItem ? `${counterItem.name} · ${counterItem.reason}`
     : threat?.magic && !owned.includes('glimmer_cape') && support && !lane ? 'Consider Glimmer Cape if you need a save against their magic damage.' : undefined)
-  const evidence = threat?.confirmed ? `Killer you confirmed · ${threat.name}` : threat?.ability ? `Lineup threat · ${threat.name}` : undefined
+  const evidence = threat?.confirmed ? `Killer you confirmed · ${threat.name}`
+    : threat?.likely ? `Likely killer (matches the debuff you died under) · ${threat.name}`
+    : threat?.ability ? `Lineup threat · ${threat.name}` : undefined
   const detail = { seconds, threat: evidence, repeats: priorCases, followUp, breakdown }
   if (threatTip) return { ...detail, title: 'Avoid the next catch', tip: threatTip }
   if (lane && support) return { ...detail, title: 'Rejoin your lane partner', tip: 'Return to the next wave together. Trade from allied vision and keep a retreat to your tower.' }

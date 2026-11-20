@@ -203,6 +203,8 @@ export type MatchSummaryView = {
   focus: string | null
   deltas: { gpm: number | null; xpm: number | null; lastHits: number | null }
   sampleGames: number
+  /** Battle-report header fields — all already captured for the session record, just not surfaced here before. */
+  heroId: number | null; role: Role | null; gameType: GameType | null; duration: number
 }
 
 export type MechRow = { heroId: number; edge: number; parts: { label: FeatureName; points: number }[] }
