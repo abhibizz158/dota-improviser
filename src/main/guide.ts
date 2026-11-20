@@ -2,7 +2,7 @@ import { hostAllowed } from '../shared/guard.js'
 import { stripTags } from '../shared/guide.js'
 import type { DurationRow, HeroGuide, HeroInfo, LaneRow } from '../shared/guide.js'
 import type { Store } from './store.js'
-import { asRecord, number } from './data.js'
+import { asRecord, catalog, number } from './data.js'
 
 const ATTR = ['Strength', 'Agility', 'Intelligence', 'Universal']
 const LANES: LaneRow['lane'][] = ['Safe', 'Mid', 'Off', 'Jungle']
@@ -23,7 +23,12 @@ export const nums = (v: unknown) => { const list = Array.isArray(v) ? v.filter((
 
 /** Valve hero feed + OpenDota lane/duration win rates for one hero. Cached 24h; each source may fail independently. */
 export async function loadGuide(store: Store, id: number): Promise<HeroGuide> {
-  const key = '/guide/' + id
+  // Keyed by patch too, not just hero id: this cache's own 24h window used to outlive a Dota patch outright
+  // (ability cooldowns/mana/stats can change same-patch-to-patch on dota2.com/datafeed/herodata), so a guide
+  // fetched right before a patch could go on showing the previous patch's real ability numbers for up to a
+  // full day after the new one shipped. A patch bump now gets a fresh fetch immediately; the old per-patch
+  // entry is simply never read again rather than needing an explicit delete.
+  const key = '/guide/' + id + ':' + catalog.patch
   const saved = store.cached<HeroGuide>(key)
   if (saved && Date.now() - saved.updatedAt < day) return saved.data
   const [feed, lanes, durations] = await Promise.allSettled([
