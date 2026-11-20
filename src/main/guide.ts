@@ -15,7 +15,11 @@ async function getJson(url: string): Promise<unknown> {
   return res.json()
 }
 const list = (v: unknown) => Array.isArray(v) ? v.map(asRecord) : []
-const nums = (v: unknown) => Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number').join('/') : ''
+// Valve's own herodata feed reports a flat 0 for abilities with no cast cooldown/mana cost (Searing
+// Arrows, Death Pact, Infernal Shred on Clinkz are all genuinely 0 there, not missing data) — rendering
+// "Cooldown 0/0/0/0" read exactly like a parsing bug. Collapsing an all-zero list to '' lets the caller
+// omit the line entirely, the same treatment it already gives a field Valve sends nothing for.
+export const nums = (v: unknown) => { const list = Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : []; return list.length && list.some((n) => n !== 0) ? list.join('/') : '' }
 
 /** Valve hero feed + OpenDota lane/duration win rates for one hero. Cached 24h; each source may fail independently. */
 export async function loadGuide(store: Store, id: number): Promise<HeroGuide> {

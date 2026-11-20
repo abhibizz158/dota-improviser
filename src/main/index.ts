@@ -1931,7 +1931,12 @@ async function loadData() {
  * and the manual "Update data now" button, so clicking the button when none of this is true doesn't start a
  * full refetch it doesn't need — it used to, every single time, regardless of how fresh the data already was. */
 function dataNeedsRefresh() {
-  return patchChanged || !heroDb || !timingsDb || !kitsDb || Date.now() - dataStatus.updatedAt > 14 * 86400000
+  // heroDb/seed are stamped with catalog.patch (the bundled dotaconstants' own latest patch) at the time they
+  // were built. That stamp drifting behind catalog.patch — an app update brought a newer dotaconstants with it,
+  // or the live game version watcher (steam.inf, Windows-discovery-dependent) never ran or missed a build bump —
+  // used to never get checked at all: only patchChanged (local Steam/Dota build-number watcher) could mark data
+  // stale, so hero/item/ability data silently stayed on the previous patch indefinitely once that watcher failed.
+  return patchChanged || !heroDb || !timingsDb || !kitsDb || heroDb.patch !== catalog.patch || Date.now() - dataStatus.updatedAt > 14 * 86400000
 }
 
 /** Self-update after a Dota patch (or when data is old): refetch public aggregates in the background. */
