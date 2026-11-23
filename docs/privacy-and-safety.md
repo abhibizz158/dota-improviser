@@ -1,0 +1,64 @@
+# Privacy and fair-play boundaries
+
+Dota Improviser is a stats and practice companion. Its data boundaries are enforced in code and tests, not just described in the interface.
+
+## Allowed inputs
+
+- Valve's opt-in Game State Integration feed, limited to approved player-visible sections and supported own-player practice data.
+- Public OpenDota aggregates and match data. Public history coverage depends on the Dota account's **Expose Public Match Data** setting and whether a match has been parsed.
+- Public Valve Dota feeds for hero information and patch notes.
+- Read-only local discovery of Steam `loginusers.vdf`, Dota `steam.inf`, and Dota `itembuilds/`.
+- Dota's own minimap image, read once per launch from the installed `game/dota/pak01_dir.vpk` (`resource/overviews/dota.txt` → its material → the texture) for the Strategize and Match Review maps. It is a static game asset, not live state: shown only on this computer, never saved, bundled or uploaded. A missing, locked or unsupported file falls back to the app's painted map silently.
+- Heroes and picks the player manually selects or types.
+- Optional Puter AI context explicitly selected by the player and the question they submit.
+- OS-reported foreground Dota window bounds, used only for overlay placement. No window contents, titles, or game data are collected through this path.
+- **Chat translation** (on by default for the local hint; nothing leaves the PC until the player asks): the GSI cfg subscribes to Dota's `events` section, and `src/shared/chat.ts` keeps only `chat_message` events (all chat and allies; every other event type, such as Roshan or courier kills, is dropped, which `tests/guard.test.mjs` and `tests/chat.test.mjs` assert). Lines live in memory for the current match only and are never saved or logged as a conversation. The one exception is the phrase dictionary ("Learn chat phrases", on by default): a short phrase (up to 6 words / 60 characters, no long numbers) and its translation are saved on this PC once translated or corrected, without speaker, time or match, so repeats need no AI call; it can be searched, edited, cleared or turned off in Overlay setup; the GSI diagnostics export records counts and detected languages, never text. Language detection for the hint is local. Text goes to the player's own Puter account only when they press Ctrl/⌘ + Shift + T or translate a reply. A reply is copied to the clipboard; the app never types, pastes or sends anything in Dota. Speakers are labelled by seat colour, team and "You"; a hero name is shown only as "likely", from Draft Vision's pick-phase read, and never from reading the screen during a match.
+- **Draft vision** (opt-in, off by default): one narrow, strictly phase-gated exception, in `src/main/draft-vision.ts` only. It captures the Dota window only while Dota's own GSI `game_state` reports hero selection, strategy time, or the captains draft, and reads two things already on the player's screen: the pick-bar hero portraits (a thin strip at the top), and — only when the player set the session up as Single Draft — the few heroes left in colour in the hero grid (the ones Dota offers that player). Both are compared against Valve's own small hero icons. The Single Draft read is experimental, needs two identical reads before it is shown, never overrides a list the player typed, and is labelled in the UI. Every entry point takes `inPickPhase` as an explicit, caller-supplied boolean and returns immediately when it is false; `tests/guard.test.mjs` asserts this directly and fails the build if that gate is ever removed. It never performs text OCR, never reads chat/minimap/buildings, and never runs once a match is live.
+- **Death snapshot** (opt-in, off by default, same file): at most one screenshot of the player's own screen per death, triggered by the player's own GSI feed going alive → dead, shown for about 20 seconds and then discarded. No analysis is run on it and it is never saved to disk. See AGENTS.md's "Draft vision" section for why this one exception exists and its real, undocumented-away limitations: slot positions are resolution/UI-scale sensitive, same as every other portrait-matching draft tool, and on Windows an exclusive Fullscreen DirectX window can't be thumbnail-captured at all — it falls back to a full-screen capture of Dota's display in that case, with Borderless Windowed or Windowed mode remaining the more reliable option.
+- User-pasted completed scoreboard rows and, when separately enabled, the linked player's own completed-match GSI summary. Up to 20 local matches are stored on the device and no private replay or account session is accessed.
+
+## Not used
+
+The project must not add code or dependencies that:
+
+- Read or write Dota process memory, game files that contain live state, or hidden game state.
+- Capture or scrape the screen, use OCR, or inspect game visuals — outside the opt-in Draft vision and death-snapshot exceptions described above. Draft vision is never used once a match is live and reads only hero portraits the player can already see during the pick phase; the death snapshot is never analysed.
+- Read, sniff, intercept, or decode Dota network traffic.
+- Inject keystrokes, mouse actions, commands, or other inputs into Dota; automate hero movement, spells, purchases, or other gameplay.
+- Request spectator-only GSI sections or infer unrevealed enemy picks through GSI itself (Draft vision reads the player's own visible screen, not a hidden GSI section).
+- Reveal, during a live match, anything the game withholds from the player: enemy positions, fog-of-war state, tower/Roshan/barracks state, other players' items or stats. Objective state is shown only after the match, from OpenDota's parsed replay.
+
+## GSI data handling
+
+GSI is opt-in: the user installs a per-install config and enables Dota's `-gamestateintegration` launch option. Updates go to `127.0.0.1:43182` and must include the local token. The main process validates the sender context and allowlists fields before sending derived data to the overlay. Raw packets are transient and diagnostic exports are user-initiated and redacted. A stale connection or unsupported context clears live values.
+
+The current approved section set is `provider`, `map`, `player`, `hero`, `abilities`, `items`, and `draft` — all describing the player's own hero, inventory, spells and draft reveals. Payloads may differ by mode and phase; the implementation must continue to check real samples before exposing a field. Never add `allplayers`, `buildings`, `wearables`, `minimap`, or `events` without a safety review and an approved product use.
+
+## Network and account privacy
+
+- OpenDota, Valve, GitHub release metadata, Steam CDN artwork, and Puter are external services. Requests are constrained by `src/shared/guard.ts` and tested by `tests/guard.test.mjs`.
+- The app reads the local Steam account list to offer account selection. It does not need a Steam Web API key or a Steam password.
+- Match history and saved reviews stay in the local SQLite database. Do not add them to Puter prompts or other outbound requests without changing the privacy design and asking the user.
+- Puter is optional and user-initiated. The browser handles sign-in; the app receives a session token through a one-time state-checked loopback callback. The token uses OS secure storage where supported. The AI receives the question, selected hero/picks/items, app-derived hero/patch/matchup/reference facts, and supported own-player practice values. It does not receive the Steam account ID or personal match history.
+- Users can disconnect Puter and clear local app data from Settings. A GSI config contains a local token; regenerate/install it after clearing app data.
+- Hero-data refreshes are paced to each source's limits, stay within a daily OpenDota request budget, back off when asked, and pause and resume by themselves instead of retrying in a loop. Every remote JSON response is size-capped and HTML responses (captive portals, proxy error pages) are refused.
+- **Strategize rooms** (opt-in, started by a player): the apps connect peer to peer over WebRTC. PeerJS's public signalling service (`0.peerjs.com`, allowlisted for https/wss) only introduces them; Google's public STUN server (`stun.l.google.com`) helps the apps find a route, and PeerJS's TURN relays (`*.turn.peerjs.com`) carry the encrypted connection when a direct one isn't possible. WebRTC traffic doesn't go through the HTTP allowlist. Shared: the plan (heroes, positions, wards, arrows, notes), live cursors, each member's Steam name, avatar URL and account ID (as their app reports it, with no Steam sign-in check), and the app version. Never shared: anything from GSI or the game, match history, Puter data. The host checks every change before applying or relaying it (size and rate caps, validated ops), can lock the board and remove members, and the room ends when the host closes it or disappears. Nothing is stored online. Joining needs the room code and a random 4-digit PIN that only the host sees (it is never sent to members); a wrong PIN is refused, and after 8 wrong tries in 5 minutes the host refuses all joins for a minute. To connect players on the same network (common on Windows, where mDNS names often don't resolve), the app turns off Chromium's mDNS hiding of local addresses, so a room member can see your local network address, the same as in most voice-chat and game apps; nothing outside a room you host or join receives it. TURN is tried over UDP and TCP for networks that block UDP.
+- Map updates: newer `maps/<patch>.json` files are fetched from this public repository through `api.github.com`, size-capped and shape-validated; a 404 or bad file is ignored quietly.
+- The repository is public, so update checks and downloads need no token or credential at all; they use GitHub's unauthenticated API and must match the published size and SHA-256 digest.
+
+## Live coaching in matchmaking games
+
+Live coaching runs in practice lobbies and in normal, Turbo and ranked matchmaking games. The basis for every live feature:
+
+1. **Source:** only the player's own GSI feed (their hero, inventory, spells, gold, own kill/assist counts, the public team score and their own draft reveals), the picks they type or that the opt-in pick-phase Draft vision reads from their own screen, and public pre-computed aggregates (OpenDota win rates and benchmarks, Valve hero data). Everything shown is something the player can already see or look up.
+2. **When:** draft help during the pick phase; the in-game card, reminders and map-clock alerts during the game; reviews only after it ends. Spectator and replay contexts are rejected by the GSI gate.
+3. **What it learns from:** your own saved matches only, on your device. Similar-match lookup and the item benchmark compare your games with each other and with public OpenDota aggregates; nothing is uploaded or shared with other players.
+4. **What it never does:** disclose hidden enemy information, read the screen during a live match, or automate any decision or input. Advice is shown; the player acts.
+5. **Rules:** this follows the same category as other GSI-based companion tools and pick-phase draft overlays. Valve's rules and enforcement can change; recheck their current terms. This project does not claim Valve's approval.
+6. **Verification:** every new live feature is checked on Windows and macOS, including disconnect and stale-feed behaviour, and the guardrail tests (`tests/guard.test.mjs`) must pass.
+
+Percentile judgments (score, percentile rings, "low pace") run only for matchmaking games; practice lobbies show raw numbers only.
+
+## Report a boundary issue
+
+If a change appears to expose hidden information or use an unapproved input source, stop the release work and inspect the affected source and tests. Fix the data path, add a regression test, and update this document before enabling the feature.

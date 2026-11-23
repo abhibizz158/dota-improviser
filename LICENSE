@@ -1,0 +1,65 @@
+Dota Improviser Personal Use License
+
+Copyright (c) 2026 abhibizz158. All rights reserved.
+
+This license applies to the original Dota Improviser application code,
+documentation, branding, and the official installers as a whole, to the
+extent owned by abhibizz158.
+
+Personal use
+You may download and install an official, unmodified release and run it for
+your own personal use on devices you control. You may retain a personal
+backup. Share the official GitHub release link when recommending the app.
+
+No commercial use
+You may not use the application, its source, its documentation, or any part
+of them for commercial purposes without prior written permission from
+abhibizz158. Commercial purposes include, without limitation: selling,
+renting, or licensing the application or anything derived from it; offering
+it, or a service built on it, for a fee, subscription, donation tier, or
+advertising revenue; bundling it with a paid product or service; and using
+it to provide paid coaching, boosting, or analytics to others. Playing your
+own games with it, including in prize events that allow companion tools, is
+personal use.
+
+Distribution
+Repository visibility and the availability of downloads do not grant
+permission to distribute the application. Except as permitted by applicable
+law or the GitHub Terms of Service for activity within GitHub, you need prior
+written permission from abhibizz158 to redistribute, mirror, sell, sublicense,
+repackage, or publish copies or modified builds of the application or its
+original source. Preserve the copyright and attribution notices.
+
+Reverse engineering
+Except where applicable law permits an activity despite this restriction,
+you may not reverse engineer, decompile, disassemble, or bypass integrity
+checks on the official installers or packaged application. Statutory rights,
+including applicable rights relating to interoperability and lawful testing,
+remain available.
+
+Automated agents and machine learning
+The restrictions in this license apply equally to automated systems acting
+for you or anyone else. Without prior written permission from abhibizz158
+you may not use software agents, AI coding assistants, crawlers, or other
+automated tools to copy, extract, translate, port, or re-implement the
+application's source, logic, data pipelines, or design in another product;
+to decompile or reconstruct the packaged application; or to include the
+source or documentation in a dataset used to train, fine-tune, or evaluate
+a machine-learning model. Reading the public repository to understand,
+discuss, or report issues with the application, by a person or by a tool
+that person is using, is permitted.
+
+No waiver
+Publishing the source on GitHub is for transparency about what the
+application does. It is not an open-source license and grants no rights
+beyond those stated here. Any use outside this license needs written
+permission, and permission for one use does not extend to another.
+
+Third-party materials
+Third-party software and assets remain subject to their own terms and
+notices. This license does not restrict rights granted by those terms. The
+application is independent of Valve. Dota 2 and its associated assets belong
+to their respective owners.
+
+Licensing requests
+Contact abhibizz158 through https://github.com/abhibizz158.

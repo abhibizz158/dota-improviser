@@ -1,0 +1,11 @@
+{
+  "patches": [
+    {
+      "patch": "7.42",
+      "build": 6989,
+      "file": "7.42.json",
+      "bytes": 63547
+    }
+  ],
+  "latest": "7.42"
+}
