@@ -52,6 +52,8 @@ Built for fun by a Dota player, for Dota players. **Free and not monetized** —
 
 <p align="center"><img src="docs/images/chat-dictionary.jpg" alt="Chat dictionary: learned phrases, your corrections and the starter set" width="720" /><br><sub>Chat dictionary: phrases it already knows are translated on your PC with no AI call; correct any of them</sub></p>
 
+<p align="center"><img src="docs/images/strategize-wards.jpg" alt="Strategize ward plan: a zoomed close-up of one ward spot with every tree, its vision and the nearest tree distance" width="900" /><br><sub>Ward plan: pick a spot and see the exact cell zoomed in on the real map: trees around it, what an observer there sees, the nearest tree, and a better cell when your wards keep getting found</sub></p>
+
 <p align="center"><img src="docs/images/support-overlay.jpg" alt="Support view: kill participation, wards used and held, save and sustain casts" width="720" /><br><sub>Support view: graded on wards, saves and kill participation instead of last hits</sub></p>
 
 <sub>Screenshots use the browser preview's made-up sample games, not a real player's data.</sub>
@@ -61,7 +63,7 @@ Built for fun by a Dota player, for Dota players. **Free and not monetized** —
 - **Helps you draft** — shows counters, matchup win rates, and what your team is missing, before the game even starts.
 - **Coaches you live** — a small overlay on top of Dota with your stats, a live win estimate, item suggestions for what you're facing, and reminders for runes, day/night, and stacking.
 - **Reviews your games** — after the match, from OpenDota's parsed replay: three takeaways with their numbers, a schematic map you can scrub through (wards, team fights, towers), your build on a time axis against the public par time, your skill order, and every purchase, kill and objective by minute. It never draws anything the replay doesn't have.
-- **Understands supports** — pick Support or Hard support and the overlay stops grading you on last hits. It shows ward charges used and still on your hero, save and sustain item casts (Force Staff, Eul's, Glimmer, Mekansm and similar), denies and kill participation, with a lane job that changes by the minute (harass and deny, pull, stack, runes). After the game, Match Review adds a support report from the replay: how long your observers survived, how many were dewarded, dewards, stacks, healing, and any save item you bought but never pressed, compared with your own earlier support games.
+- **Understands supports** — pick Support or Hard support and the overlay stops grading you on last hits. It shows ward charges used and still on your hero, save and sustain item casts (Force Staff, Eul's, Glimmer, Mekansm and similar), denies and kill participation, with a lane job that changes by the minute (harass and deny, pull, stack, runes). After the game, Match Review adds a support report from the replay: how long your observers survived, how many were dewarded, dewards, stacks, healing, and any save item you bought but never pressed, compared with your own earlier support games. It learns where your wards stand from your saved replays: how long they lasted, how often and how fast the enemy found them (and which heroes did), and how many enemy deaths each spot's vision covered. The overlay's ward map knows your lane (where you stand, else your role), ranks spots you keep losing lower, marks a better nearby cell, and shows where the enemy keeps warding you.
 - **Knows the game mode** — ranked games are compared with ranked games only, Turbo is kept apart so it never inflates your averages, and ranked results count most when it learns.
 - **Single Draft and Ability Draft help** — enter (or, experimentally, let it read from your screen) the heroes Single Draft offers you and it ranks just those against your team and the enemy, with the lanes each one fits. In Ability Draft it sorts the whole ability pool by what each ability does.
 - **Gets out of Dota's way** — while you draft or play, the dashboard steps back (fewer updates, background checks paused, and the animations, moving background and blur you choose in Settings switched off) so Dota and the overlay get the resources. A "Game mode" badge shows when it's doing this.
@@ -99,9 +101,20 @@ More detail, if you want it: [Privacy and fair-play notes](docs/privacy-and-safe
 
 The app checks for updates itself and installs them quietly in the background once you approve. Your downloaded hero data stays across updates: an update only re-downloads what has actually changed.
 
+## For developers
+
+```sh
+git clone https://github.com/abhibizz158/dota-improviser-src.git
+cd dota-improviser-src
+npm ci
+npm run dev
+```
+
+Requires Node.js 24+. See [AGENTS.md](AGENTS.md) and [docs/architecture.md](docs/architecture.md) for how it's built, and [docs/release-checklist.md](docs/release-checklist.md) for packaging.
+
 ## License
 
-Copyright © 2026 abhibizz158. All rights reserved. The source code is private; this repository holds the official releases, screenshots and the map data the app downloads after a Dota patch. The [Dota Improviser Personal Use License](LICENSE) allows personal use of the official releases and nothing else without written permission:
+Copyright © 2026 abhibizz158. All rights reserved. The source code is private (this is the private source repository); official releases are published in the public `abhibizz158/dota-improviser` repository. It is **not** open source. The [Dota Improviser Personal Use License](LICENSE) allows personal use of the official releases and nothing else without written permission:
 
 - **No commercial use** — no selling, paid services, paid coaching or analytics, ads, or bundling built on the app or its code.
 - **No redistribution** — no mirrors, repackaged or modified builds. Share the official release link instead.
