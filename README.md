@@ -11,6 +11,7 @@
 </p>
 
 <p align="center">
+  <a href="https://dotaimproviser.pages.dev/about">About Dota Improviser</a> ·
   <a href="https://dotaimproviser.pages.dev/install">Install guide</a> ·
   <a href="https://dotaimproviser.pages.dev/safety">Safety and fair play</a> ·
   <a href="https://dotaimproviser.pages.dev/updates">What's new</a> ·

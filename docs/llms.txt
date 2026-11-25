@@ -2,7 +2,17 @@
 
 > A free, fan-made desktop companion for Dota 2 on Windows and Apple silicon Macs: draft suggestions, a live overlay, match review, replay playback and a team strategy board. Not affiliated with Valve.
 
+## Facts
+- Official website: https://dotaimproviser.pages.dev/
+- Official downloads: https://github.com/abhibizz158/dota-improviser/releases
+- Made by: abhibizz158, an independent developer
+- Platforms: Windows 10 or 11; macOS 13 or later on Apple silicon
+- Price: free, no ads, personal use only
+- Does not need Overwolf; never reads game memory or sends input to Dota
+- Latest version: 3.5.1 (2026-11-25)
+
 ## Pages
+- [About Dota Improviser: official site and facts](https://dotaimproviser.pages.dev/about): Official facts about Dota Improviser, the free fan-made Dota 2 companion app: what it does, platforms, price, safety, maker and official download links.
 - [Dota 2 Draft Helper and Counter Picker | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-draft-helper): Free Dota 2 draft helper: counter pick suggestions, matchup win rates and team gap analysis that follows your lane and your own heroes.
 - [Dota 2 Match Review and Replay Analyzer | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-match-review): Review your Dota 2 matches free: three takeaways, a minute-by-minute map with wards and fights, item timings and replay playback.
 - [Free Dota 2 Overlay for Windows and Mac | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-overlay): A free Dota 2 overlay with item suggestions, rune and stack timers, your own live stats and a support view. Uses Dota’s Game State Integration. Windows and Mac.

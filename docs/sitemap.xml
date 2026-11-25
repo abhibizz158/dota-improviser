@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://dotaimproviser.pages.dev/dota-2-draft-helper</loc><lastmod>2026-11-25</lastmod></url>
-  <url><loc>https://dotaimproviser.pages.dev/dota-2-match-review</loc><lastmod>2026-11-25</lastmod></url>
-  <url><loc>https://dotaimproviser.pages.dev/dota-2-overlay</loc><lastmod>2026-11-25</lastmod></url>
-  <url><loc>https://dotaimproviser.pages.dev/dota-2-ward-guide</loc><lastmod>2026-11-25</lastmod></url>
-  <url><loc>https://dotaimproviser.pages.dev/</loc><lastmod>2026-11-25</lastmod></url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url><loc>https://dotaimproviser.pages.dev/about</loc><lastmod>2026-11-25</lastmod></url>
+  <url><loc>https://dotaimproviser.pages.dev/dota-2-draft-helper</loc><lastmod>2026-11-25</lastmod><image:image><image:loc>https://dotaimproviser.pages.dev/images/draft-builds.jpg</image:loc></image:image></url>
+  <url><loc>https://dotaimproviser.pages.dev/dota-2-match-review</loc><lastmod>2026-11-25</lastmod><image:image><image:loc>https://dotaimproviser.pages.dev/images/review-story.jpg</image:loc></image:image></url>
+  <url><loc>https://dotaimproviser.pages.dev/dota-2-overlay</loc><lastmod>2026-11-25</lastmod><image:image><image:loc>https://dotaimproviser.pages.dev/images/overlay-support.jpg</image:loc></image:image></url>
+  <url><loc>https://dotaimproviser.pages.dev/dota-2-ward-guide</loc><lastmod>2026-11-25</lastmod><image:image><image:loc>https://dotaimproviser.pages.dev/images/strategize-wards.jpg</image:loc></image:image></url>
+  <url><loc>https://dotaimproviser.pages.dev/</loc><lastmod>2026-11-25</lastmod><image:image><image:loc>https://dotaimproviser.pages.dev/images/home.jpg</image:loc></image:image><image:image><image:loc>https://dotaimproviser.pages.dev/images/draft-builds.jpg</image:loc></image:image><image:image><image:loc>https://dotaimproviser.pages.dev/images/strategize-video.jpg</image:loc></image:image><image:image><image:loc>https://dotaimproviser.pages.dev/images/heroes.jpg</image:loc></image:image><image:image><image:loc>https://dotaimproviser.pages.dev/images/review-story.jpg</image:loc></image:image><image:image><image:loc>https://dotaimproviser.pages.dev/images/overlay-support.jpg</image:loc></image:image><image:image><image:loc>https://dotaimproviser.pages.dev/images/overlay-chat.jpg</image:loc></image:image><image:image><image:loc>https://dotaimproviser.pages.dev/images/strategize-wards.jpg</image:loc></image:image><image:image><image:loc>https://dotaimproviser.pages.dev/images/strategize-match.jpg</image:loc></image:image><image:image><image:loc>https://dotaimproviser.pages.dev/images/achievements.jpg</image:loc></image:image></url>
   <url><loc>https://dotaimproviser.pages.dev/install</loc><lastmod>2026-11-25</lastmod></url>
   <url><loc>https://dotaimproviser.pages.dev/privacy</loc><lastmod>2026-11-25</lastmod></url>
   <url><loc>https://dotaimproviser.pages.dev/safety</loc><lastmod>2026-11-25</lastmod></url>
