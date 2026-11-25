@@ -19,7 +19,7 @@ addEventListener('DOMContentLoaded', () => {
   const back = Object.assign(document.createElement('a'), { href: '../', textContent: 'Back to website' })
   const hide = Object.assign(document.createElement('button'), { type: 'button', textContent: 'Hide' })
   hide.addEventListener('click', () => note.remove())
-  note.append('Demo with made-up games', back, hide)
+  note.append('Demo with made-up games · © personal use only', back, hide)
   document.head.append(style)
   document.body.append(note)
 })

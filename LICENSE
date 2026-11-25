@@ -1,65 +1,102 @@
 Dota Improviser Personal Use License
+Version 2, 25 November 2026
 
 Copyright (c) 2026 abhibizz158. All rights reserved.
 
-This license applies to the original Dota Improviser application code,
-documentation, branding, and the official installers as a whole, to the
-extent owned by abhibizz158.
+This is not an open-source license. Nothing here is granted unless it is
+written below.
 
-Personal use
-You may download and install an official, unmodified release and run it for
-your own personal use on devices you control. You may retain a personal
-backup. Share the official GitHub release link when recommending the app.
+1. What this covers
+"The Software" means everything original to Dota Improviser that is owned by
+abhibizz158: the application and its source code, the official installers and
+packaged application, the website and browser demo (including the code a
+browser receives), data processing and designs, documentation, text,
+screenshots and branding.
 
-No commercial use
-You may not use the application, its source, its documentation, or any part
-of them for commercial purposes without prior written permission from
-abhibizz158. Commercial purposes include, without limitation: selling,
-renting, or licensing the application or anything derived from it; offering
-it, or a service built on it, for a fee, subscription, donation tier, or
-advertising revenue; bundling it with a paid product or service; and using
-it to provide paid coaching, boosting, or analytics to others. Playing your
-own games with it, including in prize events that allow companion tools, is
-personal use.
+2. What you may do
+You get a limited, personal, non-exclusive, non-transferable and revocable
+permission to:
+  a. download an official, unmodified release from the official GitHub
+     releases or the official website, and install and run it for your own
+     personal, non-commercial use on devices you control;
+  b. keep one backup copy of the installer;
+  c. use the website and browser demo in your browser, as published;
+  d. share a link to the official website or release page.
+Playing your own games with it, including in events that allow companion
+tools, is personal use.
 
-Distribution
-Repository visibility and the availability of downloads do not grant
-permission to distribute the application. Except as permitted by applicable
-law or the GitHub Terms of Service for activity within GitHub, you need prior
-written permission from abhibizz158 to redistribute, mirror, sell, sublicense,
-repackage, or publish copies or modified builds of the application or its
-original source. Preserve the copyright and attribution notices.
+3. What you may not do
+Without prior written permission from abhibizz158 you may not:
+  a. copy, reproduce, mirror, host, upload or republish the Software or any
+     part of it, except the copies made by normal installation, one backup,
+     and ordinary browser caching;
+  b. distribute, sell, rent, lease, lend, sublicense, repackage or bundle it,
+     including through app stores, download sites or package managers;
+  c. modify, translate, port or adapt it, or create a derivative or
+     substantially similar work from its code, logic, data processing,
+     designs or text;
+  d. use it, or anything derived from it, for any commercial purpose: selling
+     or licensing it; offering it or a service built on it for a fee,
+     subscription, donation tier or advertising revenue; including it in a
+     paid product; or using it to provide paid coaching, boosting or
+     analytics;
+  e. reverse engineer, decompile, disassemble, deobfuscate, unpack or
+     otherwise try to derive the source code, structure or logic of the
+     installers, packaged application, website or demo;
+  f. remove, disable or get around any integrity check, signature, notice or
+     other protective measure, including the demo's limit to official
+     addresses;
+  g. scrape, crawl or bulk-download the website or demo, or frame them inside
+     another site or application;
+  h. use the Dota Improviser name or branding in a way that suggests your
+     product, site or account is official, endorsed or connected;
+  i. remove or alter any copyright, licence or attribution notice.
 
-Reverse engineering
-Except where applicable law permits an activity despite this restriction,
-you may not reverse engineer, decompile, disassemble, or bypass integrity
-checks on the official installers or packaged application. Statutory rights,
-including applicable rights relating to interoperability and lawful testing,
-remain available.
+4. Artificial intelligence and automated tools
+Section 3 applies equally when a tool does the work for you or anyone else.
+Without prior written permission you may not use AI models, AI coding
+assistants, software agents, crawlers or other automated tools to:
+  a. copy, extract, decompile, deobfuscate, analyse in order to reconstruct,
+     translate, port or re-implement any part of the Software;
+  b. include any part of the Software in a dataset used to train, fine-tune,
+     ground or evaluate a machine-learning model, including text-and-data
+     mining, which is expressly reserved.
+Search engines and assistants may index the public website's pages, describe
+the application accurately and link to it. That does not extend to the
+application, the demo's code or any use listed above.
 
-Automated agents and machine learning
-The restrictions in this license apply equally to automated systems acting
-for you or anyone else. Without prior written permission from abhibizz158
-you may not use software agents, AI coding assistants, crawlers, or other
-automated tools to copy, extract, translate, port, or re-implement the
-application's source, logic, data pipelines, or design in another product;
-to decompile or reconstruct the packaged application; or to include the
-source or documentation in a dataset used to train, fine-tune, or evaluate
-a machine-learning model. Reading the public repository to understand,
-discuss, or report issues with the application, by a person or by a tool
-that person is using, is permitted.
+5. Rights the law gives you
+This licence does not remove any right that applicable law says cannot be
+removed, such as certain rights to achieve interoperability or to test
+software lawfully. Activity that GitHub's Terms of Service allow for public
+repositories remains allowed within GitHub only, and gives no permission to
+use, run elsewhere or redistribute anything.
 
-No waiver
-Publishing the source on GitHub is for transparency about what the
-application does. It is not an open-source license and grants no rights
-beyond those stated here. Any use outside this license needs written
-permission, and permission for one use does not extend to another.
+6. Third-party materials
+Third-party software, fonts, data and artwork remain under their own terms
+and notices, and this licence does not restrict rights those terms grant. See
+the licenses folder. Dota Improviser is a fan-made project, not affiliated
+with or endorsed by Valve Corporation. Dota 2, Steam, their logos and artwork
+belong to Valve Corporation. No permission to use them is given here.
 
-Third-party materials
-Third-party software and assets remain subject to their own terms and
-notices. This license does not restrict rights granted by those terms. The
-application is independent of Valve. Dota 2 and its associated assets belong
-to their respective owners.
+7. Ending the permission
+Your permission ends automatically if you break any of these terms. You must
+then stop using the Software and delete your copies. abhibizz158 may also
+pursue any remedy available in law, including takedown requests to hosts,
+stores and search engines.
 
-Licensing requests
-Contact abhibizz158 through https://github.com/abhibizz158.
+8. No warranty
+The Software is provided "as is", without warranty of any kind, express or
+implied. Advice it shows about games may be wrong.
+
+9. Limit of liability
+To the extent the law allows, abhibizz158 is not liable for any damages or
+loss arising from the Software or its use, including loss of data, account
+actions by third parties, or game results.
+
+10. General
+If part of this licence cannot be enforced, the rest still applies. Not
+enforcing a term is not giving it up. Permission for one use does not extend
+to another.
+
+Permission requests and reports of misuse: abhishekbizz.156@gmail.com

@@ -1,3 +1,22 @@
+# © 2026 abhibizz158. All rights reserved. Personal, non-commercial use only. No copying, redistribution, reverse engineering, deobfuscation or AI/automated extraction without written permission. https://dotaimproviser.pages.dev/terms
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+User-agent: CCBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: Bytespider
+User-agent: meta-externalagent
+User-agent: FacebookBot
+User-agent: Amazonbot
+User-agent: cohere-ai
+User-agent: Diffbot
+User-agent: Omgilibot
+User-agent: ImagesiftBot
+Disallow: /
+
 User-agent: *
+Disallow: /demo/
 Allow: /
+
 Sitemap: https://dotaimproviser.pages.dev/sitemap.xml

@@ -107,11 +107,11 @@ Questions, problems or ideas: [abhishekbizz.156@gmail.com](mailto:abhishekbizz.1
 
 ## License
 
-Copyright © 2026 abhibizz158. All rights reserved. The source code is private; official releases are published in the public `abhibizz158/dota-improviser` repository. It is **not** open source. The [Dota Improviser Personal Use License](LICENSE) allows personal use of the official releases and nothing else without written permission:
+Copyright © 2026 abhibizz158. All rights reserved. This is **not** open source. The [Dota Improviser Personal Use License](LICENSE) lets you use official releases and the website for your own, non-commercial use. Without written permission:
 
-- **No commercial use** — no selling, paid services, paid coaching or analytics, ads, or bundling built on the app or its code.
-- **No redistribution** — no mirrors, repackaged or modified builds. Share the official release link instead.
-- **No reverse engineering** of the installers or packaged app, beyond what the law allows regardless.
-- **No automated copying** — no using AI agents, crawlers or other tools to extract, port or re-implement the code, and no using it as machine-learning training data.
+- **No copying or redistribution**: no mirrors, re-uploads, repackaged or modified builds. Share the official link instead.
+- **No commercial use**: no selling, paid services, paid coaching or analytics, ads or bundling.
+- **No reverse engineering**: no decompiling, deobfuscating or unpacking the installers, app, website or demo, beyond rights the law does not let anyone remove.
+- **No AI or automated extraction**: no using AI assistants, agents or crawlers to extract, rebuild or port it, and no use as training or text-and-data-mining material.
 
-Third-party credits: [licenses/README.md](licenses/README.md).
+Permission requests and misuse reports: [abhishekbizz.156@gmail.com](mailto:abhishekbizz.156@gmail.com). Third-party credits: [licenses/README.md](licenses/README.md).
