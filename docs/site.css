@@ -101,6 +101,7 @@ ul li::before { content: ''; position: absolute; left: 2px; top: .55em; width: 7
 
 .sub { margin: 34px 0 14px; font-size: 22px; }
 .promise { border-top: 2px solid var(--green); }
+#safety .cards:not(.two) { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .shared { margin-top: 20px; } .shared ul { margin: 0; padding: 0 20px 18px; } .shared b { color: var(--head); }
 .virus { max-width: 860px; margin-top: 20px; padding: 24px 28px; border: 1px solid var(--line2); border-radius: 12px; background: rgba(217, 182, 108, .06); }
 .virus h3 { font-size: 20px; } .virus p { font-size: 15.5px; } .virus p:last-child { margin: 0; } .virus b { color: var(--head); }
@@ -210,7 +211,7 @@ dialog img { margin: 0 auto; }
   .tag { margin-left: 0; margin-top: 4px; }
   #viewer img.wide { max-width: none; width: 900px; } /* swipe sideways to read a wide picture */
 }
-@media (max-width: 400px) { .brand { font-size: 14px; letter-spacing: .04em; gap: 8px; } .menu { min-width: 64px; } .top { gap: 10px; } }
+@media (max-width: 400px) { .btn { padding-inline: 16px; gap: 10px; } .brand { font-size: 14px; letter-spacing: .04em; gap: 8px; } .menu { min-width: 64px; } .top { gap: 10px; } }
 /* phones held sideways: don't spend the short screen on a fixed header */
 @media (max-height: 500px) { .top { position: relative; } }
 @media (max-width: 1080px) and (min-height: 501px) { .top nav { max-height: calc(100vh - 68px); overflow-y: auto; } }
