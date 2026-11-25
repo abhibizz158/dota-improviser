@@ -3,15 +3,15 @@
 > A free, fan-made desktop companion for Dota 2 on Windows and Apple silicon Macs: draft suggestions, a live overlay, match review, replay playback and a team strategy board. Not affiliated with Valve.
 
 ## Pages
-- [Dota 2 Draft Helper and Counter Picker | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-draft-helper.html): Free Dota 2 draft helper: counter pick suggestions, matchup win rates and team gap analysis that follows your lane and your own heroes.
-- [Dota 2 Match Review and Replay Analyzer | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-match-review.html): Review your Dota 2 matches free: three takeaways, a minute-by-minute map with wards and fights, item timings and replay playback.
-- [Free Dota 2 Overlay for Windows and Mac | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-overlay.html): A free Dota 2 overlay with item suggestions, rune and stack timers, your own live stats and a support view. Uses Dota’s Game State Integration. Windows and Mac.
-- [Dota 2 Ward Spots and Support Guide | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-ward-guide.html): Free Dota 2 ward guide: ward spots on the map with real tree vision, a close-up of each spot and learning from your own replays.
+- [Dota 2 Draft Helper and Counter Picker | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-draft-helper): Free Dota 2 draft helper: counter pick suggestions, matchup win rates and team gap analysis that follows your lane and your own heroes.
+- [Dota 2 Match Review and Replay Analyzer | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-match-review): Review your Dota 2 matches free: three takeaways, a minute-by-minute map with wards and fights, item timings and replay playback.
+- [Free Dota 2 Overlay for Windows and Mac | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-overlay): A free Dota 2 overlay with item suggestions, rune and stack timers, your own live stats and a support view. Uses Dota’s Game State Integration. Windows and Mac.
+- [Dota 2 Ward Spots and Support Guide | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-ward-guide): Free Dota 2 ward guide: ward spots on the map with real tree vision, a close-up of each spot and learning from your own replays.
 - [Dota Improviser: Free Dota 2 Overlay, Draft Helper and Match Review](https://dotaimproviser.pages.dev/): Free Dota 2 companion app for Windows and Mac: draft suggestions, live in-game overlay, match review, replay playback and a team strategy board. No ads.
-- [Install Dota Improviser on Windows or Mac: step-by-step guide](https://dotaimproviser.pages.dev/install.html): Picture guide to install Dota Improviser: the Windows SmartScreen warning, macOS Open Anyway, permissions and connecting Dota 2.
-- [Is Dota Improviser safe? Privacy, fair play and security warnings](https://dotaimproviser.pages.dev/safety.html): What Dota Improviser does with your data, why Windows and macOS show a warning, and the fair-play rules it follows.
-- [Dota Improviser help: questions and contact](https://dotaimproviser.pages.dev/support.html): Answers about the free Dota 2 companion app and how to contact the developer.
-- [Dota Improviser updates and patch notes](https://dotaimproviser.pages.dev/updates.html): Latest Dota Improviser releases, sorted into new features, improvements and fixes.
+- [Install Dota Improviser on Windows or Mac: step-by-step guide](https://dotaimproviser.pages.dev/install): Picture guide to install Dota Improviser: the Windows SmartScreen warning, macOS Open Anyway, permissions and connecting Dota 2.
+- [Is Dota Improviser safe? Privacy, fair play and security warnings](https://dotaimproviser.pages.dev/safety): What Dota Improviser does with your data, why Windows and macOS show a warning, and the fair-play rules it follows.
+- [Dota Improviser help: questions and contact](https://dotaimproviser.pages.dev/support): Answers about the free Dota 2 companion app and how to contact the developer.
+- [Dota Improviser updates and patch notes](https://dotaimproviser.pages.dev/updates): Latest Dota Improviser releases, sorted into new features, improvements and fixes.
 
 ## Questions
 

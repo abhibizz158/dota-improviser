@@ -1,4 +1,4 @@
-import { TYPES, composeMail, detectSystem, parseNotes, pickAssets } from './updates.js?v=7ca0abca3e'
+import { TYPES, composeMail, detectSystem, parseNotes, pickAssets } from './updates.js?v=d9711749d2'
 
 const REPO = 'abhibizz158/dota-improviser'
 const EMAIL = 'abhishekbizz.156@gmail.com'
@@ -15,8 +15,9 @@ $('#nav').addEventListener('click', (e) => { if (e.target.closest('a')) setMenu(
 addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false) })
 const onScroll = () => bar.classList.toggle('scrolled', scrollY > 8)
 addEventListener('scroll', onScroll, { passive: true }); onScroll()
-const here = location.pathname.split('/').pop() || 'index.html'
-for (const a of $$('#nav a')) if (a.getAttribute('href') === here) a.setAttribute('aria-current', 'page')
+// Cloudflare and GitHub both serve pages with or without ".html", so compare the bare names.
+const bare = (path) => path.split('/').pop().replace(/\.html$/, '') || 'index'
+for (const a of $$('#nav a')) if (bare(a.getAttribute('href')) === bare(location.pathname)) a.setAttribute('aria-current', 'page')
 
 // ---- tabs ----
 function selectTab(tab) {
