@@ -1,4 +1,4 @@
-import { TYPES, composeMail, detectSystem, parseNotes, pickAssets } from './updates.js?v=1c40ea1812'
+import { TYPES, composeMail, detectSystem, parseNotes, pickAssets } from './updates.js?v=7ca0abca3e'
 
 const REPO = 'abhibizz158/dota-improviser'
 const EMAIL = 'abhishekbizz.156@gmail.com'

@@ -5,7 +5,7 @@
 <p align="center"><strong>A free desktop companion for Dota 2 — draft help, a live overlay, match review, and achievements, built around your own games.</strong></p>
 
 <p align="center">
-  <strong><a href="https://abhibizz158.github.io/dota-improviser/">Website and browser demo</a> · <a href="https://github.com/abhibizz158/dota-improviser/releases/latest">⬇ Download the latest release</a></strong><br>
+  <strong><a href="https://dotaimproviser.pages.dev/">Website and browser demo</a> · <a href="https://github.com/abhibizz158/dota-improviser/releases/latest">⬇ Download the latest release</a></strong><br>
   <sub>macOS (Apple Silicon) and Windows (x64) — free, no account required to try it</sub>
 </p>
 
