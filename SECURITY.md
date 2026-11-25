@@ -5,7 +5,7 @@
 Please report security issues privately, not in a public issue:
 
 - Use GitHub's **Report a vulnerability** button on this repository's Security tab (private advisory), or
-- Contact the maintainer through https://github.com/abhibizz158.
+- Email abhishekbizz.156@gmail.com.
 
 Include what you found, the app version (Settings → About, or the installer name), your OS, and steps to reproduce. Please don't include anyone's real account data.
 
@@ -13,7 +13,7 @@ You should get an acknowledgement within 7 days. Fixes ship as a normal app upda
 
 ## Scope
 
-In scope: the desktop app (main process, overlay and dashboard), its local game-state receiver, its update and data-download paths, and the official installers on the Releases page.
+In scope: the desktop app (main process, overlay and dashboard), its local game-state receiver, its update and data-download paths, the official installers on the Releases page, and the website dotaimproviser.pages.dev (report only: no flooding, no testing that disrupts it or touches other people's data).
 
 Out of scope: OpenDota, Valve, GitHub, Puter and Steam themselves (report those to their owners), and modified or redistributed builds.
 

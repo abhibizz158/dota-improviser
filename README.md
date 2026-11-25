@@ -1,6 +1,6 @@
 # Dota Improviser
 
-<p align="center"><img src="public/logo.svg" alt="Dota Improviser" width="104" /></p>
+<p align="center"><img src="https://dotaimproviser.pages.dev/icon.png" alt="Dota Improviser" width="104" /></p>
 
 <p align="center"><strong>A free desktop companion for Dota 2 — draft help, a live overlay, match review, and achievements, built around your own games.</strong></p>
 

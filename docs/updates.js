@@ -64,6 +64,16 @@ export const pickAssets = (release) => {
   return { windows: find(/windows.*setup\.exe$/i), mac: find(/macos.*\.pkg$/i), sums: find(/sha256sums/i) }
 }
 
+// GitHub's own count of installer downloads (it includes the app downloading its updates).
+export function countDownloads(releases) {
+  const count = { windows: 0, mac: 0 }
+  for (const release of releases) {
+    const found = pickAssets(release)
+    for (const os of ['windows', 'mac']) count[os] += found[os]?.download_count ?? 0
+  }
+  return { ...count, total: count.windows + count.mac }
+}
+
 // The contact form only prepares an email; the visitor sends it from their own email.
 const TOPICS = { question: 'question', problem: 'problem', idea: 'idea', business: 'enquiry' }
 export function composeMail({ to, name = '', topic = 'question', message = '', system = '' }) {

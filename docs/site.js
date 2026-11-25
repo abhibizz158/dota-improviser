@@ -1,4 +1,4 @@
-import { TYPES, composeMail, detectSystem, parseNotes, pickAssets } from './updates.js?v=d9711749d2'
+import { TYPES, composeMail, countDownloads, detectSystem, parseNotes, pickAssets } from './updates.js?v=b06356f7a1'
 
 const REPO = 'abhibizz158/dota-improviser'
 const EMAIL = 'abhishekbizz.156@gmail.com'
@@ -134,7 +134,10 @@ const after = $('#after')
 document.addEventListener('click', async (e) => {
   const link = e.target.closest('a[data-download]')
   // Only a real installer link downloads in place; the fallback link leaves for GitHub.
-  if (!link || link.dataset.download === 'sums' || !/\.(exe|pkg)$/.test(link.href) || after.contains(link)) return
+  if (!link || link.dataset.download === 'sums' || !/\.(exe|pkg)$/.test(link.href)) return
+  // An anonymous tally (cloudflare/functions/count.js): which button, nothing about the visitor.
+  if (location.hostname.endsWith('dotaimproviser.pages.dev')) navigator.sendBeacon('count?os=' + link.dataset.download)
+  if (after.contains(link)) return
   after.showModal(); after.scrollTop = 0
   try {
     const page = new DOMParser().parseFromString(await (await fetch('install.html')).text(), 'text/html')
@@ -214,6 +217,8 @@ function releaseCard(release, index) {
   body.append(links)
   const summary = el('summary', {}, el('strong', { textContent: release.tag_name }), el('span', { textContent: date }))
   if (index === 0) summary.append(el('span', { className: 'badge', textContent: 'Latest' }))
+  const { total } = countDownloads([release])
+  if (total) summary.append(el('span', { textContent: total.toLocaleString('en') + (total === 1 ? ' download' : ' downloads') }))
   return el('details', { className: 'release', open: index === 0 }, summary, body)
 }
 
@@ -228,6 +233,11 @@ if ($('#releases') || $('[data-version]') || $('[data-download]')) loadReleases(
   showLatest(releases[0])
   if (!$('#releases')) return
   showUpdates(releases)
+  const count = countDownloads(releases), n = (v) => v.toLocaleString('en')
+  if (count.total) {
+    $('#downloads').textContent = n(count.total) + ' installer downloads so far: ' + n(count.windows) + ' Windows, ' + n(count.mac) + ' Mac. Counted by GitHub, app updates included.'
+    $('#downloads').hidden = false
+  }
   $('#older').addEventListener('click', () => { shown += 10; showUpdates(releases) })
   $('.filters').addEventListener('click', (e) => {
     const b = e.target.closest('button')
