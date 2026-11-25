@@ -5,7 +5,7 @@
 <p align="center"><strong>A free desktop companion for Dota 2 — draft help, a live overlay, match review, and achievements, built around your own games.</strong></p>
 
 <p align="center">
-  <strong><a href="https://github.com/abhibizz158/dota-improviser/releases/latest">⬇ Download the latest release</a></strong><br>
+  <strong><a href="https://abhibizz158.github.io/dota-improviser/">Website and browser demo</a> · <a href="https://github.com/abhibizz158/dota-improviser/releases/latest">⬇ Download the latest release</a></strong><br>
   <sub>macOS (Apple Silicon) and Windows (x64) — free, no account required to try it</sub>
 </p>
 
@@ -101,20 +101,13 @@ More detail, if you want it: [Privacy and fair-play notes](docs/privacy-and-safe
 
 The app checks for updates itself and installs them quietly in the background once you approve. Your downloaded hero data stays across updates: an update only re-downloads what has actually changed.
 
-## For developers
+## Contact
 
-```sh
-git clone https://github.com/abhibizz158/dota-improviser-src.git
-cd dota-improviser-src
-npm ci
-npm run dev
-```
-
-Requires Node.js 24+. See [AGENTS.md](AGENTS.md) and [docs/architecture.md](docs/architecture.md) for how it's built, and [docs/release-checklist.md](docs/release-checklist.md) for packaging.
+Questions, problems or ideas: [abhishekbizz.156@gmail.com](mailto:abhishekbizz.156@gmail.com) or [open an issue](https://github.com/abhibizz158/dota-improviser/issues). Security problems: see [SECURITY.md](SECURITY.md).
 
 ## License
 
-Copyright © 2026 abhibizz158. All rights reserved. The source code is private (this is the private source repository); official releases are published in the public `abhibizz158/dota-improviser` repository. It is **not** open source. The [Dota Improviser Personal Use License](LICENSE) allows personal use of the official releases and nothing else without written permission:
+Copyright © 2026 abhibizz158. All rights reserved. The source code is private; official releases are published in the public `abhibizz158/dota-improviser` repository. It is **not** open source. The [Dota Improviser Personal Use License](LICENSE) allows personal use of the official releases and nothing else without written permission:
 
 - **No commercial use** — no selling, paid services, paid coaching or analytics, ads, or bundling built on the app or its code.
 - **No redistribution** — no mirrors, repackaged or modified builds. Share the official release link instead.
