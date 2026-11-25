@@ -1,0 +1,36 @@
+# Dota Improviser
+
+> A free, fan-made desktop companion for Dota 2 on Windows and Apple silicon Macs: draft suggestions, a live overlay, match review, replay playback and a team strategy board. Not affiliated with Valve.
+
+## Pages
+- [Dota Improviser: Free Dota 2 Overlay, Draft Helper and Match Review](https://abhibizz158.github.io/dota-improviser/): Free Dota 2 companion app for Windows and Mac: draft suggestions, live in-game overlay, match review, replay playback and a team strategy board. No ads.
+- [Install Dota Improviser on Windows or Mac: step-by-step guide](https://abhibizz158.github.io/dota-improviser/install.html): Picture guide to install Dota Improviser: the Windows SmartScreen warning, macOS Open Anyway, permissions and connecting Dota 2.
+- [Is Dota Improviser safe? Privacy, fair play and security warnings](https://abhibizz158.github.io/dota-improviser/safety.html): What Dota Improviser does with your data, why Windows and macOS show a warning, and the fair-play rules it follows.
+- [Dota Improviser help: questions and contact](https://abhibizz158.github.io/dota-improviser/support.html): Answers about the free Dota 2 companion app and how to contact the developer.
+- [Dota Improviser updates and patch notes](https://abhibizz158.github.io/dota-improviser/updates.html): Latest Dota Improviser releases, sorted into new features, improvements and fixes.
+
+## Questions
+
+### What is Dota Improviser?
+A free desktop companion app for Dota 2 on Windows and Apple Silicon Macs. It suggests heroes in the draft, shows a live overlay, reviews matches and has a team strategy board.
+
+### Is it an official Valve or Dota 2 product?
+No. It is a fan-made project, not affiliated with or endorsed by Valve Corporation.
+
+### Is it free?
+Yes. No ads, no paid version, nothing to unlock.
+
+### Could my account get banned?
+It only uses what you can already see, never reads game memory and never clicks or types in Dota. Valve has not approved it, so nobody can promise anything on Valve’s behalf.
+
+### Do I need to sign up?
+No. Linking Steam is optional; turn on “Expose Public Match Data” in Dota for match history. The AI helper is optional and uses a Puter account.
+
+### Which computers does it work on?
+Windows 10 or 11 (64-bit) and Apple chip Macs on macOS 13 or later. Not Intel Macs, Linux or phones.
+
+### How do updates work?
+The app checks for new versions and asks before installing.
+
+### How do I remove it?
+In the app: Settings, then Storage and uninstall.

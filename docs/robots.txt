@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://abhibizz158.github.io/dota-improviser/sitemap.xml
