@@ -82,13 +82,21 @@ section + section::after { content: ''; position: absolute; top: -3px; left: 50%
 .window { margin: 0; border: 1px solid rgba(214, 178, 110, .28); border-radius: 6px; overflow: hidden; background: #121214; box-shadow: 0 30px 70px rgba(0, 0, 0, .65); }
 .zoom { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
 .zoom img { width: 100%; }
-.stage { width: 100%; max-width: 1240px; margin-top: 38px; perspective: 1600px; }
-.scene { position: relative; display: flex; justify-content: center; align-items: center; transform-style: preserve-3d; transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .35s ease-out; animation: arrive 1s ease-out both; }
+.stage { width: 100%; max-width: 1160px; margin-top: 40px; perspective: 1700px; }
+.scene { position: relative; aspect-ratio: 100 / 42; transform-style: preserve-3d; transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .35s ease-out; animation: arrive 1s ease-out both; }
 @keyframes arrive { from { opacity: 0; translate: 0 40px; } }
-.scene .main { position: relative; z-index: 2; width: 66%; transform: translateZ(70px); }
-.scene .side { position: absolute; top: 50%; width: 42%; opacity: .62; }
-.scene .left { left: 0; transform: translateY(-50%) rotateY(30deg) translateZ(-60px); }
-.scene .right { right: 0; transform: translateY(-50%) rotateY(-30deg) translateZ(-60px); }
+/* every picture sits in the same spot; its place in the turn moves, turns and fades it */
+.scene .slide { position: absolute; top: 1.5%; left: 17%; width: 66%; opacity: 0; transform: translateZ(-320px) scale(.62); pointer-events: none; transition: transform 1.6s cubic-bezier(.6, 0, .2, 1), opacity 1.6s ease, filter 1.6s ease; filter: brightness(.35) saturate(.6); }
+.scene .slide[data-pos='center'] { z-index: 3; opacity: 1; transform: translateZ(60px); pointer-events: auto; filter: none; box-shadow: 0 30px 80px rgba(0, 0, 0, .7), 0 0 60px rgba(201, 64, 42, .22); }
+.scene .slide[data-pos='left'], .scene .slide[data-pos='right'] { z-index: 2; opacity: .88; pointer-events: auto; filter: brightness(.72) saturate(.85); }
+.scene .slide[data-pos='left'] { transform: translateX(-37%) translateZ(-110px) rotateY(32deg) scale(.82); }
+.scene .slide[data-pos='right'] { transform: translateX(37%) translateZ(-110px) rotateY(-32deg) scale(.82); }
+.scene .slide[data-pos='left'] .zoom, .scene .slide[data-pos='right'] .zoom { cursor: pointer; }
+.dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 22px; }
+.dots button { min-height: 34px; padding: 4px 6px; border: 0; background: none; color: var(--mute); font: 600 12.5px var(--label); letter-spacing: .18em; text-transform: uppercase; cursor: pointer; }
+.dots button::before { content: ''; display: block; width: 54px; height: 3px; margin: 0 auto 7px; border-radius: 2px; background: rgba(255, 255, 255, .14); transition: background-color .4s; }
+.dots button:hover { color: var(--head); }
+.dots button[aria-pressed='true'] { color: var(--gold2); } .dots button[aria-pressed='true']::before { background: linear-gradient(90deg, var(--red), var(--gold2)); }
 
 /* tabs */
 .tabs, .filters { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 4px; margin: 8px 0 22px; border: 1px solid var(--line); border-radius: 4px; background: rgba(0, 0, 0, .35); }
@@ -229,6 +237,34 @@ dialog img { margin: 0 auto; }
 #after { width: min(640px, 96vw); padding: 12px clamp(14px, 3vw, 26px) 22px; text-align: center; }
 #after .how { grid-template-columns: repeat(2, minmax(0, 1fr)); text-align: left; }
 
+/* lit edges: gold at the top corner fading into crimson */
+.shotcard, .flow li, .how li, .card, .perms li, .flowlist li, .contact-form, .points li {
+  border: 1px solid transparent; border-radius: 8px;
+  background: linear-gradient(165deg, #1d1b1f, #121214 55%, #151112) padding-box, linear-gradient(160deg, rgba(239, 212, 154, .42), rgba(255, 255, 255, .07) 38%, rgba(255, 255, 255, .05) 66%, rgba(201, 64, 42, .45)) border-box; }
+.promise { border-top: 2px solid var(--green); } .contact-form { border-top: 2px solid var(--red); }
+details, .virus, .tabs, .filters { border-radius: 8px; } .btn { border-radius: 5px; } .window { border-radius: 10px; }
+.how li, .flow li, .card, .perms li, .flowlist li { transition: transform .25s, box-shadow .25s; }
+.how li:hover, .flow li:hover, .card:hover, .perms li:hover, .flowlist li:hover { transform: translateY(-4px); box-shadow: 0 18px 40px rgba(0, 0, 0, .5), 0 0 28px rgba(201, 64, 42, .14); }
+section h2:not(.sub):not(#after-title)::after { content: ''; display: block; width: 72px; height: 3px; margin: 12px auto 0; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--red) 30%, var(--gold2) 70%, transparent); }
+.contact h2:not(.sub)::after { margin-inline: 0; }
+.overview { background: radial-gradient(ellipse 60% 55% at 50% 60%, rgba(201, 64, 42, .14), transparent 70%), linear-gradient(180deg, var(--bg), #0e0b0c 60%, var(--bg)); }
+.start { background: radial-gradient(ellipse 50% 70% at 15% 40%, rgba(214, 178, 110, .08), transparent 70%), radial-gradient(ellipse 50% 70% at 85% 60%, rgba(201, 64, 42, .13), transparent 70%), var(--bg); }
+.hero h1 span { background: linear-gradient(100deg, #ff8a6a, var(--red) 30%, var(--gold2) 50%, var(--red) 70%, #ff8a6a); background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; animation: sheen 9s linear infinite; }
+@keyframes sheen { to { background-position: -220% 0; } }
+.shotcard { padding: 8px 8px 0; } .shotcard .zoom { border-radius: 5px; }
+
+/* Valve's Steam logo and Dota 2 store art, loaded from Valve's own servers, only next to links to Steam */
+.steam { background: radial-gradient(ellipse 70% 80% at 50% 100%, rgba(42, 117, 187, .2), transparent 70%), var(--bg); }
+.steam-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: clamp(20px, 4vw, 44px); max-width: 900px; margin: 24px auto 0; padding: clamp(14px, 2.5vw, 24px); text-align: left; border: 1px solid transparent; border-radius: 12px; background: linear-gradient(150deg, #1b2838, #101319 60%, #131113) padding-box, linear-gradient(150deg, rgba(102, 192, 244, .6), rgba(255, 255, 255, .07) 45%, rgba(201, 64, 42, .4)) border-box; }
+.steam-art { display: block; overflow: hidden; border-radius: 8px; box-shadow: 0 18px 40px rgba(0, 0, 0, .55); } .steam-art img { width: 100%; transition: transform .5s; } .steam-art:hover img { transform: scale(1.04); }
+.steam-logo { width: auto; } .steam-card .steam-logo { height: 52px; margin-bottom: 14px; } .steam-link .steam-logo { height: 28px; } .steam-card p { font-size: 15px; }
+.steam-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.btn.steam-btn { background: linear-gradient(180deg, #4b8fc4, #1f4e79); border-color: #66c0f4; color: #fff; } .btn.steam-btn:hover { filter: brightness(1.12); box-shadow: 0 12px 30px rgba(102, 192, 244, .35); }
+.steam-link { display: inline-flex; align-items: center; gap: 12px; padding: 8px 18px; border: 1px solid rgba(102, 192, 244, .35); border-radius: 8px; background: linear-gradient(180deg, #1b2838, #121820); text-decoration: none; color: #cfe6f7; }
+.steam-link:hover { border-color: #66c0f4; color: #fff; }
+.mock-bar .steam-logo { height: 11px; margin-left: 6px; }
+@media (max-width: 700px) { .steam-card { grid-template-columns: minmax(0, 1fr); text-align: center; } .steam-card .steam-logo { margin-inline: auto; } .steam-buttons { justify-content: center; } }
+
 /* sections slide in as they are reached (only when the script runs) */
 .js .reveal > * { opacity: 0; translate: 0 22px; transition: opacity .6s ease-out, translate .6s ease-out; }
 .js .reveal.in > * { opacity: 1; translate: 0 0; }
@@ -246,7 +282,9 @@ dialog img { margin: 0 auto; }
   .flowlist li { grid-template-columns: 34px minmax(0, 1fr); } .flowlist li > :not(.ico) { grid-column: 2; } .flowlist li > .ico { grid-row: span 3; align-self: start; } .flowlist em { text-align: left; }
 }
 @media (max-width: 760px) {
-  .scene .side { display: none; } .scene .main { width: 100%; transform: none; }
+  .scene { aspect-ratio: 1600 / 961; } .scene .slide { top: 0; left: 0; width: 100%; }
+  .scene .slide[data-pos] { transform: none; } .scene .slide:not([data-pos='center']) { opacity: 0; pointer-events: none; }
+  .dots button { padding-inline: 3px; font-size: 11px; letter-spacing: .08em; } .dots button::before { width: 44px; }
   .grid, .flow, .cards.three, .cards.two, .perms, .connect .how { grid-template-columns: minmax(0, 1fr); }
   .points { gap: 6px; } .points li { font-size: 12.5px; letter-spacing: .08em; }
   .screen .window { aspect-ratio: 4 / 3; } .screen .window img { object-position: left top; } .screen .window.fit .zoom { padding-top: 8px; }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://store.steamstatic.com https://cdn.cloudflare.steamstatic.com; font-src 'self'; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Dota Improviser help: questions and contact</title>
   <meta name="description" content="Answers about the free Dota 2 companion app and how to contact the developer.">
   <meta name="robots" content="index, follow, max-image-preview:large">
@@ -22,8 +22,8 @@
   <link rel="apple-touch-icon" href="icon.png">
   <link rel="preload" href="fonts/cinzel-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="site.css">
-  <script type="module" src="site.js"></script>
+  <link rel="stylesheet" href="site.css?v=1c40ea1812">
+  <script type="module" src="site.js?v=1c40ea1812"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What is Dota Improviser?","acceptedAnswer":{"@type":"Answer","text":"A free desktop companion app for Dota 2 on Windows and Apple Silicon Macs. It suggests heroes in the draft, shows a live overlay, reviews matches and has a team strategy board."}},{"@type":"Question","name":"Is it an official Valve or Dota 2 product?","acceptedAnswer":{"@type":"Answer","text":"No. It is a fan-made project, not affiliated with or endorsed by Valve Corporation."}},{"@type":"Question","name":"Is it free?","acceptedAnswer":{"@type":"Answer","text":"Yes. No ads, no paid version, nothing to unlock."}},{"@type":"Question","name":"Could my account get banned?","acceptedAnswer":{"@type":"Answer","text":"It only uses what you can already see, never reads game memory and never clicks or types in Dota. Valve has not approved it, so nobody can promise anything on Valve’s behalf."}},{"@type":"Question","name":"Do I need to sign up?","acceptedAnswer":{"@type":"Answer","text":"No. Linking Steam is optional; turn on “Expose Public Match Data” in Dota for match history. The AI helper is optional and uses a Puter account."}},{"@type":"Question","name":"Which computers does it work on?","acceptedAnswer":{"@type":"Answer","text":"Windows 10 or 11 (64-bit) and Apple chip Macs on macOS 13 or later. Not Intel Macs, Linux or phones."}},{"@type":"Question","name":"How do updates work?","acceptedAnswer":{"@type":"Answer","text":"The app checks for new versions and asks before installing."}},{"@type":"Question","name":"How do I remove it?","acceptedAnswer":{"@type":"Answer","text":"In the app: Settings, then Storage and uninstall."}}]}</script>
 </head>
 <body>
@@ -55,9 +55,9 @@
     <p class="eyebrow">Contact us</p>
     <h2>Get in touch</h2>
     <ul class="channels">
-      <li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zm0 1 9 7 9-7"/></svg><div><h3>Email</h3><p><a href="mailto:abhishekbizz.156@gmail.com">abhishekbizz.156@gmail.com</a></p><button type="button" class="btn ghost small" id="copy">Copy address</button></div></li>
-      <li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 8a3 3 0 0 1 6 0M7 9h10v6a5 5 0 0 1-10 0zM3 8l4 3M21 8l-4 3M3 20l4-3m14 3-4-3"/></svg><div><h3>Bug tracker</h3><p><a href="https://github.com/abhibizz158/dota-improviser/issues">GitHub Issues</a> (free account)</p></div></li>
-      <li><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/></svg><div><h3>Security</h3><p><a href="https://github.com/abhibizz158/dota-improviser/blob/main/SECURITY.md">Report privately</a></p></div></li>
+      <li><svg class="ico" width="30" height="30" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zm0 1 9 7 9-7"/></svg><div><h3>Email</h3><p><a href="mailto:abhishekbizz.156@gmail.com">abhishekbizz.156@gmail.com</a></p><button type="button" class="btn ghost small" id="copy">Copy address</button></div></li>
+      <li><svg class="ico" width="30" height="30" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 8a3 3 0 0 1 6 0M7 9h10v6a5 5 0 0 1-10 0zM3 8l4 3M21 8l-4 3M3 20l4-3m14 3-4-3"/></svg><div><h3>Bug tracker</h3><p><a href="https://github.com/abhibizz158/dota-improviser/issues">GitHub Issues</a> (free account)</p></div></li>
+      <li><svg class="ico" width="30" height="30" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/></svg><div><h3>Security</h3><p><a href="https://github.com/abhibizz158/dota-improviser/blob/main/SECURITY.md">Report privately</a></p></div></li>
     </ul>
   </div>
   <form class="contact-form" id="contact-form">
@@ -79,6 +79,7 @@
 
 </main>
 <footer>
+  <a class="steam-link" href="https://store.steampowered.com/app/570/Dota_2/"><img class="steam-logo" src="https://store.steamstatic.com/public/shared/images/header/logo_steam.svg" alt="Steam" width="102" height="30"><span>Dota 2 on Steam</span></a>
   <nav aria-label="Pages and links"><a href="index.html">Home</a><a href="install.html">Install</a><a href="safety.html">Safety</a><a href="updates.html">Updates</a><a href="support.html">Support</a><a href="https://github.com/abhibizz158/dota-improviser">GitHub</a><a href="https://github.com/abhibizz158/dota-improviser/blob/main/LICENSE">Licence</a><a href="https://github.com/abhibizz158/dota-improviser/blob/main/licenses/README.md">Credits</a></nav>
   <div>
     <p>A fan-made project. Not affiliated with or endorsed by Valve Corporation. Dota 2 and its artwork are property of Valve Corporation.</p>

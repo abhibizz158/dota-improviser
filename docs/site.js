@@ -1,4 +1,4 @@
-import { TYPES, composeMail, detectSystem, parseNotes, pickAssets } from './updates.js'
+import { TYPES, composeMail, detectSystem, parseNotes, pickAssets } from './updates.js?v=1c40ea1812'
 
 const REPO = 'abhibizz158/dota-improviser'
 const EMAIL = 'abhishekbizz.156@gmail.com'
@@ -58,9 +58,34 @@ if (!calm && 'IntersectionObserver' in window) {
   }
 }
 
+// ---- hero pictures: they take turns at the front, slowly ----
+const slides = $$('.slide'), dots = $$('.dots button')
+if (slides.length) {
+  let at = 0, held = false
+  const show = (n) => {
+    at = (n + slides.length) % slides.length
+    slides.forEach((slide, i) => {
+      const step_ = (i - at + slides.length) % slides.length
+      slide.dataset.pos = step_ === 0 ? 'center' : step_ === 1 ? 'right' : step_ === slides.length - 1 ? 'left' : 'back'
+      $('button', slide).tabIndex = step_ === 0 ? 0 : -1
+    })
+    dots.forEach((d, i) => d.setAttribute('aria-pressed', String(i === at)))
+  }
+  // Capture phase: decide before the zoom handler sees the click.
+  slides.forEach((slide, i) => slide.addEventListener('click', (e) => { if (slide.dataset.pos !== 'center') { e.stopPropagation(); show(i) } }, true))
+  const stage = $('.stage')
+  stage.addEventListener('pointerenter', () => { held = true }); stage.addEventListener('pointerleave', () => { held = false })
+  let timer = 0
+  const play = () => { clearInterval(timer); if (!calm) timer = setInterval(() => { if (!held && !document.hidden && !$('#viewer').open && scrollY < stage.offsetTop + stage.offsetHeight) show(at + 1) }, 5500) }
+  dots.forEach((d, i) => d.addEventListener('click', () => { show(i); play() }))
+  play()
+}
+
 // ---- larger pictures ----
 const viewer = $('#viewer')
 for (const b of $$('.zoom')) b.addEventListener('click', () => {
+  const slide = b.closest('.slide')
+  if (slide && slide.dataset.pos !== 'center') return // a side picture comes to the front first (see below)
   const img = $('img', b), big = $('img', viewer)
   big.src = img.getAttribute('src'); big.alt = img.alt
   big.classList.toggle('wide', Number(img.getAttribute('width')) > Number(img.getAttribute('height')) * 1.2)
