@@ -28,6 +28,7 @@
   <nav id="nav" aria-label="Sections">
     <a href="#features">What it does</a>
     <a href="#try">Try it</a>
+    <a href="#safety">Safety</a>
     <a href="#install">How to install</a>
     <a href="#updates">What’s new</a>
     <a href="#help">Questions</a>
@@ -63,7 +64,7 @@
   </div>
 
   <figure class="window wide">
-    <button class="zoom" type="button"><img src="images/home.jpg" alt="The home screen: your most played hero, your win rate and what to work on next" width="1600" height="961"></button>
+    <button class="zoom" type="button"><img src="images/home.jpg" srcset="images/small/home.jpg 800w, images/home.jpg 1600w" sizes="(max-width: 820px) 100vw, 1120px" alt="The home screen: your most played hero, your win rate and what to work on next" width="1600" height="961"></button>
   </figure>
 </section>
 
@@ -82,7 +83,7 @@
         <li>Tells you what your team is still missing</li>
       </ul>
     </div>
-    <figure class="window"><button class="zoom" type="button"><img src="images/draft-builds.jpg" alt="Hero suggestions during picks" width="1600" height="961" loading="lazy"></button></figure>
+    <figure class="window"><button class="zoom" type="button"><img src="images/draft-builds.jpg" srcset="images/small/draft-builds.jpg 800w, images/draft-builds.jpg 1600w" sizes="(max-width: 820px) 100vw, 1120px" alt="Hero suggestions during picks" width="1600" height="961" loading="lazy"></button></figure>
   </article>
 
   <article class="step flip">
@@ -110,7 +111,7 @@
         <li>Whether your key items came early or late</li>
       </ul>
     </div>
-    <figure class="window"><button class="zoom" type="button"><img src="images/review-story.jpg" alt="Match review with three takeaways and a map" width="1600" height="961" loading="lazy"></button></figure>
+    <figure class="window"><button class="zoom" type="button"><img src="images/review-story.jpg" srcset="images/small/review-story.jpg 800w, images/review-story.jpg 1600w" sizes="(max-width: 820px) 100vw, 1120px" alt="Match review with three takeaways and a map" width="1600" height="961" loading="lazy"></button></figure>
   </article>
 </section>
 
@@ -125,15 +126,15 @@
   </div>
   <div role="tabpanel" id="p-board" aria-labelledby="t-board">
     <p>Place heroes and wards, draw arrows, and step through your plan like moves in chess.</p>
-    <figure class="window wide"><button class="zoom" type="button"><img src="images/strategize.jpg" alt="The planning board with heroes placed on the map" width="1600" height="961" loading="lazy"></button></figure>
+    <figure class="window wide"><button class="zoom" type="button"><img src="images/strategize.jpg" srcset="images/small/strategize.jpg 800w, images/strategize.jpg 1600w" sizes="(max-width: 820px) 100vw, 1120px" alt="The planning board with heroes placed on the map" width="1600" height="961" loading="lazy"></button></figure>
   </div>
   <div role="tabpanel" id="p-match" aria-labelledby="t-match" hidden>
     <p>Replay a finished match from its record: fights, wards and towers, in order. No download needed.</p>
-    <figure class="window wide"><button class="zoom" type="button"><img src="images/strategize-match.jpg" alt="A past match replayed on the map" width="1600" height="961" loading="lazy"></button></figure>
+    <figure class="window wide"><button class="zoom" type="button"><img src="images/strategize-match.jpg" srcset="images/small/strategize-match.jpg 800w, images/strategize-match.jpg 1600w" sizes="(max-width: 820px) 100vw, 1120px" alt="A past match replayed on the map" width="1600" height="961" loading="lazy"></button></figure>
   </div>
   <div role="tabpanel" id="p-video" aria-labelledby="t-video" hidden>
     <p>Load the real replay and watch all ten heroes move, with what each team could see.</p>
-    <figure class="window wide"><button class="zoom" type="button"><img src="images/strategize-video.jpg" alt="A replay playing with team vision" width="1600" height="961" loading="lazy"></button></figure>
+    <figure class="window wide"><button class="zoom" type="button"><img src="images/strategize-video.jpg" srcset="images/small/strategize-video.jpg 800w, images/strategize-video.jpg 1600w" sizes="(max-width: 820px) 100vw, 1120px" alt="A replay playing with team vision" width="1600" height="961" loading="lazy"></button></figure>
   </div>
 </section>
 
@@ -147,12 +148,12 @@
       <p>Teammates typing in another language? Press one shortcut to read it, and reply in yours.</p>
     </article>
     <article class="card">
-      <button class="zoom shot" type="button"><img src="images/heroes.jpg" alt="The hero library" width="1600" height="961" loading="lazy"></button>
+      <button class="zoom shot" type="button"><img src="images/heroes.jpg" srcset="images/small/heroes.jpg 800w, images/heroes.jpg 1600w" sizes="(max-width: 700px) 100vw, 400px" alt="The hero library" width="1600" height="961" loading="lazy"></button>
       <h3>Hero guide</h3>
       <p>Every hero: what they do, how they play, who beats them, and your own record.</p>
     </article>
     <article class="card">
-      <button class="zoom shot" type="button"><img src="images/achievements.jpg" alt="Achievements earned from your games" width="1600" height="961" loading="lazy"></button>
+      <button class="zoom shot" type="button"><img src="images/achievements.jpg" srcset="images/small/achievements.jpg 800w, images/achievements.jpg 1600w" sizes="(max-width: 700px) 100vw, 400px" alt="Achievements earned from your games" width="1600" height="961" loading="lazy"></button>
       <h3>Achievements</h3>
       <p>Win streaks, big plays and personal milestones, collected from your own games.</p>
     </article>
@@ -174,17 +175,42 @@
   </div>
 </section>
 
-<section class="fair">
-  <p class="eyebrow">Fair play</p>
-  <h2>It only knows what you can already see</h2>
+<section class="fair" id="safety">
+  <p class="eyebrow">Safety and fair play</p>
+  <h2>Your computer, your data</h2>
+  <p class="lead">A plain list of what the app does and does not do with your computer and your information.</p>
+
+  <div class="cards">
+    <article class="card promise"><h3>Stays on your computer</h3><p>Your match history and settings are saved on your own computer. The developer runs no server and receives none of it.</p></article>
+    <article class="card promise"><h3>No password needed</h3><p>The app never asks for your Steam password or any payment details.</p></article>
+    <article class="card promise"><h3>No ads or tracking</h3><p>No adverts, no analytics, no selling of data, and no extra programs bundled in the installer.</p></article>
+  </div>
+
+  <details class="shared">
+    <summary>What leaves your computer, and when</summary>
+    <ul>
+      <li><b>Always:</b> the app downloads public game statistics and updates from OpenDota, Valve and GitHub.</li>
+      <li><b>If you link your Steam account:</b> your account number is sent to OpenDota to look up your public matches.</li>
+      <li><b>If you use the AI helper or chat translation:</b> your question, game details or chat lines go to your own Puter account when you ask. A screenshot of your death screen is sent only if you switch that option on and press the button.</li>
+      <li><b>If you open a team room:</b> the plan, your cursor, Steam name, picture and account number are shared with the people who join. Connection services (PeerJS and Google) help the computers find each other, and a room member can see your local network address.</li>
+    </ul>
+  </details>
+
+  <div class="virus">
+    <h3>About viruses and security warnings</h3>
+    <p>We add no harmful or hidden software. Installers are built automatically on GitHub, and each release lists a checksum so you can confirm your file was not changed.</p>
+    <p>They are <b>not signed with a paid certificate</b> and have not been certified by an outside security company, so Windows and macOS show a warning. If you are unsure, scan the file with your antivirus or at <a href="https://www.virustotal.com/" rel="noopener">virustotal.com</a> before opening it. Never switch your antivirus off to install it: <a href="#contact">tell us</a> instead.</p>
+  </div>
+
+  <h3 class="sub">Fair play: it only knows what you can already see</h3>
   <div class="cards two">
     <article class="card yes">
       <h3>What it uses</h3>
       <ul>
-        <li>Information Dota itself shares about your own hero, once you switch that on</li>
+        <li>Information Dota itself shares about your own game, once you switch that on</li>
         <li>Public statistics anyone can look up</li>
-        <li>What you type in</li>
-        <li>Optional and off by default: reading hero pictures on your screen during hero picks only</li>
+        <li>What you type in, and a few game files already on your computer</li>
+        <li>Optional and off by default: reading hero pictures on your screen during hero picks, and one screenshot when your hero dies</li>
       </ul>
     </article>
     <article class="card no">
@@ -197,7 +223,7 @@
       </ul>
     </article>
   </div>
-  <p class="fine"><a href="https://github.com/abhibizz158/dota-improviser/blob/main/docs/privacy-and-safety.md">Read the full privacy and fair-play notes</a></p>
+  <p class="fine"><a href="https://github.com/abhibizz158/dota-improviser/blob/main/docs/privacy-and-safety.md">Read the full technical privacy notes</a></p>
 </section>
 
 <section class="install" id="install">
@@ -209,22 +235,49 @@
   </div>
 
   <div role="tabpanel" id="p-windows" aria-labelledby="t-windows">
-    <ol class="how">
-      <li><h3>Download</h3><p><a data-download="windows" href="https://github.com/abhibizz158/dota-improviser/releases/latest">Download the Windows installer</a>. <span id="browser-tip">If your browser asks whether to keep the file, choose to keep it.</span></p></li>
-      <li><h3>Open it</h3><p>If a blue box says “Windows protected your PC”, click <b>More info</b>, then <b>Run anyway</b>.</p></li>
-      <li><h3>Follow the setup</h3><p>Open the app. It walks you through connecting Dota. Every step can be skipped.</p></li>
-    </ol>
-    <p class="why"><b>Why the warning?</b> This free app does not have a paid publisher certificate, so Windows cannot name who made it. Only download it from this page or the official GitHub releases.</p>
-    <p class="tip">For the in-game panel to show, set Dota’s display mode to <b>Borderless Window</b>.</p>
+    <div class="guide">
+      <ol class="how">
+        <li><h3>Download</h3><p><a data-download="windows" href="https://github.com/abhibizz158/dota-improviser/releases/latest">Download the Windows installer</a>. <span data-browser-tip>If your browser asks whether to keep the file, choose to keep it.</span></p></li>
+        <li><h3>Open the file</h3><p>If a blue box says “Windows protected your PC”, click <b>More info</b>, then <b>Run anyway</b>.</p></li>
+        <li><h3>Install</h3><p>Keep or change the folder, then finish. It installs for your own user account, so no administrator password is needed.</p></li>
+        <li><h3>Open the app</h3><p>A short setup guide appears. Every step can be skipped and reopened later from Settings.</p></li>
+      </ol>
+      <h3 class="sub">Permissions on Windows</h3>
+      <ul class="perms">
+        <li><b>Nothing special to allow.</b> The app works with normal user permissions.</li>
+        <li><b>Dota display mode:</b> in Dota’s video settings choose <b>Borderless Window</b>, so the in-game panel can appear on top.</li>
+        <li><b>If Windows Firewall asks</b> while you use a team room, allow it on private networks.</li>
+      </ul>
+      <p class="why"><b>Why the warning?</b> This free app does not have a paid publisher certificate, so Windows cannot name who made it. Only download it from this page or the official GitHub releases.</p>
+    </div>
   </div>
 
   <div role="tabpanel" id="p-mac" aria-labelledby="t-mac" hidden>
+    <div class="guide">
+      <ol class="how">
+        <li><h3>Check your Mac</h3><p>Apple menu, then <b>About This Mac</b>. The chip should say Apple M1 or newer, on macOS 13 or later.</p></li>
+        <li><h3>Download and open</h3><p><a data-download="mac" href="https://github.com/abhibizz158/dota-improviser/releases/latest">Download the Mac installer</a>, then double-click it. If your Mac says it cannot check it, click <b>Done</b>. Do not move it to the Bin.</p></li>
+        <li><h3>Allow the installer</h3><p>Open <b>System Settings</b>, then <b>Privacy &amp; Security</b>. Scroll down and click <b>Open Anyway</b>.</p></li>
+        <li><h3>Install and open</h3><p>Follow the installer and enter your Mac password when asked. Then open Dota Improviser from <b>Applications</b>.</p></li>
+      </ol>
+      <h3 class="sub">What your Mac may ask you to allow</h3>
+      <ul class="perms">
+        <li><b>Documents folder</b> <span class="tag need">Needed</span><br>If asked, click <b>Allow</b>. The app keeps its own data in a folder there.</li>
+        <li><b>Screen &amp; System Audio Recording</b> <span class="tag">Only for two optional features</span><br>Reading hero pictures during picks, and the death screenshot. If you switch one on: open <b>System Settings → Privacy &amp; Security → Screen &amp; System Audio Recording</b>, turn on <b>Dota Improviser</b>, then quit and reopen the app. Everything else works without it. The app records no sound.</li>
+        <li><b>After an app update</b> <span class="tag">If you use those features</span><br>Your Mac forgets the screen permission. Turn it on again in the same place and reopen the app.</li>
+        <li><b>Keychain</b> <span class="tag">Only for the AI helper</span><br>If asked after you sign in, click <b>Allow</b>. It keeps your sign-in safe on your Mac.</li>
+      </ul>
+      <p class="why"><b>Why the warning?</b> This free app has not been checked (“notarized”) by Apple. Only download it from this page or the official GitHub releases.</p>
+    </div>
+  </div>
+
+  <div class="connect">
+    <h3 class="sub">Last step on both: connect Dota</h3>
     <ol class="how">
-      <li><h3>Check your Mac</h3><p>Apple menu, then <b>About This Mac</b>. The chip should say Apple M1 or newer, on macOS 13 or later.</p></li>
-      <li><h3>Download and open</h3><p><a data-download="mac" href="https://github.com/abhibizz158/dota-improviser/releases/latest">Download the Mac installer</a> and double-click it.</p></li>
-      <li><h3>If your Mac blocks it</h3><p>Open <b>System Settings</b>, then <b>Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b>. Then follow the app’s setup.</p></li>
+      <li><h3>In the app</h3><p>In the setup guide, choose to connect the game feed. The app adds one small settings file to Dota.</p></li>
+      <li><h3>In Steam</h3><p>Right-click <b>Dota 2</b>, choose <b>Properties</b>, and paste <code>-gamestateintegration</code> into <b>Launch Options</b>.</p></li>
+      <li><h3>Restart Dota</h3><p>Start a practice match. The app shows <b>GSI live</b> when it is connected.</p></li>
     </ol>
-    <p class="why"><b>Why the warning?</b> This free app has not been checked (“notarized”) by Apple. Only download it from this page or the official GitHub releases.</p>
   </div>
 
   <details class="tech">
@@ -267,16 +320,47 @@
 </section>
 
 <section class="contact" id="contact">
-  <p class="eyebrow">Contact</p>
-  <h2>Get in touch</h2>
-  <p class="lead">Questions, problems, ideas or anything else.</p>
-  <p class="email"><a href="mailto:abhishekbizz.156@gmail.com">abhishekbizz.156@gmail.com</a></p>
-  <div class="contact-buttons">
-    <a class="btn gold" data-mail="question" href="mailto:abhishekbizz.156@gmail.com?subject=Dota%20Improviser%3A%20question"><span><b>Ask a question</b></span></a>
-    <a class="btn ghost" data-mail="problem" href="mailto:abhishekbizz.156@gmail.com?subject=Dota%20Improviser%3A%20problem"><span><b>Report a problem</b></span></a>
-    <button type="button" class="btn ghost" id="copy"><span><b>Copy email address</b></span></button>
+  <div class="contact-intro">
+    <p class="eyebrow">Contact us</p>
+    <h2>Get in touch</h2>
+    <p class="lead">Questions about the app, a problem you ran into, or an idea to make it better. Your message goes straight to the developer.</p>
+    <ul class="channels">
+      <li>
+        <h3>Email</h3>
+        <p><a href="mailto:abhishekbizz.156@gmail.com">abhishekbizz.156@gmail.com</a></p>
+        <button type="button" class="btn ghost small" id="copy">Copy address</button>
+      </li>
+      <li>
+        <h3>Bug tracker</h3>
+        <p>Follow a problem in public on <a href="https://github.com/abhibizz158/dota-improviser/issues">GitHub Issues</a>. Needs a free GitHub account.</p>
+      </li>
+      <li>
+        <h3>Security</h3>
+        <p>Found a security problem? Please <a href="https://github.com/abhibizz158/dota-improviser/blob/main/SECURITY.md">report it privately</a>.</p>
+      </li>
+    </ul>
   </div>
-  <p class="fine">Prefer GitHub? <a href="https://github.com/abhibizz158/dota-improviser/issues">Open an issue</a>. Security problems: <a href="https://github.com/abhibizz158/dota-improviser/blob/main/SECURITY.md">see how to report them privately</a>.</p>
+
+  <form class="contact-form" id="contact-form">
+    <h3>Send a message</h3>
+    <div class="row">
+      <label><em>Your name <span>(optional)</span></em><input name="name" autocomplete="name" maxlength="80"></label>
+      <label>Topic<select name="topic">
+        <option value="question">A question</option>
+        <option value="problem">A problem with the app</option>
+        <option value="idea">An idea or feedback</option>
+        <option value="business">Business or something else</option>
+      </select></label>
+    </div>
+    <label>Message<textarea name="message" rows="7" maxlength="1500" required placeholder="Tell us what you need help with."></textarea></label>
+    <p class="hint" id="problem-hint" hidden>Helpful to include: what you did, what you expected and what happened. Your computer and browser type are added for you.</p>
+    <div class="send">
+      <button class="btn gold" type="submit" value="app"><span><b>Send with my email app</b></span></button>
+      <button class="btn ghost" type="submit" value="gmail"><span><b>Send with Gmail</b></span></button>
+    </div>
+    <p class="status" id="form-status" role="status"></p>
+    <p class="privacy">This website does not send or store anything itself. A button opens your email with the message filled in, and you press send there.</p>
+  </form>
 </section>
 
 </main>
@@ -294,6 +378,15 @@
     <a href="mailto:abhishekbizz.156@gmail.com">Email</a>
   </nav>
 </footer>
+
+<dialog id="after" aria-labelledby="after-title">
+  <form method="dialog"><button class="btn ghost small">Close</button></form>
+  <p class="eyebrow">Your download is starting</p>
+  <h2 id="after-title">What to do next</h2>
+  <p>Look for the file in your Downloads folder, then follow these steps.</p>
+  <div id="after-steps"></div>
+  <p class="fine"><a href="#install" data-close>Show this guide on the page</a> · <a href="#safety" data-close>Is it safe?</a> · <a href="#contact" data-close>Get help</a></p>
+</dialog>
 
 <dialog id="viewer" aria-label="Larger picture">
   <form method="dialog"><button class="btn ghost small">Close</button></form>

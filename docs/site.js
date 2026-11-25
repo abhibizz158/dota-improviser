@@ -1,4 +1,4 @@
-import { TYPES, detectSystem, parseNotes, pickAssets } from './updates.js'
+import { TYPES, composeMail, detectSystem, parseNotes, pickAssets } from './updates.js'
 
 const REPO = 'abhibizz158/dota-improviser'
 const EMAIL = 'abhishekbizz.156@gmail.com'
@@ -34,9 +34,24 @@ const viewer = $('#viewer')
 for (const b of $$('.zoom')) b.addEventListener('click', () => {
   const img = $('img', b), big = $('img', viewer)
   big.src = img.src; big.alt = img.alt
+  big.classList.toggle('wide', Number(img.getAttribute('width')) > Number(img.getAttribute('height')) * 1.2)
   viewer.showModal(); viewer.scrollTop = 0
 })
 viewer.addEventListener('click', (e) => { if (e.target === viewer) viewer.close() })
+
+// ---- instructions that appear when a download starts ----
+const after = $('#after')
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('a[data-download]')
+  // Only a real installer link downloads in place; the fallback link leaves for GitHub.
+  if (!link || link.dataset.download === 'sums' || !/\.(exe|pkg)$/.test(link.href) || after.contains(link)) return
+  const kind = link.dataset.download
+  const steps = $('#p-' + kind + ' .guide').cloneNode(true)
+  $('#after-steps').replaceChildren(steps, $('.connect').cloneNode(true))
+  selectTab($('#t-' + kind))
+  after.showModal(); after.scrollTop = 0
+})
+after.addEventListener('click', (e) => { if (e.target === after || e.target.closest('[data-close]')) after.close() })
 
 // ---- the visitor's computer ----
 const system = detectSystem({ userAgent: navigator.userAgent, platform: navigator.userAgentData?.platform ?? navigator.platform, touchPoints: navigator.maxTouchPoints })
@@ -61,9 +76,7 @@ function showSystem() {
     }
   }
   const tips = { Chrome: 'If Chrome asks whether to keep the file, choose Keep.', Edge: 'If Edge holds the file back, open the ⋯ menu next to it and choose Keep.', Firefox: 'If Firefox asks, choose to allow the download.' }
-  if (tips[browser]) $('#browser-tip').textContent = tips[browser]
-  const body = ['', '', '---', 'My computer: ' + (names[os] || 'unknown'), 'My browser: ' + (browser || 'unknown'), 'App version (if installed): ']
-  $('[data-mail=problem]').href = 'mailto:' + EMAIL + '?subject=' + encodeURIComponent('Dota Improviser: problem') + '&body=' + encodeURIComponent(['What happened:', ...body].join('\n'))
+  if (tips[browser]) for (const n of $$('[data-browser-tip]')) n.textContent = tips[browser]
   // Only Chromium browsers can say which chip a Mac has.
   if (os === 'mac') navigator.userAgentData?.getHighEntropyValues(['architecture']).then((v) => {
     if (v.architecture !== 'x86') return
@@ -74,9 +87,22 @@ function showSystem() {
 showSystem()
 
 $('#copy').addEventListener('click', async (e) => {
-  const label = $('b', e.currentTarget)
-  try { await navigator.clipboard.writeText(EMAIL); label.textContent = 'Copied' } catch { label.textContent = 'Press and hold the address to copy' }
-  setTimeout(() => { label.textContent = 'Copy email address' }, 2500)
+  const button = e.currentTarget
+  try { await navigator.clipboard.writeText(EMAIL); button.textContent = 'Copied' } catch { button.textContent = 'Select the address to copy' }
+  setTimeout(() => { button.textContent = 'Copy address' }, 2500)
+})
+
+const form = $('#contact-form')
+form.topic.addEventListener('change', () => { $('#problem-hint').hidden = form.topic.value !== 'problem' })
+form.addEventListener('submit', (e) => {
+  e.preventDefault() // nothing is posted anywhere
+  if (!form.message.value.trim()) { form.message.value = ''; form.reportValidity(); return }
+  const system_ = 'My computer: ' + (names[system.os] || 'unknown') + '\nMy browser: ' + (system.browser || 'unknown') + '\nApp version (if installed): '
+  const mail = composeMail({ to: EMAIL, name: form.elements.name.value, topic: form.topic.value, message: form.message.value, system: system_ })
+  const gmail = e.submitter?.value === 'gmail'
+  if (gmail) window.open(mail.gmail, '_blank', 'noopener,noreferrer')
+  else location.href = mail.app
+  $('#form-status').textContent = gmail ? 'Gmail opened in a new tab. Press Send there.' : 'Your email app should open now. Press Send there. If nothing happens, use Gmail or copy the address.'
 })
 
 // ---- releases: newest from GitHub, with a copy saved beside the page if GitHub can't be reached ----

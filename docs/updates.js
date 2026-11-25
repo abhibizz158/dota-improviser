@@ -63,3 +63,16 @@ export const pickAssets = (release) => {
   const find = (re) => release?.assets?.find((a) => re.test(a.name)) ?? null
   return { windows: find(/windows.*setup\.exe$/i), mac: find(/macos.*\.pkg$/i), sums: find(/sha256sums/i) }
 }
+
+// The contact form only prepares an email; the visitor sends it from their own email.
+const TOPICS = { question: 'question', problem: 'problem', idea: 'idea', business: 'enquiry' }
+export function composeMail({ to, name = '', topic = 'question', message = '', system = '' }) {
+  const subject = 'Dota Improviser: ' + (TOPICS[topic] ?? 'message')
+  const body = [message.trim(), name.trim() && '\n' + name.trim(), topic === 'problem' && system && '\n---\n' + system].filter(Boolean).join('\n')
+  const q = encodeURIComponent
+  return {
+    subject, body,
+    app: 'mailto:' + to + '?subject=' + q(subject) + '&body=' + q(body),
+    gmail: 'https://mail.google.com/mail/?view=cm&fs=1&to=' + q(to) + '&su=' + q(subject) + '&body=' + q(body),
+  }
+}
