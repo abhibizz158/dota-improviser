@@ -9,6 +9,7 @@
 - Platforms: Windows 10 or 11; macOS 13 or later on Apple silicon
 - Price: free, no ads, personal use only
 - Does not need Overwolf; never reads game memory or sends input to Dota
+- Self-learning: adapts draft, item, lane and ward advice to your own matches, on your computer
 - Latest version: 3.5.1 (2026-11-25)
 
 ## Pages
@@ -17,6 +18,7 @@
 - [Dota 2 Match Review and Replay Analyzer | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-match-review): Review your Dota 2 matches free: three takeaways, a minute-by-minute map with wards and fights, item timings and replay playback.
 - [Free Dota 2 Overlay for Windows and Mac | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-overlay): A free Dota 2 overlay with item suggestions, rune and stack timers, your own live stats and a support view. Uses Dota’s Game State Integration. Windows and Mac.
 - [Dota 2 Ward Spots and Support Guide | Dota Improviser](https://dotaimproviser.pages.dev/dota-2-ward-guide): Free Dota 2 ward guide: ward spots on the map with real tree vision, a close-up of each spot and learning from your own replays.
+- [Self-learning Dota 2 coach: how Dota Improviser adapts](https://dotaimproviser.pages.dev/how-it-learns): How Dota Improviser learns from your own Dota 2 matches: heroes, items, lineups, lane habits and wards. Kept on your computer, starting from your first games.
 - [Dota Improviser: Free Dota 2 Overlay, Draft Helper and Match Review](https://dotaimproviser.pages.dev/): Free Dota 2 companion app for Windows and Mac: draft suggestions, live in-game overlay, match review, replay playback and a team strategy board. No ads.
 - [Install Dota Improviser on Windows or Mac: step-by-step guide](https://dotaimproviser.pages.dev/install): Picture guide to install Dota Improviser: the Windows SmartScreen warning, macOS Open Anyway, permissions and connecting Dota 2.
 - [Dota Improviser privacy policy](https://dotaimproviser.pages.dev/privacy): What the Dota Improviser website and contact email collect: no cookies, no accounts, only an anonymous count of download clicks.

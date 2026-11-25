@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://store.steamstatic.com https://cdn.cloudflare.steamstatic.com; font-src 'self'; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Self-learning Dota 2 coach: how Dota Improviser adapts</title>
+  <meta name="description" content="How Dota Improviser learns from your own Dota 2 matches: heroes, items, lineups, lane habits and wards. Kept on your computer, starting from your first games.">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1, noai, noimageai">
+  <meta name="tdm-reservation" content="1">
+  <meta name="tdm-policy" content="https://dotaimproviser.pages.dev/terms">
+  <meta name="copyright" content="© 2026 abhibizz158. All rights reserved.">
+  <meta name="theme-color" content="#0a0a0b">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Dota Improviser">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:title" content="Self-learning Dota 2 coach: how Dota Improviser adapts">
+  <meta property="og:description" content="How Dota Improviser learns from your own Dota 2 matches: heroes, items, lineups, lane habits and wards. Kept on your computer, starting from your first games.">
+  <meta property="og:url" content="https://dotaimproviser.pages.dev/how-it-learns">
+  <meta property="og:image" content="https://dotaimproviser.pages.dev/og.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://dotaimproviser.pages.dev/how-it-learns">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="alternate" type="application/atom+xml" title="Dota Improviser releases" href="https://github.com/abhibizz158/dota-improviser/releases.atom">
+  <link rel="preload" href="fonts/cinzel-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="site.css?v=8de1a0d3e1">
+  <script type="module" src="site.js?v=8de1a0d3e1"></script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Does Dota Improviser learn from my games?","acceptedAnswer":{"@type":"Answer","text":"Yes. It builds a profile from your own matches and uses it for draft suggestions, item suggestions, tips and ward spots."}},{"@type":"Question","name":"Is my learning shared with other players?","acceptedAnswer":{"@type":"Answer","text":"No. It stays on your computer and is never mixed with anyone else’s."}},{"@type":"Question","name":"Is it a large AI model?","acceptedAnswer":{"@type":"Answer","text":"No. The learning is simple statistics that run on your computer. The optional AI assistant is separate and uses your own Puter account."}},{"@type":"Question","name":"Why is nothing being learned?","acceptedAnswer":{"@type":"Answer","text":"There are no matches to learn from yet. Check both public data settings, or turn on local saving, then refresh your history."}},{"@type":"Question","name":"Does it learn about Dota patches?","acceptedAnswer":{"@type":"Answer","text":"It refreshes hero and item data after a patch and gives older matches less weight."}},{"@type":"Question","name":"Can I erase it?","acceptedAnswer":{"@type":"Answer","text":"Yes. Clear local data in the app’s settings removes your account, saved matches and preferences."}}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://dotaimproviser.pages.dev/"},{"@type":"ListItem","position":2,"name":"Self-learning Dota 2 coach","item":"https://dotaimproviser.pages.dev/how-it-learns"}]}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="index.html"><img src="icon.png" alt="" width="32" height="32"><span>Dota Improviser</span></a>
+  <button class="menu" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
+  <nav id="nav" aria-label="Pages"><a href="index.html">Home</a><a href="install.html">Install</a><a href="safety.html">Safety</a><a href="updates.html">Updates</a><a href="support.html">Support</a></nav>
+  <a class="btn play small" href="index.html#download">Play it free</a>
+</header>
+<main id="main">
+<section class="page-head"><p class="eyebrow">Self-learning</p><h1>It learns how you play</h1><p class="lead">The more you play, the more the advice is about you. It starts with your first matches and the learning happens on your own computer.</p></section>
+<section class="reveal">
+  <h2>What it learns</h2>
+  <div class="cards three">
+    <article class="card"><h3>Your heroes</h3><p>Which heroes and lanes you do well on. This counts in draft suggestions from the first game.</p></article>
+    <article class="card"><h3>Your items</h3><p>Which items went with your wins and losses on a hero. After 3 games with purchase records it also shows your usual build.</p></article>
+    <article class="card"><h3>Lineups like this</h3><p>Once 3 of your past games had similar enemies, it shows how you did against them.</p></article>
+    <article class="card"><h3>Your lane habits</h3><p>Lose the lane early in half your recent reviewed games on a hero (3 or more), and its lane tips start there. Late first items work the same way.</p></article>
+    <article class="card"><h3>Your wards</h3><p>From saved replays: where your wards lasted, where they were found and where enemies place theirs.</p></article>
+    <article class="card"><h3>Chat phrases</h3><p>Short translations and your corrections are remembered, so repeats need no AI.</p></article>
+  </div>
+</section>
+<section class="reveal">
+  <h2>How it stays sensible</h2>
+  <div class="cards three">
+    <article class="card"><h3>Little data, little change</h3><p>One or two games only nudge the advice. Around 10 to 15 move it properly.</p></article>
+    <article class="card"><h3>Newer counts more</h3><p>A match counts half after about four months. Old patches count less, most of all for heroes that were reworked.</p></article>
+    <article class="card"><h3>Modes kept apart</h3><p>Turbo numbers never inflate your ranked averages, and Ability Draft does not teach hero comfort.</p></article>
+  </div>
+</section>
+<section class="reveal">
+  <h2>Switch it on</h2>
+  <ol class="flowlist facts">
+    <li><b>1. Link Steam</b><span>Add your Dota account in the app’s setup guide.</span></li>
+    <li><b>2. Share matches</b><span>In Dota 2 turn on “Expose Public Match Data”, and set your Steam profile’s game details to public. Prefer not to? Turn on “Save my completed match stats locally” in Live Coach: with the game feed connected it keeps up to 20 of your own scoreboards, from then on.</span></li>
+    <li><b>3. Open reviews</b><span>Open finished matches in Match Review. Item, lane and ward learning needs matches OpenDota has parsed.</span></li>
+    <li><b>4. Keep playing</b><span>Nothing to train by hand. Your profile is rebuilt from what is saved.</span></li>
+  </ol>
+</section>
+<section class="help reveal">
+  <h2>Questions</h2>
+  <div class="faq">
+    <details><summary>Does Dota Improviser learn from my games?</summary><p>Yes. It builds a profile from your own matches and uses it for draft suggestions, item suggestions, tips and ward spots.</p></details>
+    <details><summary>Is my learning shared with other players?</summary><p>No. It stays on your computer and is never mixed with anyone else’s.</p></details>
+    <details><summary>Is it a large AI model?</summary><p>No. The learning is simple statistics that run on your computer. The optional AI assistant is separate and uses your own Puter account.</p></details>
+    <details><summary>Why is nothing being learned?</summary><p>There are no matches to learn from yet. Check both public data settings, or turn on local saving, then refresh your history.</p></details>
+    <details><summary>Does it learn about Dota patches?</summary><p>It refreshes hero and item data after a patch and gives older matches less weight.</p></details>
+    <details><summary>Can I erase it?</summary><p>Yes. Clear local data in the app’s settings removes your account, saved matches and preferences.</p></details>
+  </div>
+  <div class="try-links"><a class="btn play" href="index.html#download"><span><b>Download free</b></span></a><a class="btn ghost" href="safety.html"><span><b>Safety and privacy</b></span></a></div>
+</section>
+
+</main>
+<footer>
+  <nav class="footer-guides" aria-label="Dota 2 guides"><a href="dota-2-overlay.html">Dota 2 overlay</a><a href="dota-2-draft-helper.html">Dota 2 draft helper</a><a href="dota-2-match-review.html">Dota 2 match review</a><a href="dota-2-ward-guide.html">Dota 2 ward guide</a><a href="how-it-learns.html">Self-learning coach</a></nav>
+  <a class="steam-link" href="https://store.steampowered.com/app/570/Dota_2/"><img class="steam-logo" src="https://store.steamstatic.com/public/shared/images/header/logo_steam.svg" alt="Steam" width="102" height="30"><span>Dota 2 on Steam</span></a>
+  <nav aria-label="Pages and links"><a href="index.html">Home</a><a href="about.html">About Dota Improviser</a><a href="install.html">Install</a><a href="safety.html">Safety</a><a href="updates.html">Updates</a><a href="support.html">Support</a><a href="https://github.com/abhibizz158/dota-improviser">GitHub</a><a href="terms.html">Terms of use</a><a href="privacy.html">Privacy</a><a href="https://github.com/abhibizz158/dota-improviser/blob/main/licenses/README.md">Credits</a></nav>
+  <div>
+    <p>A fan-made project. Not affiliated with or endorsed by Valve Corporation. Dota 2, Steam, their logos and artwork are trademarks and property of Valve Corporation.</p>
+    <p>© 2026 abhibizz158. All rights reserved. Personal, non-commercial use only: no copying, reverse engineering or AI extraction.</p>
+    <p>No cookies or visitor tracking; download clicks are only tallied. Your browser asks GitHub for the latest release.</p>
+  </div>
+</footer>
+<dialog id="after" aria-labelledby="after-title">
+  <form method="dialog"><button class="btn ghost small">Close</button></form>
+  <p class="eyebrow">Your download is starting</p>
+  <h2 id="after-title">What to do next</h2>
+  <div id="after-steps"><p><a href="install.html">Open the install guide</a></p></div>
+  <p class="fine"><a href="install.html">Full guide</a> · <a href="safety.html">Is it safe?</a> · <a href="support.html#contact">Get help</a></p>
+</dialog>
+<dialog id="viewer" aria-label="Larger picture">
+  <form method="dialog"><button class="btn ghost small">Close</button></form>
+  <img src="icon.png" alt="">
+</dialog>
+</body>
+</html>

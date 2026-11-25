@@ -73,7 +73,9 @@ section + section::after { content: ''; position: absolute; top: -3px; left: 50%
 .hero h1 { margin-bottom: 10px; }
 .hero .lead { margin-bottom: 22px; }
 .hero h1 small { display: block; margin-top: 10px; font-size: .46em; letter-spacing: .08em; }
-.what .lead { max-width: 62ch; margin-left: auto; margin-right: auto; }.get { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.what .lead { max-width: 62ch; margin-left: auto; margin-right: auto; }
+.learn .try-links, .what .try-links { margin-top: 22px; }
+.get { display: flex; flex-direction: column; align-items: center; width: 100%; }
 .get-buttons, .try-links, .send { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 .get-buttons .btn { min-width: 230px; justify-content: flex-start; }
 .note { max-width: 62ch; font-size: 14px; margin: 14px auto 0; padding: 10px 16px; border: 1px solid var(--line2); border-radius: 3px; background: rgba(214, 178, 110, .08); color: var(--head); }
