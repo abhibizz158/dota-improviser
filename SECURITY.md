@@ -1,5 +1,7 @@
 # Security policy
 
+Official website: [dotaimproviser.pages.dev](https://dotaimproviser.pages.dev/). Download only from there or from this repository's Releases page.
+
 ## Reporting a vulnerability
 
 Please report security issues privately, not in a public issue:

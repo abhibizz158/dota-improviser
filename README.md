@@ -5,8 +5,18 @@
 <p align="center"><strong>A free desktop companion for Dota 2 — draft help, a live overlay, match review, and achievements, built around your own games.</strong></p>
 
 <p align="center">
-  <strong><a href="https://dotaimproviser.pages.dev/">Website and browser demo</a> · <a href="https://github.com/abhibizz158/dota-improviser/releases/latest">⬇ Download the latest release</a></strong><br>
+  <strong>🌐 Official website: <a href="https://dotaimproviser.pages.dev/">dotaimproviser.pages.dev</a></strong><br>
+  <strong><a href="https://dotaimproviser.pages.dev/demo/">Try it in your browser</a> · <a href="https://github.com/abhibizz158/dota-improviser/releases/latest">⬇ Download the latest release</a></strong><br>
   <sub>macOS (Apple Silicon) and Windows (x64) — free, no account required to try it</sub>
+</p>
+
+<p align="center">
+  <a href="https://dotaimproviser.pages.dev/install">Install guide</a> ·
+  <a href="https://dotaimproviser.pages.dev/safety">Safety and fair play</a> ·
+  <a href="https://dotaimproviser.pages.dev/updates">What's new</a> ·
+  <a href="https://dotaimproviser.pages.dev/support">Help and contact</a> ·
+  <a href="https://dotaimproviser.pages.dev/terms">Terms</a> ·
+  <a href="https://dotaimproviser.pages.dev/privacy">Privacy</a>
 </p>
 
 ---
@@ -91,6 +101,8 @@ More detail, if you want it: [Privacy and fair-play notes](docs/privacy-and-safe
 
 ## Install
 
+Pictures for each step, including the security warnings: [install guide on the website](https://dotaimproviser.pages.dev/install).
+
 1. **[Download the latest release](https://github.com/abhibizz158/dota-improviser/releases/latest)** — pick the macOS `.pkg` or Windows `.exe`.
 2. **macOS:** open the `.pkg` and install. **Windows:** run the installer and choose where to install it (updates reuse that folder; run the installer again and pick another folder to move the app).
 3. Open it. A short first-run setup walks you through linking your account, connecting the game feed (with a one-click copy of the launch option), your usual role, and the permissions your OS needs. Every step is optional, and you can reopen it from Settings → Setup guide.
@@ -103,11 +115,13 @@ The app checks for updates itself and installs them quietly in the background on
 
 ## Contact
 
+Website: [dotaimproviser.pages.dev](https://dotaimproviser.pages.dev/) ([help and contact form](https://dotaimproviser.pages.dev/support)).
+
 Questions, problems or ideas: [abhishekbizz.156@gmail.com](mailto:abhishekbizz.156@gmail.com) or [open an issue](https://github.com/abhibizz158/dota-improviser/issues). Security problems: see [SECURITY.md](SECURITY.md).
 
 ## License
 
-Copyright © 2026 abhibizz158. All rights reserved. This is **not** open source. The [Dota Improviser Personal Use License](LICENSE) lets you use official releases and the website for your own, non-commercial use. Without written permission:
+Copyright © 2026 abhibizz158. All rights reserved. This is **not** open source. The [Dota Improviser Personal Use License](LICENSE) lets you use official releases and the [website](https://dotaimproviser.pages.dev/) for your own, non-commercial use ([summary](https://dotaimproviser.pages.dev/terms)). Without written permission:
 
 - **No copying or redistribution**: no mirrors, re-uploads, repackaged or modified builds. Share the official link instead.
 - **No commercial use**: no selling, paid services, paid coaching or analytics, ads or bundling.
